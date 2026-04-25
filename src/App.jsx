@@ -6,7 +6,7 @@ import Home from "./pages/Home";
 import Tools from "./pages/Tools";
 import SearchResults from "./pages/SearchResults";
 import Blog from "./pages/Blog";
-import BlogSingle from "./pages/BlogSingle"; // Individual blog post page
+import BlogSingle from "./pages/BlogSingle";  // Individual blog post page
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -36,11 +36,8 @@ export default function App() {
         
         {/* Blog Pages */}
         <Route path="/blog" element={<Blog />} />
-        <Route path="/blog/:slug" element={<BlogSingle />} />
-        <Route path="/blog/HowToConvertWebpToJpg" element={<HowToConvertWebpToJpg />} />
-        <Route path="/blog/BestFreeOnlineTools" element={<BestFreeOnlineTools />} />
-        <Route path="/blog/WhyImageCompressionIsImportant" element={<WhyImageCompressionIsImportant />} />
-
+        <Route path="/blog/:slug" element={<BlogSingle />} />  {/* Dynamic blog route */}
+        
         {/* Other Pages */}
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
