@@ -5,8 +5,8 @@ import MainLayout from "./MainLayout";
 import Home from "./pages/Home";
 import Tools from "./pages/Tools";
 import SearchResults from "./pages/SearchResults";
-import Blog from "./pages/Blog";
-import BlogSingle from "./pages/BlogSingle";  // Individual blog post page
+import Blog from "./pages/Blog";  // Updated to Blog.js for blog listing
+import BlogSingle from "./pages/BlogSingle";  // Single blog page
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -20,11 +20,6 @@ import ImageCompressor from "./tools/ImageCompressor";
 import ImageResizer from "./tools/ImageResizer";
 import WebpToJpgConverter from "./tools/WebpToJpgConverter";
 
-// Dynamic blog imports
-import HowToConvertWebpToJpg from "./pages/blogs/HowToConvertWebpToJpg";  // Example blog component
-import BestFreeOnlineTools from "./pages/blogs/BestFreeOnlineTools";  // Another blog component
-import WhyImageCompressionIsImportant from "./pages/blogs/WhyImageCompressionIsImportant";  // Another blog component
-
 export default function App() {
   return (
     <Routes>
@@ -33,11 +28,11 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/tools" element={<Tools />} />
         <Route path="/search" element={<SearchResults />} />
-        
+
         {/* Blog Pages */}
-        <Route path="/blog" element={<Blog />} />
-        <Route path="/blog/:slug" element={<BlogSingle />} />  {/* Dynamic blog route */}
-        
+        <Route path="/blog" element={<Blog />} />  {/* Blog listing page */}
+        <Route path="/blog/:slug" element={<BlogSingle />} />  {/* Individual blog page */}
+
         {/* Other Pages */}
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
