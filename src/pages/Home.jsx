@@ -168,60 +168,66 @@ export default function Home() {
       </section>
 
       {/* BENEFITS */}
-<section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ffffff] via-[#fbf8ff] to-[#f3ecff] border border-[var(--border)] p-6 sm:p-8 shadow-[0_18px_50px_rgba(155,108,227,0.14)]">
-  <div className="absolute -top-20 -right-20 w-64 h-64 bg-[var(--accent)]/20 rounded-full blur-3xl" />
-  <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-[var(--secondary)]/20 rounded-full blur-3xl" />
+<section className="relative overflow-hidden rounded-[28px] border border-[var(--border)] bg-gradient-to-br from-white via-[#faf7ff] to-[#f2eaff] p-6 sm:p-10">
+  <div className="absolute top-0 right-0 w-80 h-80 bg-[var(--primary)]/10 blur-3xl rounded-full" />
+  <div className="absolute bottom-0 left-0 w-80 h-80 bg-[var(--secondary)]/10 blur-3xl rounded-full" />
 
   <div className="relative">
-    <span className="badge mb-4 inline-block">Why ToolNest?</span>
+    <span className="badge mb-4 inline-block">Why Next Online Tools?</span>
 
-    <h2 className="text-2xl sm:text-3xl font-bold mb-3">
-      Built for Fast, Free & Simple Online Work
+    <h2 className="text-3xl sm:text-4xl font-bold leading-tight mb-4">
+      Free, Fast & User-Friendly Tools for Daily Digital Tasks
     </h2>
 
-    <p className="text-[var(--text-secondary)] max-w-2xl mb-7">
-      No confusing steps. No paid API. Just clean tools that help users finish
-      common online tasks quickly.
+    <p className="text-[var(--text-secondary)] leading-7 mb-8 max-w-3xl">
+      Next Online Tools helps you complete common online tasks quickly with
+      simple, clean, and easy-to-use tools. Whether you need to work with text,
+      images, colors, files, or productivity tasks, everything is designed to be
+      quick and beginner-friendly.
     </p>
 
     <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
       {[
         {
-          title: "Free to Use",
-          text: "Use helpful tools without payment or complex setup.",
-          number: "01",
+          icon: "Zap",
+          title: "Fast Solutions",
+          text: "Complete small online tasks quickly without complicated steps.",
         },
         {
-          title: "No Paid API",
-          text: "Browser-based and lightweight methods where possible.",
-          number: "02",
+          icon: "MousePointerClick",
+          title: "Easy to Use",
+          text: "Simple interface with clear actions for every user.",
         },
         {
-          title: "User Friendly",
-          text: "Clear layout, simple buttons, and beginner-friendly flow.",
-          number: "03",
+          icon: "Sparkles",
+          title: "Free Tools",
+          text: "Use helpful online tools freely for everyday digital work.",
         },
         {
-          title: "Fast Workflow",
-          text: "Complete text, image, color, and daily tasks quickly.",
-          number: "04",
+          icon: "Layers",
+          title: "Many Categories",
+          text: "Find tools for image, text, color, SEO, and productivity tasks.",
         },
-      ].map((item) => (
-        <div
-          key={item.title}
-          className="bg-white/80 backdrop-blur rounded-2xl p-5 border border-[var(--border)] shadow-sm hover:shadow-md hover:-translate-y-1"
-        >
-          <div className="w-11 h-11 rounded-2xl bg-[#f4edff] text-[var(--primary)] flex items-center justify-center font-bold mb-4">
-            {item.number}
+      ].map((item) => {
+        const Icon = Icons[item.icon] || Icons.Wrench;
+
+        return (
+          <div
+            key={item.title}
+            className="rounded-2xl bg-white border border-[var(--border)] p-6 hover:shadow-lg hover:-translate-y-1"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-[#f4edff] text-[var(--primary)] flex items-center justify-center mb-5">
+              <Icon size={26} strokeWidth={2.2} />
+            </div>
+
+            <h3 className="font-semibold text-lg mb-2">{item.title}</h3>
+
+            <p className="text-sm text-[var(--text-secondary)] leading-6">
+              {item.text}
+            </p>
           </div>
-
-          <h3 className="font-semibold mb-2">{item.title}</h3>
-
-          <p className="text-sm text-[var(--text-secondary)] leading-6">
-            {item.text}
-          </p>
-        </div>
-      ))}
+        );
+      })}
     </div>
   </div>
 </section>
