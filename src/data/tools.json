@@ -1,0 +1,56 @@
+[
+  {
+    "id": "image-compressor",
+    "name": "Image Compressor",
+    "category": "Image Tools",
+    "description": "Compress images quickly and reduce file size easily.",
+    "icon": "Image",
+    "trending": true,
+    "createdAt": "2025-11-01T12:00:00Z"
+  },
+  {
+    "id": "color-picker",
+    "name": "Color Picker",
+    "category": "Design Tools",
+    "description": "Pick and copy beautiful colors easily.",
+    "icon": "Palette",
+    "trending": false,
+    "createdAt": "2025-11-05T12:00:00Z"
+  },
+  {
+    "id": "case-converter",
+    "name": "Text Case Converter",
+    "category": "Text Tools",
+    "description": "Convert text to uppercase, lowercase, title case and more.",
+    "icon": "Type",
+    "trending": true,
+    "createdAt": "2025-11-03T12:00:00Z"
+  },
+  {
+    "id": "image-resizer",
+    "name": "Image Resizer",
+    "category": "Image Tools",
+    "description": "Resize images quickly and easily.",
+    "icon": "Crop",
+    "trending": false,
+    "createdAt": "2025-10-28T12:00:00Z"
+  },
+  {
+    "id": "color-preview",
+    "name": "Color Preview",
+    "category": "Design Tools",
+    "description": "Preview colors and copy HEX color codes quickly.",
+    "icon": "Droplets",
+    "trending": true,
+    "createdAt": "2025-11-07T12:00:00Z"
+  },
+  {
+    "id": "webp-to-jpg-converter",
+    "name": "WEBP to JPG Converter",
+    "category": "Image Tools",
+    "description": "Convert WEBP images to JPG format instantly in your browser.",
+    "icon": "ImagePlus",
+    "trending": true,
+    "createdAt": "2025-11-07T12:00:00Z"
+  }
+]
