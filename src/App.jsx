@@ -5,7 +5,7 @@ import MainLayout from "./MainLayout";
 import Home from "./pages/Home";
 import Tools from "./pages/Tools";
 import SearchResults from "./pages/SearchResults";
-import Blog from "./pages/Blog";  // Updated to Blog.js for blog listing
+import Blog from "./pages/Blog";  // Blog listing page
 import BlogSingle from "./pages/BlogSingle";  // Single blog page
 import About from "./pages/About";
 import Contact from "./pages/Contact";
@@ -30,8 +30,8 @@ export default function App() {
         <Route path="/search" element={<SearchResults />} />
 
         {/* Blog Pages */}
-        <Route path="/blog" element={<Blog />} />  {/* Blog listing page */}
-        <Route path="/blog/:slug" element={<BlogSingle />} />  {/* Individual blog page */}
+        <Route path="/blog" element={<Blog />} />
+        <Route path="/blog/:slug" element={<BlogSingle />} />  {/* Dynamic blog route */}
 
         {/* Other Pages */}
         <Route path="/about" element={<About />} />
