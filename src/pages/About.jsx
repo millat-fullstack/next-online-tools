@@ -8,38 +8,31 @@ export default function About() {
   const handleEmailChange = (e) => setEmail(e.target.value);
 
   const handleSubscribe = async (e) => {
-    e.preventDefault(); // Prevent default form submission
-    setIsSubmitting(true);
-    setStatus(""); // Reset status on each submission
+    e.preventDefault();
 
-    try {
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbyaXuuiyMngv1_6O2urBGmnc9R5V_KhGE5k-xgJowlG_g7rYAGp3ouZ31eYWzWR9UNi/exec",
-        {
-          method: "POST",
-          body: JSON.stringify({ email }),
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-
-      if (response.ok) {
-        setStatus("Subscription successful!"); // Show success message
-        setEmail(""); // Clear the email input
-      } else {
-        setStatus("There was an issue with your subscription.");
+    const response = await fetch(
+      "https://script.google.com/macros/s/AKfycbyaXuuiyMngv1_6O2urBGmnc9R5V_KhGE5k-xgJowlG_g7rYAGp3ouZ31eYWzWR9UNi/exec",
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
+        headers: { "Content-Type": "application/json" },
       }
-    } catch (error) {
-      setStatus("Error occurred while submitting the form.");
-    } finally {
-      setIsSubmitting(false); // Reset submitting state
+    );
+
+    if (response.ok) {
+      setStatus("Subscription successful!");
+      setEmail(""); // Clear the email input
+    } else {
+      setStatus("There was an issue with your subscription.");
     }
+    setIsSubmitting(false); // Reset the submitting state
   };
 
   return (
     <div className="max-w-4xl mx-auto p-6">
       {/* Introduction */}
       <section className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">About Next Online Tools</h1>
+        <h1 className="text-4xl font-bold mb-4 text-[var(--primary)]">About Next Online Tools</h1>
         <p className="text-[var(--text-secondary)] leading-8">
           Next Online Tools is your go-to website for free, fast, and easy-to-use online tools. We provide various tools that help you quickly complete daily tasks such as image editing, text conversion, color management, and more—all without any payments or complex setups.
         </p>
