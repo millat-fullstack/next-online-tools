@@ -14,7 +14,7 @@ export default function About() {
 
     try {
       const response = await fetch(
-        "YOUR_GOOGLE_SCRIPT_URL_HERE", // Replace with your Google Script Web App URL
+        "https://script.google.com/macros/s/AKfycbwy76nlfS_5s0C5yhCATqDSFYFBPFdOGn0I9etp3Ra78eBG8c6jKTUFKK1gfab6VraQ/exec", // Replace with your Google Script Web App URL
         {
           method: "POST",
           body: JSON.stringify({ email }),
