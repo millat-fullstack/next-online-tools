@@ -2,19 +2,19 @@ import { useState } from "react";
 
 export default function About() {
   const [email, setEmail] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState(""); // Track subscription status
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleEmailChange = (e) => setEmail(e.target.value);
 
   const handleSubscribe = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);  // Disable button when submitting
-    setStatus(""); // Reset status message
+    setIsSubmitting(true);
+    setStatus(""); // Reset status
 
     try {
       const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbyaXuuiyMngv1_6O2urBGmnc9R5V_KhGE5k-xgJowlG_g7rYAGp3ouZ31eYWzWR9UNi/exec",
+        "YOUR_GOOGLE_SCRIPT_URL_HERE", // Replace with your Google Script Web App URL
         {
           method: "POST",
           body: JSON.stringify({ email }),
@@ -23,15 +23,15 @@ export default function About() {
       );
 
       if (response.ok) {
-        setStatus("✅ Thank you for subscribing!");  // Success message
-        setEmail("");  // Reset email input
+        setStatus("✅ Thank you for subscribing!"); // Success message
+        setEmail(""); // Reset email field
       } else {
         setStatus("❌ Something went wrong. Try again!");
       }
     } catch (error) {
       setStatus("❌ Error occurred while submitting the form.");
     } finally {
-      setIsSubmitting(false); // Reset submitting state
+      setIsSubmitting(false); // Reset submit state
     }
   };
 
@@ -49,28 +49,28 @@ export default function About() {
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-6">Our Website Policy</h2>
         <div className="grid sm:grid-cols-2 gap-4">
-          <div className="card p-6 border border-[var(--border)] rounded-2xl hover:shadow-xl transition-shadow">
+          <div className="card p-6">
             <h3 className="font-semibold text-lg">No Paid Tools</h3>
             <p className="text-[var(--text-secondary)]">
               We focus on tools that can be used freely by visitors without any hidden costs.
             </p>
           </div>
 
-          <div className="card p-6 border border-[var(--border)] rounded-2xl hover:shadow-xl transition-shadow">
+          <div className="card p-6">
             <h3 className="font-semibold text-lg">No Paid API</h3>
             <p className="text-[var(--text-secondary)]">
               We prefer browser-based and free methods where possible, ensuring accessibility for everyone.
             </p>
           </div>
 
-          <div className="card p-6 border border-[var(--border)] rounded-2xl hover:shadow-xl transition-shadow">
+          <div className="card p-6">
             <h3 className="font-semibold text-lg">No Copyright Violation</h3>
             <p className="text-[var(--text-secondary)]">
               Our design and content direction is original and safe. We ensure all tools and content are copyright-compliant.
             </p>
           </div>
 
-          <div className="card p-6 border border-[var(--border)] rounded-2xl hover:shadow-xl transition-shadow">
+          <div className="card p-6">
             <h3 className="font-semibold text-lg">Simple User Experience</h3>
             <p className="text-[var(--text-secondary)]">
               Our tools are designed to be clear, easy to use, and intuitive. We prioritize a smooth experience for all users.
