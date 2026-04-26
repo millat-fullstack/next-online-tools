@@ -20,6 +20,7 @@ import ImageCompressor from "./tools/ImageCompressor";
 import ImageResizer from "./tools/ImageResizer";
 import WebpToJpgConverter from "./tools/WebpToJpgConverter";
 import BestFreeOnlineTools from "./pages/blogs/BestFreeOnlineTools";
+import ImageToolsGuide from "./pages/blogs/ImageToolsGuide";
 
 // Dynamically import blog components
 import HowToConvertWebpToJpg from "./pages/blogs/HowToConvertWebpToJpg";  // Blog component
@@ -54,6 +55,8 @@ export default function App() {
         <Route path="/tool/image-resizer" element={<ImageResizer />} />
         <Route path="/tool/webp-to-jpg-converter" element={<WebpToJpgConverter />} />
         <Route path="/blog/BestFreeOnlineTools" element={<BestFreeOnlineTools />} />
+        <Route path="/blog/ImageToolsGuide" element={<ImageToolsGuide />} />
+
       </Route>
     </Routes>
   );
