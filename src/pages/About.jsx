@@ -2,25 +2,36 @@ import { useState } from "react";
 
 export default function About() {
   const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [status, setStatus] = useState(""); // Track submission status
 
   const handleEmailChange = (e) => setEmail(e.target.value);
 
   const handleSubscribe = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // Prevent default form submission
+    setIsSubmitting(true);
+    setStatus(""); // Reset status on each submission
 
-    const response = await fetch(
-      "https://script.google.com/macros/s/AKfycbyaXuuiyMngv1_6O2urBGmnc9R5V_KhGE5k-xgJowlG_g7rYAGp3ouZ31eYWzWR9UNi/exec",
-      {
-        method: "POST",
-        body: JSON.stringify({ email }),
-        headers: { "Content-Type": "application/json" },
+    try {
+      const response = await fetch(
+        "https://script.google.com/macros/s/AKfycbyaXuuiyMngv1_6O2urBGmnc9R5V_KhGE5k-xgJowlG_g7rYAGp3ouZ31eYWzWR9UNi/exec",
+        {
+          method: "POST",
+          body: JSON.stringify({ email }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        setStatus("Subscription successful!"); // Show success message
+        setEmail(""); // Clear the email input
+      } else {
+        setStatus("There was an issue with your subscription.");
       }
-    );
-
-    if (response.ok) {
-      alert("Subscription successful!");
-    } else {
-      alert("There was an issue with your subscription.");
+    } catch (error) {
+      setStatus("Error occurred while submitting the form.");
+    } finally {
+      setIsSubmitting(false); // Reset submitting state
     }
   };
 
@@ -87,10 +98,22 @@ export default function About() {
           <button
             type="submit"
             className="btn-primary p-3 text-white rounded-md hover:bg-[var(--primary)]"
+            disabled={isSubmitting}
           >
-            Subscribe
+            {isSubmitting ? "Submitting..." : "Subscribe"}
           </button>
         </form>
+
+        {/* Status Message */}
+        {status && (
+          <div
+            className={`mt-4 p-4 rounded-md ${
+              status.includes("successful") ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+            }`}
+          >
+            {status}
+          </div>
+        )}
       </section>
     </div>
   );
