@@ -9,12 +9,12 @@ export default function About() {
 
   const handleSubscribe = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    setStatus(""); // Reset status on each submit
+    setIsSubmitting(true);  // Disable button when submitting
+    setStatus(""); // Reset status message
 
     try {
       const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbz-3As-V5qVfV4KkKMgen1Kn2I2n450p0FXH40NlNPpsbKezRK03Tc1PE5WgJCU5WU3/exec",
+        "https://script.google.com/macros/s/AKfycbyaXuuiyMngv1_6O2urBGmnc9R5V_KhGE5k-xgJowlG_g7rYAGp3ouZ31eYWzWR9UNi/exec",
         {
           method: "POST",
           body: JSON.stringify({ email }),
@@ -23,13 +23,13 @@ export default function About() {
       );
 
       if (response.ok) {
-        setStatus("Subscription successful!");
-        setEmail(""); // Clear email input field
+        setStatus("✅ Thank you for subscribing!");  // Success message
+        setEmail("");  // Reset email input
       } else {
-        setStatus("There was an issue with your subscription.");
+        setStatus("❌ Something went wrong. Try again!");
       }
     } catch (error) {
-      setStatus("Error occurred while submitting the form.");
+      setStatus("❌ Error occurred while submitting the form.");
     } finally {
       setIsSubmitting(false); // Reset submitting state
     }
