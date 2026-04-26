@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 export default function About() {
   const [email, setEmail] = useState("");
@@ -29,57 +30,113 @@ export default function About() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      {/* Introduction */}
-      <section className="mb-8">
-        <h1 className="text-4xl font-bold mb-4 text-[var(--primary)]">About Next Online Tools</h1>
-        <p className="text-[var(--text-secondary)] leading-8">
-          Next Online Tools is your go-to website for free, fast, and easy-to-use online tools. We provide various tools that help you quickly complete daily tasks such as image editing, text conversion, color management, and more—all without any payments or complex setups.
+    <div className="flex flex-col gap-8">
+      {/* HEADER */}
+      <section className="card p-6 sm:p-8">
+        <span className="badge mb-4 inline-block">About ToolNest</span>
+        <h1 className="text-3xl sm:text-4xl font-bold mb-4">
+          Simple Free Tools for Everyday Online Tasks
+        </h1>
+        <p className="text-[var(--text-secondary)] max-w-3xl leading-7">
+          ToolNest is a free online tools website built to help users complete
+          small digital tasks quickly. Our goal is to make useful tools simple,
+          fast, and easy for everyone.
         </p>
       </section>
 
-      {/* Website Policy */}
-      <section className="mb-8">
-        <h2 className="text-2xl font-semibold mb-6">Our Website Policy</h2>
+      {/* MISSION */}
+      <section className="card p-6 sm:p-8">
+        <h2 className="text-2xl font-bold mb-4">Our Mission</h2>
+        <p className="text-[var(--text-secondary)] leading-7">
+          We want to provide 100+ free online tools for text editing, image
+          processing, colors, SEO, productivity, file conversion, and daily web
+          tasks. Every tool is designed to be clean, beginner-friendly, and easy
+          to use without complicated steps.
+        </p>
+      </section>
+
+      {/* VALUES */}
+      <section>
+        <h2 className="text-2xl font-bold mb-5">What We Focus On</h2>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          <div className="card p-5">
+            <CheckCircle className="text-[var(--primary)] mb-4" size={30} />
+            <h3 className="font-semibold mb-2">Free to Use</h3>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Our tools are made for users who need quick solutions without
+              payment.
+            </p>
+          </div>
+
+          <div className="card p-5">
+            <Zap className="text-[var(--primary)] mb-4" size={30} />
+            <h3 className="font-semibold mb-2">Fast Workflow</h3>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Each tool is focused on one task, so users can finish work faster.
+            </p>
+          </div>
+
+          <div className="card p-5">
+            <Users className="text-[var(--primary)] mb-4" size={30} />
+            <h3 className="font-semibold mb-2">User Friendly</h3>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Clean layout, clear buttons, and simple instructions for everyone.
+            </p>
+          </div>
+
+          <div className="card p-5">
+            <ShieldCheck className="text-[var(--primary)] mb-4" size={30} />
+            <h3 className="font-semibold mb-2">Safe Direction</h3>
+            <p className="text-sm text-[var(--text-secondary)]">
+              We avoid paid APIs, copied designs, and unnecessary complicated
+              systems.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* POLICY */}
+      <section className="card p-6 sm:p-8">
+        <h2 className="text-2xl font-bold mb-4">Our Website Policy</h2>
         <div className="grid sm:grid-cols-2 gap-4">
-          <div className="card p-6">
-            <h3 className="font-semibold text-lg">No Paid Tools</h3>
-            <p className="text-[var(--text-secondary)]">
-              We focus on tools that can be used freely by visitors without any hidden costs.
+          <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+            <h3 className="font-semibold mb-2">No Paid Tools</h3>
+            <p className="text-sm text-[var(--text-secondary)]">
+              We focus on tools that can be used freely by visitors.
             </p>
           </div>
 
-          <div className="card p-6">
-            <h3 className="font-semibold text-lg">No Paid API</h3>
-            <p className="text-[var(--text-secondary)]">
-              We prefer browser-based and free methods where possible, ensuring accessibility for everyone.
+          <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+            <h3 className="font-semibold mb-2">No Paid API</h3>
+            <p className="text-sm text-[var(--text-secondary)]">
+              We prefer browser-based and free methods where possible.
             </p>
           </div>
 
-          <div className="card p-6">
-            <h3 className="font-semibold text-lg">No Copyright Violation</h3>
-            <p className="text-[var(--text-secondary)]">
-              Our design and content direction is original and safe. We ensure all tools and content are copyright-compliant.
+          <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+            <h3 className="font-semibold mb-2">No Copyright Violation</h3>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Our design and content direction is original and safe.
             </p>
           </div>
 
-          <div className="card p-6">
-            <h3 className="font-semibold text-lg">Simple User Experience</h3>
-            <p className="text-[var(--text-secondary)]">
-              Our tools are designed to be clear, easy to use, and intuitive. We prioritize a smooth experience for all users.
+          <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+            <h3 className="font-semibold mb-2">Simple User Experience</h3>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Tools should be clear, useful, and easy to understand.
             </p>
           </div>
         </div>
       </section>
 
       {/* Email Subscription */}
-      <section>
+      <section className="card p-6 sm:p-8 text-center">
         <h2 className="text-2xl font-semibold mb-4">Stay Updated with Our Latest Tools</h2>
         <p className="text-[var(--text-secondary)] mb-6">
           Subscribe to our newsletter and get notified when we release new tools and updates to improve your digital workflow.
         </p>
 
-        <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-4">
+        <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-4 justify-center">
           <input
             type="email"
             value={email}
