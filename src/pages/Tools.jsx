@@ -1,14 +1,14 @@
 import { Link } from "react-router-dom";
 
-// List all available tools
+// List of all tools with their category and slug
 const tools = [
-  { name: "Image Compressor", slug: "image-compressor", category: "Image Tools" },
-  { name: "Color Picker", slug: "color-picker", category: "Design Tools" },
-  { name: "Color Preview", slug: "color-preview", category: "Design Tools" },
-  { name: "Text Case Converter", slug: "case-converter", category: "Text Tools" },
-  { name: "Image Resizer", slug: "image-resizer", category: "Image Tools" },
-  { name: "WEBP to JPG Converter", slug: "webp-to-jpg-converter", category: "Image Tools" },
-  // Add more tools here as you add them
+  { name: "Image Compressor", slug: "image-compressor", category: "Image Tools", icon: "📷" },
+  { name: "Color Picker", slug: "color-picker", category: "Design Tools", icon: "🎨" },
+  { name: "Color Preview", slug: "color-preview", category: "Design Tools", icon: "💧" },
+  { name: "Text Case Converter", slug: "case-converter", category: "Text Tools", icon: "🔠" },
+  { name: "Image Resizer", slug: "image-resizer", category: "Image Tools", icon: "🔲" },
+  { name: "WEBP to JPG Converter", slug: "webp-to-jpg-converter", category: "Image Tools", icon: "🔄" },
+  // Add more tools as needed
 ];
 
 export default function Tools() {
@@ -17,7 +17,7 @@ export default function Tools() {
       <section className="text-center mb-8">
         <h1 className="text-5xl font-bold text-[var(--primary)] mb-4">All Tools</h1>
         <p className="text-lg text-[var(--text-secondary)] mb-6">
-          Explore the best free and easy-to-use tools that help you finish digital tasks efficiently and creatively.
+          Explore the best free and easy-to-use tools that help you finish digital tasks efficiently.
         </p>
       </section>
 
@@ -30,8 +30,11 @@ export default function Tools() {
             className="group transform hover:scale-105 transition duration-300 ease-in-out"
           >
             <div className="bg-white rounded-lg shadow-xl p-6 hover:shadow-2xl">
+              {/* Tool Icon */}
+              <div className="text-4xl text-[var(--primary)] mb-4">{tool.icon}</div>
+
               {/* Tool Category Badge */}
-              <span className="text-sm font-semibold text-white bg-[var(--primary)] py-1 px-3 rounded-full mb-4 inline-block">
+              <span className="text-xs font-semibold text-white bg-[var(--accent)] py-1 px-3 rounded-full mb-4 inline-block">
                 {tool.category}
               </span>
 
@@ -40,13 +43,8 @@ export default function Tools() {
 
               {/* Tool Description */}
               <p className="text-sm text-[var(--text-secondary)] mb-4">
-                Discover and use this tool today to boost your productivity.
+                Explore and use this tool today to boost your productivity.
               </p>
-
-              {/* Tool Icon Placeholder */}
-              <div className="flex justify-center items-center h-32 bg-gray-100 rounded-md mb-4">
-                <span className="text-5xl text-[var(--primary)]">🔧</span> {/* Replace with tool-specific icons */}
-              </div>
 
               {/* Learn More Button */}
               <p className="text-xs text-[var(--primary)] hover:underline">Explore &gt;</p>
