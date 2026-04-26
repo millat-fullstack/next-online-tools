@@ -2,25 +2,36 @@ import { useState } from "react";
 
 export default function About() {
   const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [status, setStatus] = useState(""); // Track subscription status
 
   const handleEmailChange = (e) => setEmail(e.target.value);
 
   const handleSubscribe = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setStatus(""); // Reset status on each submit
 
-    const response = await fetch(
-      "https://script.google.com/macros/s/AKfycbyaXuuiyMngv1_6O2urBGmnc9R5V_KhGE5k-xgJowlG_g7rYAGp3ouZ31eYWzWR9UNi/exec",
-      {
-        method: "POST",
-        body: JSON.stringify({ email }),
-        headers: { "Content-Type": "application/json" },
+    try {
+      const response = await fetch(
+        "https://script.google.com/macros/s/AKfycbz-3As-V5qVfV4KkKMgen1Kn2I2n450p0FXH40NlNPpsbKezRK03Tc1PE5WgJCU5WU3/exec",
+        {
+          method: "POST",
+          body: JSON.stringify({ email }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        setStatus("Subscription successful!");
+        setEmail(""); // Clear email input field
+      } else {
+        setStatus("There was an issue with your subscription.");
       }
-    );
-
-    if (response.ok) {
-      alert("Subscription successful!");
-    } else {
-      alert("There was an issue with your subscription.");
+    } catch (error) {
+      setStatus("Error occurred while submitting the form.");
+    } finally {
+      setIsSubmitting(false); // Reset submitting state
     }
   };
 
@@ -28,7 +39,7 @@ export default function About() {
     <div className="max-w-4xl mx-auto p-6">
       {/* Introduction */}
       <section className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">About Next Online Tools</h1>
+        <h1 className="text-3xl font-bold mb-4 text-[var(--primary)]">About Next Online Tools</h1>
         <p className="text-[var(--text-secondary)] leading-8">
           Next Online Tools is your go-to website for free, fast, and easy-to-use online tools. We provide various tools that help you quickly complete daily tasks such as image editing, text conversion, color management, and more—all without any payments or complex setups.
         </p>
@@ -38,28 +49,28 @@ export default function About() {
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-6">Our Website Policy</h2>
         <div className="grid sm:grid-cols-2 gap-4">
-          <div className="card p-6">
+          <div className="card p-6 border border-[var(--border)] rounded-2xl hover:shadow-xl transition-shadow">
             <h3 className="font-semibold text-lg">No Paid Tools</h3>
             <p className="text-[var(--text-secondary)]">
               We focus on tools that can be used freely by visitors without any hidden costs.
             </p>
           </div>
 
-          <div className="card p-6">
+          <div className="card p-6 border border-[var(--border)] rounded-2xl hover:shadow-xl transition-shadow">
             <h3 className="font-semibold text-lg">No Paid API</h3>
             <p className="text-[var(--text-secondary)]">
               We prefer browser-based and free methods where possible, ensuring accessibility for everyone.
             </p>
           </div>
 
-          <div className="card p-6">
+          <div className="card p-6 border border-[var(--border)] rounded-2xl hover:shadow-xl transition-shadow">
             <h3 className="font-semibold text-lg">No Copyright Violation</h3>
             <p className="text-[var(--text-secondary)]">
               Our design and content direction is original and safe. We ensure all tools and content are copyright-compliant.
             </p>
           </div>
 
-          <div className="card p-6">
+          <div className="card p-6 border border-[var(--border)] rounded-2xl hover:shadow-xl transition-shadow">
             <h3 className="font-semibold text-lg">Simple User Experience</h3>
             <p className="text-[var(--text-secondary)]">
               Our tools are designed to be clear, easy to use, and intuitive. We prioritize a smooth experience for all users.
@@ -75,7 +86,7 @@ export default function About() {
           Subscribe to our newsletter and get notified when we release new tools and updates to improve your digital workflow.
         </p>
 
-        <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-4">
+        <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-4 justify-center">
           <input
             type="email"
             value={email}
@@ -87,10 +98,22 @@ export default function About() {
           <button
             type="submit"
             className="btn-primary p-3 text-white rounded-md hover:bg-[var(--primary)]"
+            disabled={isSubmitting}
           >
-            Subscribe
+            {isSubmitting ? "Submitting..." : "Subscribe"}
           </button>
         </form>
+
+        {/* Status Message */}
+        {status && (
+          <div
+            className={`mt-4 p-4 rounded-md ${
+              status.includes("successful") ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+            }`}
+          >
+            {status}
+          </div>
+        )}
       </section>
     </div>
   );
