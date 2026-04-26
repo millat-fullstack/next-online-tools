@@ -72,17 +72,6 @@ export default function HowToConvertWebpToJpg() {
           </button>
         </section>
       </section>
-
-      {/* Divider */}
-      <div className="my-8 border-t-2 border-[var(--border)]"></div>
-
-      {/* Featured Image Prompt */}
-      <section className="card p-6 sm:p-8">
-        <h3 className="text-lg font-semibold">Image Prompt for Blog Post:</h3>
-        <p className="text-[var(--text-secondary)]">
-          Generate an image of a **WEBP to JPG converter tool** interface with a clean and simple design. The tool should show an **upload button**, a **progress bar**, and a **download button**. The design should be modern, minimalistic, and use **blue or green** colors for buttons and actions.
-        </p>
-      </section>
     </>
   );
 }
