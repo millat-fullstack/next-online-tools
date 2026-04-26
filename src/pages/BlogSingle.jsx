@@ -4,8 +4,6 @@ import { Suspense } from "react";
 // Dynamically import blog components based on slug
 const BlogComponents = {
   HowToConvertWebpToJpg: () => import("./blogs/HowToConvertWebpToJpg"),
-  BestFreeOnlineTools: () => import("./blogs/BestFreeOnlineTools"),
-  WhyImageCompressionIsImportant: () => import("./blogs/WhyImageCompressionIsImportant"),
   // Add more blog components here as you add more
 };
 

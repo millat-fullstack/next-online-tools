@@ -20,6 +20,9 @@ import ImageCompressor from "./tools/ImageCompressor";
 import ImageResizer from "./tools/ImageResizer";
 import WebpToJpgConverter from "./tools/WebpToJpgConverter";
 
+// Dynamically import blog components
+import HowToConvertWebpToJpg from "./pages/blogs/HowToConvertWebpToJpg";  // Blog component
+
 export default function App() {
   return (
     <Routes>
@@ -32,6 +35,9 @@ export default function App() {
         {/* Blog Pages */}
         <Route path="/blog" element={<Blog />} />
         <Route path="/blog/:slug" element={<BlogSingle />} />  {/* Dynamic blog route */}
+        
+        {/* Blog components (added manually, without Blogs.js) */}
+        <Route path="/blog/HowToConvertWebpToJpg" element={<HowToConvertWebpToJpg />} />
 
         {/* Other Pages */}
         <Route path="/about" element={<About />} />
