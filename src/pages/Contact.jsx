@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Mail, MessageCircle, Send, HelpCircle } from "lucide-react";
+import {
+  Mail,
+  MessageCircle,
+  Send,
+  HelpCircle,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Loader,
+} from "lucide-react";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -8,7 +17,9 @@ export default function Contact() {
     message: "",
   });
 
-  const [submitted, setSubmitted] = useState(false);
+  const [responseMsg, setResponseMsg] = useState("");
+  const [responseIcon, setResponseIcon] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -19,18 +30,54 @@ export default function Contact() {
     }));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
-    if (!formData.name || !formData.email || !formData.message) return;
+    if (!formData.name || !formData.email || !formData.message) {
+      setResponseIcon(<AlertTriangle size={20} />);
+      setResponseMsg("Please fill in all fields before sending your message.");
+      return;
+    }
 
-    setSubmitted(true);
-    setFormData({
-      name: "",
-      email: "",
-      message: "",
-    });
+    setIsLoading(true);
+    setResponseMsg("");
+    setResponseIcon(null);
+
+    const formPayload = new FormData();
+    formPayload.append("name", formData.name);
+    formPayload.append("email", formData.email);
+    formPayload.append("message", formData.message);
+
+    try {
+      const response = await fetch(
+        "https://script.google.com/macros/s/AKfycbxhMabtrxX_b_m4mAaro95wZC8u64HklkGVkqo3Zcew9oAx-tLk7e78lcFhRIrs-QpOWg/exec",
+        {
+          method: "POST",
+          body: formPayload,
+        }
+      );
+
+      if (response.ok) {
+        setResponseIcon(<CheckCircle size={20} />);
+        setResponseMsg("Your message has been sent successfully!");
+        setFormData({
+          name: "",
+          email: "",
+          message: "",
+        });
+      } else {
+        setResponseIcon(<XCircle size={20} />);
+        setResponseMsg("Something went wrong. Please try again.");
+      }
+    } catch (err) {
+      setResponseIcon(<AlertTriangle size={20} />);
+      setResponseMsg("Network error, please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   }
+
+  const responseColor = responseMsg.includes("success") ? "green" : responseMsg ? "red" : "inherit";
 
   return (
     <div className="flex flex-col gap-8">
@@ -38,7 +85,7 @@ export default function Contact() {
         <span className="badge mb-4 inline-block">Contact Us</span>
 
         <h1 className="text-3xl sm:text-4xl font-bold mb-4">
-          Get in Touch with ToolNest
+          Get in Touch with Next Tools Online
         </h1>
 
         <p className="text-[var(--text-secondary)] max-w-3xl leading-7">
@@ -51,9 +98,15 @@ export default function Contact() {
         <div className="lg:col-span-2 card p-6 sm:p-8">
           <h2 className="text-2xl font-bold mb-5">Send a Message</h2>
 
-          {submitted && (
-            <div className="mb-5 rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4 text-sm text-[var(--primary)] font-medium">
-              Thank you! Your message has been submitted locally.
+          {responseMsg && (
+            <div
+              className="mb-5 rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4 text-sm font-medium"
+              style={{ color: responseColor }}
+            >
+              <div className="flex items-center gap-2">
+                {responseIcon}
+                <span>{responseMsg}</span>
+              </div>
             </div>
           )}
 
@@ -69,6 +122,7 @@ export default function Contact() {
                 onChange={handleChange}
                 placeholder="Enter your name"
                 className="input"
+                disabled={isLoading}
               />
             </div>
 
@@ -83,6 +137,7 @@ export default function Contact() {
                 onChange={handleChange}
                 placeholder="Enter your email"
                 className="input"
+                disabled={isLoading}
               />
             </div>
 
@@ -97,12 +152,22 @@ export default function Contact() {
                 placeholder="Write your message or tool request"
                 rows="6"
                 className="input resize-none"
+                disabled={isLoading}
               />
             </div>
 
-            <button type="submit" className="btn-primary w-fit">
-              <Send size={18} />
-              Send Message
+            <button type="submit" className="btn-primary w-fit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader className="animate-spin" size={18} />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send size={18} />
+                  Send Message
+                </>
+              )}
             </button>
           </form>
         </div>

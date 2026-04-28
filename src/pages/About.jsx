@@ -43,14 +43,14 @@ const About = () => {
       <section className="flex flex-col gap-8">
               {/* HEADER */}
       <section className="card p-6 sm:p-8">
-        <span className="badge mb-4 inline-block">About ToolNest</span>
+        <span className="badge mb-4 inline-block">About Next Tools Online</span>
 
         <h1 className="text-3xl sm:text-4xl font-bold mb-4">
           Simple Free Tools for Everyday Online Tasks
         </h1>
 
         <p className="text-[var(--text-secondary)] max-w-3xl leading-7">
-          ToolNest is a free online tools website built to help users complete
+          Next Tools Online is a free online tools website built to help users complete
           small digital tasks quickly. Our goal is to make useful tools simple,
           fast, and easy for everyone.
         </p>
