@@ -1,12 +1,15 @@
 import React, { useState } from "react";
-import { CheckCircle, ShieldCheck, Zap, Users, Send } from "lucide-react";
+import { CheckCircle, ShieldCheck, Zap, Users, Send, Loader, XCircle, AlertTriangle } from "lucide-react";
 
 const About = () => {
   const [email, setEmail] = useState("");
   const [responseMsg, setResponseMsg] = useState("");
+  const [responseIcon, setResponseIcon] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
     const formData = new FormData();
     formData.append("email", email);
 
@@ -20,13 +23,18 @@ const About = () => {
       );
 
       if (response.ok) {
-        setResponseMsg("✅ You have successfully subscribed!");
+        setResponseIcon(<CheckCircle size={20} />);
+        setResponseMsg("You have successfully subscribed!");
         setEmail(""); // Clear the input field after success
       } else {
-        setResponseMsg("❌ Something went wrong. Try again!");
+        setResponseIcon(<XCircle size={20} />);
+        setResponseMsg("Something went wrong. Try again!");
       }
     } catch (err) {
-      setResponseMsg("⚠️ Network error, please try again!");
+      setResponseIcon(<AlertTriangle size={20} />);
+      setResponseMsg("Network error, please try again!");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -119,11 +127,22 @@ const About = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            disabled={isLoading}
           />
-          <button type="submit" className="btn-primary p-3 text-white rounded-md hover:bg-[var(--primary)]">Subscribe</button>
+          <button type="submit" className="btn-primary p-3 text-white rounded-md hover:bg-[var(--primary)] flex items-center justify-center gap-2" disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader className="animate-spin" size={20} />
+                Subscribing...
+              </>
+            ) : (
+              "Subscribe"
+            )}
+          </button>
         </form>
-
-        <p id="responseMsg" style={{ color: responseMsg.includes("error") ? "red" : "green" }}>
+        
+        <p id="responseMsg" className="flex items-center justify-center gap-2" style={{ color: responseMsg.includes("error") ? "red" : "green" }}>
+          {responseIcon}
           {responseMsg}
         </p>
         </span>
