@@ -11,7 +11,7 @@ export default function TermsOfService() {
         </h1>
 
         <p className="text-[var(--text-secondary)] leading-7">
-          By using ToolNest, you agree to use our website and tools responsibly.
+          By using Next Online Tools, you agree to use our website and tools responsibly.
           These terms explain the basic rules for using our free online tools.
         </p>
       </section>
@@ -29,7 +29,7 @@ export default function TermsOfService() {
         <div>
           <h2 className="text-xl font-bold mb-2">Free Service</h2>
           <p className="text-[var(--text-secondary)] leading-7">
-            ToolNest focuses on free and user-friendly tools. We may improve,
+            Next Online Tools focuses on free and user-friendly tools. We may improve,
             change, remove, or add tools at any time.
           </p>
         </div>

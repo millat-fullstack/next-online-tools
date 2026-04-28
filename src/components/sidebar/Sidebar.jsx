@@ -24,7 +24,7 @@ export default function Sidebar() {
     <div className="h-full flex flex-col p-5 overflow-y-auto">
       <Link to="/" className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--primary)]">
-          ToolNest
+          Next Online Tools
         </h1>
         <p className="text-xs text-[var(--text-secondary)] mt-1">
           100+ free online tools

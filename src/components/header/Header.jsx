@@ -12,7 +12,7 @@ export default function Header() {
             to="/"
             className="lg:hidden text-xl font-bold text-[var(--primary)]"
           >
-            ToolNest
+            Next Online Tools
           </Link>
 
           {/* Desktop Search */}

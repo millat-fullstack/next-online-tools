@@ -9,7 +9,7 @@ export default function PrivacyPolicy() {
         </h1>
 
         <p className="text-[var(--text-secondary)] leading-7">
-          ToolNest respects user privacy. Our website is designed to provide
+          Next Online Tools respects user privacy. Our website is designed to provide
           simple and free online tools while keeping the user experience safe and
           easy to understand.
         </p>
@@ -47,7 +47,7 @@ export default function PrivacyPolicy() {
         <div>
           <h2 className="text-xl font-bold mb-2">Third-Party Services</h2>
           <p className="text-[var(--text-secondary)] leading-7">
-            ToolNest aims to avoid paid APIs and unnecessary third-party
+            Next Online Tools aims to avoid paid APIs and unnecessary third-party
             services. If third-party services are used later, they may have
             their own privacy policies.
           </p>
