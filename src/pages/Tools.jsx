@@ -1,56 +1,58 @@
 import { Link } from "react-router-dom";
+import * as Icons from "lucide-react";
+import tools from "../data/tools.json";
 
-// List of all tools with their category and slug
-const tools = [
-  { name: "Image Compressor", slug: "image-compressor", category: "Image Tools", icon: "📷" },
-  { name: "Color Picker", slug: "color-picker", category: "Design Tools", icon: "🎨" },
-  { name: "Color Preview", slug: "color-preview", category: "Design Tools", icon: "💧" },
-  { name: "Text Case Converter", slug: "case-converter", category: "Text Tools", icon: "🔠" },
-  { name: "Image Resizer", slug: "image-resizer", category: "Image Tools", icon: "🔲" },
-  { name: "WEBP to JPG Converter", slug: "webp-to-jpg-converter", category: "Image Tools", icon: "🔄" },
-  // Add more tools as needed
-];
+function ToolIcon({ icon }) {
+  const IconComponent = Icons[icon] || Icons.Wrench;
+
+  return (
+    <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
+      <IconComponent
+        size={28}
+        className="text-[var(--primary)]"
+        strokeWidth={2}
+      />
+    </div>
+  );
+}
 
 export default function Tools() {
+  const allTools = tools;
+
   return (
-    <div className="max-w-screen-xl mx-auto p-6">
-      <section className="text-center mb-8">
-        <h1 className="text-5xl font-bold text-[var(--primary)] mb-4">All Tools</h1>
-        <p className="text-lg text-[var(--text-secondary)] mb-6">
-          Explore the best free and easy-to-use tools that help you finish digital tasks efficiently.
+    <div className="flex flex-col gap-8">
+      {/* HEADER */}
+      <section className="card p-6 sm:p-8">
+        <span className="badge mb-4 inline-block">All Tools</span>
+
+        <h1 className="text-3xl sm:text-4xl font-bold mb-4">
+          All Free Online Tools
+        </h1>
+
+        <p className="text-[var(--text-secondary)] max-w-3xl leading-7">
+          Explore our complete collection of free online tools for text, images, colors, SEO, productivity, conversions, and daily online work.
         </p>
       </section>
 
-      {/* Tools Grid */}
-      <section className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-        {tools.map((tool) => (
-          <Link
-            key={tool.slug}
-            to={`/tool/${tool.slug}`}
-            className="group transform hover:scale-105 transition duration-300 ease-in-out"
-          >
-            <div className="bg-white rounded-lg shadow-xl p-6 hover:shadow-2xl">
-              {/* Tool Icon */}
-              <div className="text-4xl text-[var(--primary)] mb-4">{tool.icon}</div>
+      {/* ALL TOOLS */}
+      <section>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          {allTools.map((tool, index) => (
+            <Link key={tool.id || index} to={`/tool/${tool.id}`}>
+              <div className="card card-hover p-5 h-full">
+                <ToolIcon icon={tool.icon} />
 
-              {/* Tool Category Badge */}
-              <span className="text-xs font-semibold text-white bg-[var(--accent)] py-1 px-3 rounded-full mb-4 inline-block">
-                {tool.category}
-              </span>
+                <h3 className="font-semibold mb-2">{tool.name}</h3>
 
-              {/* Tool Name */}
-              <h2 className="text-2xl font-semibold text-[var(--primary)] mb-3">{tool.name}</h2>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {tool.description || "Simple, fast, and free online tool."}
+                </p>
 
-              {/* Tool Description */}
-              <p className="text-sm text-[var(--text-secondary)] mb-4">
-                Explore and use this tool today to boost your productivity.
-              </p>
-
-              {/* Learn More Button */}
-              <p className="text-xs text-[var(--primary)] hover:underline">Explore &gt;</p>
-            </div>
-          </Link>
-        ))}
+                <span className="badge mt-5 inline-block">{tool.category}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
       </section>
     </div>
   );
