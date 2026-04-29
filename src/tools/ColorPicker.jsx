@@ -202,42 +202,47 @@ export default function ColorPicker() {
   // Handle canvas sizing after image loads
   useEffect(() => {
     if (imageLoaded && imgObj && canvasRef.current) {
-      console.log("Canvas sizing effect triggered", { imageLoaded, imgObj });
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
+      // Small delay to ensure DOM is fully rendered
+      setTimeout(() => {
+        console.log("Canvas sizing effect triggered", { imageLoaded, imgObj });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
 
-      // Get the container width for proper sizing
-      const container = canvas.parentElement;
-      const maxWidth = container ? Math.max(container.clientWidth - 32, 300) : 600; // Minimum 300px
-      const maxHeight = 400; // Reduced from 500
+        const ctx = canvas.getContext("2d");
 
-      let width = imgObj.width;
-      let height = imgObj.height;
+        // Get the container width for proper sizing
+        const container = canvas.parentElement;
+        const maxWidth = container ? Math.max(container.clientWidth - 32, 300) : 600; // Minimum 300px
+        const maxHeight = 400; // Reduced from 500
 
-      console.log("Original image size:", { width, height });
-      console.log("Container size:", { maxWidth, maxHeight });
+        let width = imgObj.width;
+        let height = imgObj.height;
 
-      const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
-      width *= ratio;
-      height *= ratio;
+        console.log("Original image size:", { width, height });
+        console.log("Container size:", { maxWidth, maxHeight });
 
-      console.log("Scaled image size:", { width, height, ratio });
+        const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
+        width *= ratio;
+        height *= ratio;
 
-      // Set canvas display size
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+        console.log("Scaled image size:", { width, height, ratio });
 
-      // Set canvas drawing size (important for high DPI)
-      const devicePixelRatio = window.devicePixelRatio || 1;
-      canvas.width = width * devicePixelRatio;
-      canvas.height = height * devicePixelRatio;
+        // Set canvas display size
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
 
-      // Scale the drawing context so everything draws at the correct size
-      ctx.scale(devicePixelRatio, devicePixelRatio);
+        // Set canvas drawing size (important for high DPI)
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        canvas.width = width * devicePixelRatio;
+        canvas.height = height * devicePixelRatio;
 
-      ctx.clearRect(0, 0, width, height);
-      ctx.drawImage(imgObj, 0, 0, width, height);
-      console.log("Image drawn to canvas");
+        // Scale the drawing context so everything draws at the correct size
+        ctx.scale(devicePixelRatio, devicePixelRatio);
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(imgObj, 0, 0, width, height);
+        console.log("Image drawn to canvas");
+      }, 100);
     }
   }, [imageLoaded, imgObj]);
 

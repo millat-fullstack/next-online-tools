@@ -9,6 +9,7 @@ const tools = [
   { name: "Image Resizer", slug: "image-resizer" },
   { name: "WEBP to JPG Converter", slug: "webp-to-jpg-converter" },
   { name: "PDF to JPG Converter", slug: "pdf-to-jpg-converter" },
+  { name: "Text to Slug Generator", slug: "text-to-slug-generator" },
   // Add more tools here as you add them
 ];
 

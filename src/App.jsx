@@ -5,8 +5,8 @@ import MainLayout from "./MainLayout";
 import Home from "./pages/Home";
 import Tools from "./pages/Tools";
 import SearchResults from "./pages/SearchResults";
-import Blog from "./pages/Blog";  // Blog listing page
-import BlogSingle from "./pages/BlogSingle";  // Single blog page
+import Blog from "./pages/Blog";
+import BlogSingle from "./pages/BlogSingle";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -20,12 +20,14 @@ import ImageCompressor from "./tools/ImageCompressor";
 import ImageResizer from "./tools/ImageResizer";
 import WebpToJpgConverter from "./tools/WebpToJpgConverter";
 import PDFToJpgConverter from "./tools/PDFToJpgConverter";
+import TextToSlugGenerator from "./tools/TextToSlugGenerator";
+import InstagramVideoDownloader from "./tools/InstagramVideoDownloader";
+
+// Blog components
 import BestFreeOnlineTools from "./pages/blogs/BestFreeOnlineTools";
 import ImageToolsGuide from "./pages/blogs/ImageToolsGuide";
+import HowToConvertWebpToJpg from "./pages/blogs/HowToConvertWebpToJpg";
 import ToolPage from "./pages/ToolPage";
-
-// Dynamically import blog components
-import HowToConvertWebpToJpg from "./pages/blogs/HowToConvertWebpToJpg";  // Blog component
 
 export default function App() {
   return (
@@ -38,10 +40,10 @@ export default function App() {
 
         {/* Blog Pages */}
         <Route path="/blog" element={<Blog />} />
-        <Route path="/blog/:slug" element={<BlogSingle />} />  {/* Dynamic blog route */}
-        
-        {/* Blog components (added manually, without Blogs.js) */}
+        <Route path="/blog/:slug" element={<BlogSingle />} />
         <Route path="/blog/HowToConvertWebpToJpg" element={<HowToConvertWebpToJpg />} />
+        <Route path="/blog/BestFreeOnlineTools" element={<BestFreeOnlineTools />} />
+        <Route path="/blog/ImageToolsGuide" element={<ImageToolsGuide />} />
 
         {/* Other Pages */}
         <Route path="/about" element={<About />} />
@@ -57,8 +59,8 @@ export default function App() {
         <Route path="/tool/image-resizer" element={<ImageResizer />} />
         <Route path="/tool/webp-to-jpg-converter" element={<WebpToJpgConverter />} />
         <Route path="/tool/pdf-to-jpg-converter" element={<PDFToJpgConverter />} />
-        <Route path="/blog/BestFreeOnlineTools" element={<BestFreeOnlineTools />} />
-        <Route path="/blog/ImageToolsGuide" element={<ImageToolsGuide />} />
+        <Route path="/tool/text-to-slug-generator" element={<TextToSlugGenerator />} />
+        <Route path="/tool/instagram-video-downloader" element={<InstagramVideoDownloader />} />
         <Route path="/tool/:slug" element={<ToolPage />} />
       </Route>
     </Routes>

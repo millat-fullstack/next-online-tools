@@ -61,5 +61,24 @@
     "icon": "FileText",
     "trending": true,
     "createdAt": "2025-11-10T12:00:00Z"
+  },
+  {
+    "id": "text-to-slug-generator",
+    "name": "Text to Slug Generator",
+    "category": "Text Tools",
+    "description": "Convert any title, heading, or sentence into a clean SEO-friendly URL slug instantly.",
+    "icon": "Link",
+    "trending": true,
+    "createdAt": "2025-11-15T12:00:00Z"
+  },
+    {
+    "id": "instagram-video-downloader",
+    "name": "Instagram Video Downloader",
+    "category": "Video Tools",
+    "description": "Download Instagram videos directly to your device by simply pasting the video URL.",
+    "icon": "Video",
+    "trending": true,
+    "createdAt": "2025-11-15T12:00:00Z"
   }
+
 ]
