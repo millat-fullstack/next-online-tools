@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader } from "lucide-react"; // Lucide icons for loading and submit
+import { Upload, Download, RotateCcw, Maximize2, Loader } from "lucide-react";
+import SuggestedTools from "../components/sidebar/SuggestedTools";
 
 // Tool metadata for Image Resizer
 export const toolData = {
@@ -120,105 +121,231 @@ export default function ImageResizer() {
 
   // Download
   const downloadImage = () => {
-    if (!img) return alert("Upload and resize an image first!");
+    if (!img) {
+      setErrorMessage("Upload and resize an image first!");
+      return;
+    }
     const canvas = canvasRef.current;
     const link = document.createElement("a");
-    link.download = "resized." + imgType.split("/")[1];
+    link.download = "resized-" + Date.now() + "." + imgType.split("/")[1];
     link.href = canvas.toDataURL(imgType);
     link.click();
   };
 
+  const resetTool = () => {
+    setImg(null);
+    setDimensions({ width: 0, height: 0 });
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+    setErrorMessage("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   return (
-    <div className="min-h-screen bg-[#f8f6fb] p-6 space-y-6">
-      <h1 className="text-3xl text-center font-bold text-[#6b4de6]">📏 Image Resizer Tool</h1>
+    <div className="flex flex-col gap-8">
+      {/* HEADER */}
+      <section className="card p-6 sm:p-8">
+        <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
+          <Maximize2 size={28} className="text-[var(--primary)]" />
+        </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 max-w-6xl mx-auto">
-        {/* Left Panel */}
-        <div className="flex-1 bg-white rounded-2xl p-6 shadow-md space-y-4">
-          <h2 className="text-xl font-semibold text-[#6b4de6]">Upload & Resize</h2>
+        <h1 className="text-3xl font-bold mb-3">
+          Image Resizer
+        </h1>
 
-          <div
-            className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:bg-gray-50"
-            onClick={() => fileInputRef.current.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (e.dataTransfer.files[0]) loadImage(e.dataTransfer.files[0]);
-            }}
-          >
-            <p>Click or drag & drop image here</p>
-            <input type="file" ref={fileInputRef} accept="image/*" hidden onChange={(e) => e.target.files[0] && loadImage(e.target.files[0])} />
-          </div>
+        <p className="text-[var(--text-secondary)] max-w-2xl">
+          Upload and resize images with custom dimensions, zoom, drag, and presets for social media platforms. Download instantly.
+        </p>
+      </section>
 
-          {/* Custom size */}
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="number"
-              placeholder="Width"
-              className="border border-gray-300 rounded p-2 w-24"
-              value={dimensions.width}
-              onChange={(e) => setDimensions({ ...dimensions, width: e.target.value })}
-            />
-            x
-            <input
-              type="number"
-              placeholder="Height"
-              className="border border-gray-300 rounded p-2 w-24"
-              value={dimensions.height}
-              onChange={(e) => setDimensions({ ...dimensions, height: e.target.value })}
-            />
-            <button onClick={handleResize} className="bg-[#8d6bcb] hover:bg-[#7552b6] text-white rounded px-4 py-2 font-semibold">Resize</button>
-            <button onClick={resetImage} className="bg-[#6EC3E3] hover:bg-[#4aa9d0] text-white rounded px-4 py-2 font-semibold">Reset</button>
-          </div>
-
-          {/* Zoom */}
-          <div className="flex items-center gap-2">
-            <label className="font-semibold">Zoom:</label>
-            <input
-              type="range"
-              min="0.1"
-              max="3"
-              step="0.01"
-              value={scale}
-              onChange={(e) => setScale(parseFloat(e.target.value))}
-              className="w-full"
-            />
-          </div>
-
-          {/* Presets */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-[#6b4de6]">Quick Presets</h3>
-            <div className="flex flex-wrap gap-2">
-              {/* Facebook */}
-              <button onClick={() => setPreset(820, 312)} className="bg-[#3b5998] text-white px-3 py-1 rounded">FB Cover</button>
-              <button onClick={() => setPreset(1200, 628)} className="bg-[#3b5998] text-white px-3 py-1 rounded">FB Ad</button>
-              <button onClick={() => setPreset(1080, 1080)} className="bg-[#3b5998] text-white px-3 py-1 rounded">FB Post</button>
-              {/* Instagram */}
-              <button onClick={() => setPreset(1080, 1080)} className="bg-[#C13584] text-white px-3 py-1 rounded">IG Square</button>
-              <button onClick={() => setPreset(1080, 1350)} className="bg-[#C13584] text-white px-3 py-1 rounded">IG Portrait</button>
-              <button onClick={() => setPreset(1080, 566)} className="bg-[#C13584] text-white px-3 py-1 rounded">IG Landscape</button>
-              {/* YouTube */}
-              <button onClick={() => setPreset(2560, 1440)} className="bg-[#FF0000] text-white px-3 py-1 rounded">YT Channel Art</button>
-              <button onClick={() => setPreset(1280, 720)} className="bg-[#FF0000] text-white px-3 py-1 rounded">YT Thumbnail</button>
+      {/* TOOL BODY */}
+      <section className="card p-6 sm:p-8">
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Left Panel - Controls */}
+          <div className="flex flex-col gap-6">
+            {/* Upload Area */}
+            <div>
+              <h3 className="font-semibold mb-3">Upload Image</h3>
+              <label className="block border-2 border-dashed border-[var(--border)] rounded-2xl p-8 text-center cursor-pointer hover:bg-[#f8f4ff] transition">
+                <Upload size={36} className="mx-auto mb-4 text-[var(--primary)]" />
+                <h2 className="text-lg font-semibold mb-2">
+                  Select Image
+                </h2>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Click or drag & drop image here
+                </p>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => e.target.files[0] && loadImage(e.target.files[0])}
+                />
+              </label>
             </div>
+
+            {/* Error Message */}
+            {errorMessage && (
+              <p className="text-sm text-red-500 bg-red-50 p-3 rounded-lg">
+                {errorMessage}
+              </p>
+            )}
+
+            {/* Custom Dimensions */}
+            {img && (
+              <div>
+                <h3 className="font-semibold mb-3">Custom Dimensions</h3>
+                <div className="bg-gray-50 p-4 rounded-2xl space-y-3">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-sm text-[var(--text-secondary)] block mb-1">Width</label>
+                      <input
+                        type="number"
+                        placeholder="Width"
+                        className="w-full border border-[var(--border)] rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        value={dimensions.width}
+                        onChange={(e) => setDimensions({ ...dimensions, width: e.target.value })}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-sm text-[var(--text-secondary)] block mb-1">Height</label>
+                      <input
+                        type="number"
+                        placeholder="Height"
+                        className="w-full border border-[var(--border)] rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                        value={dimensions.height}
+                        onChange={(e) => setDimensions({ ...dimensions, height: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-sm text-[var(--text-secondary)]">
+                    Current: {parseInt(dimensions.width) || 0}×{parseInt(dimensions.height) || 0}px
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleResize}
+                      className="btn-primary flex-1"
+                    >
+                      Apply Resize
+                    </button>
+                    <button
+                      onClick={resetImage}
+                      className="btn-secondary flex-1"
+                    >
+                      Reset Size
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Zoom Control */}
+            {img && (
+              <div>
+                <h3 className="font-semibold mb-3">Zoom: {(scale * 100).toFixed(0)}%</h3>
+                <div className="bg-gray-50 p-4 rounded-2xl">
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="3"
+                    step="0.05"
+                    value={scale}
+                    onChange={(e) => setScale(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
+                  />
+                  <div className="flex justify-between text-xs text-[var(--text-secondary)] mt-2">
+                    <span>10%</span>
+                    <span>300%</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Presets */}
+            {img && (
+              <div>
+                <h3 className="font-semibold mb-3">Quick Presets</h3>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 mb-1">Facebook</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => setPreset(820, 312)} className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-[var(--primary)] hover:text-white transition border border-[var(--border)]">Cover</button>
+                        <button onClick={() => setPreset(1080, 1080)} className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-[var(--primary)] hover:text-white transition border border-[var(--border)]">Post</button>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 mb-1">Instagram</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => setPreset(1080, 1080)} className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-[var(--primary)] hover:text-white transition border border-[var(--border)]">Square</button>
+                        <button onClick={() => setPreset(1080, 1350)} className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-[var(--primary)] hover:text-white transition border border-[var(--border)]">Post</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 mb-1">YouTube</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => setPreset(1280, 720)} className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-[var(--primary)] hover:text-white transition border border-[var(--border)]">Thumb</button>
+                        <button onClick={() => setPreset(2560, 1440)} className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-[var(--primary)] hover:text-white transition border border-[var(--border)]">Art</button>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 mb-1">Twitter</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => setPreset(1500, 500)} className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-[var(--primary)] hover:text-white transition border border-[var(--border)]">Header</button>
+                        <button onClick={() => setPreset(1024, 512)} className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-[var(--primary)] hover:text-white transition border border-[var(--border)]">Card</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Download Button */}
+            {img && (
+              <button
+                onClick={downloadImage}
+                className="btn-primary w-full"
+              >
+                <Download size={18} />
+                Download Resized Image
+              </button>
+            )}
           </div>
 
-          <button onClick={downloadImage} className="mt-4 bg-[#9B6CE3] hover:bg-[#7D4EDB] text-white rounded px-4 py-2 font-semibold w-full">⬇️ Download Resized Image</button>
+          {/* Right Panel - Preview */}
+          <div className="flex flex-col gap-4">
+            <h3 className="font-semibold">Preview</h3>
+            <div className="border border-[var(--border)] rounded-2xl p-4 bg-gray-50 flex-1 flex items-center justify-center overflow-hidden">
+              {!img ? (
+                <p className="text-[var(--text-secondary)]">Upload an image to see preview</p>
+              ) : (
+                <canvas
+                  ref={canvasRef}
+                  className="max-w-full max-h-full rounded-xl border border-[var(--border)] cursor-grab active:cursor-grabbing shadow-sm"
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                />
+              )}
+            </div>
+            
+            {img && (
+              <button
+                onClick={resetTool}
+                className="btn-secondary w-full"
+              >
+                <RotateCcw size={18} />
+                Reset Tool
+              </button>
+            )}
+          </div>
         </div>
+      </section>
 
-        {/* Right Panel */}
-        <div className="flex-1 bg-white rounded-2xl p-6 shadow-md">
-          <h2 className="text-xl font-semibold text-[#6b4de6]">Preview</h2>
-          <canvas
-            ref={canvasRef}
-            className="w-full rounded-lg mt-4 border border-gray-300 cursor-grab"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          />
-        </div>
-      </div>
+      <SuggestedTools currentToolId="image-resizer" />
     </div>
   );
 }

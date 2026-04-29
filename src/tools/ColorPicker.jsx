@@ -1,5 +1,16 @@
-// src/pages/ColorPicker.jsx
+// src/tools/ColorPicker.jsx
 import { useState, useRef, useEffect } from "react";
+import { Upload, Copy, RotateCcw, Pipette, Check } from "lucide-react";
+import SuggestedTools from "../components/sidebar/SuggestedTools";
+
+export const toolData = {
+  title: "Color Picker",
+  path: "/tool/color-picker",
+  category: "Design Tools",
+  description: "Pick colors from images with precision. Get HEX, RGB, and HSL values instantly.",
+  metaTitle: "Color Picker Tool - Pick Colors from Images | Next Online Tools",
+  metaDescription: "Pick colors from images online. Get HEX, RGB, and HSL color codes instantly. Perfect for designers and developers.",
+};
 
 export default function ColorPicker() {
   const canvasRef = useRef(null);
@@ -10,6 +21,9 @@ export default function ColorPicker() {
   const [color, setColor] = useState("#9B6CE3");
   const [rgb, setRgb] = useState({ r: 155, g: 108, b: 227 });
   const [hsl, setHsl] = useState({ h: 265, s: 61, l: 66 });
+  const [copiedFormat, setCopiedFormat] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const imageInputRef = useRef(null);
   const dropZoneRef = useRef(null);
@@ -19,32 +33,25 @@ export default function ColorPicker() {
   useEffect(() => {
     function loadImage(file) {
       if (!file) return;
+      console.log("Loading image:", file.name, file.size);
+      setError("");
+      setIsLoading(true);
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
       imageUrlRef.current && URL.revokeObjectURL(imageUrlRef.current);
       imageUrlRef.current = objectUrl;
 
       img.onload = () => {
+        console.log("Image loaded successfully:", img.width, "x", img.height);
         setImgObj(img);
         setImageLoaded(true);
-
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-
-        const maxWidth = canvas.clientWidth;
-        const maxHeight = 600;
-        let width = img.width;
-        let height = img.height;
-
-        const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
-        width *= ratio;
-        height *= ratio;
-
-        canvas.width = width;
-        canvas.height = height;
-        ctx.clearRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
+        setPicked(false);
+        setIsLoading(false);
+      };
+      img.onerror = () => {
+        console.error("Failed to load image");
+        setError("Failed to load image. Please try another file.");
+        setIsLoading(false);
       };
       img.src = objectUrl;
     }
@@ -60,7 +67,6 @@ export default function ColorPicker() {
     function onDropZoneClick() { inputEl && inputEl.click(); }
     function onInputChange(e) {
       if (e.target.files[0]) loadImage(e.target.files[0]);
-      // clear value so same file can be picked again
       e.target.value = "";
     }
     function onPaste(e) {
@@ -87,7 +93,7 @@ export default function ColorPicker() {
       document.removeEventListener("paste", onPaste);
       imageUrlRef.current && URL.revokeObjectURL(imageUrlRef.current);
     };
-  }, []); // run once
+  }, []);
 
   // Canvas + magnifier interactions — attach/cleanup when canvas or state changes
   useEffect(() => {
@@ -120,18 +126,15 @@ export default function ColorPicker() {
       mtx.imageSmoothingEnabled = false;
       mtx.drawImage(canvas, x - size / 2, y - size / 2, size, size, 0, 0, magnifier.width, magnifier.height);
 
-      // read pixel from main canvas
       const pixel = ctx.getImageData(x, y, 1, 1).data;
       const hex = rgbToHex(pixel[0], pixel[1], pixel[2]);
       updateCodes(hex);
 
-      // draw crosshair + center marker on magnifier (no info box)
       mtx.save();
 
       const cx = Math.floor(magnifier.width / 2);
       const cy = Math.floor(magnifier.height / 2);
 
-      // outer crosshair (white)
       mtx.strokeStyle = "rgba(255,255,255,0.95)";
       mtx.lineWidth = 2;
       mtx.beginPath();
@@ -139,7 +142,6 @@ export default function ColorPicker() {
       mtx.moveTo(0, cy); mtx.lineTo(magnifier.width, cy);
       mtx.stroke();
 
-      // inner darker line for contrast
       mtx.strokeStyle = "rgba(0,0,0,0.6)";
       mtx.lineWidth = 1;
       mtx.beginPath();
@@ -147,7 +149,6 @@ export default function ColorPicker() {
       mtx.moveTo(0, cy); mtx.lineTo(magnifier.width, cy);
       mtx.stroke();
 
-      // center marker (ring)
       mtx.beginPath();
       mtx.fillStyle = "rgba(255,255,255,0.95)";
       mtx.arc(cx, cy, 4, 0, Math.PI * 2);
@@ -198,19 +199,75 @@ export default function ColorPicker() {
     };
   }, [imageLoaded, picked]);
 
+  // Handle canvas sizing after image loads
+  useEffect(() => {
+    if (imageLoaded && imgObj && canvasRef.current) {
+      console.log("Canvas sizing effect triggered", { imageLoaded, imgObj });
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+
+      // Get the container width for proper sizing
+      const container = canvas.parentElement;
+      const maxWidth = container ? Math.max(container.clientWidth - 32, 300) : 600; // Minimum 300px
+      const maxHeight = 400; // Reduced from 500
+
+      let width = imgObj.width;
+      let height = imgObj.height;
+
+      console.log("Original image size:", { width, height });
+      console.log("Container size:", { maxWidth, maxHeight });
+
+      const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
+      width *= ratio;
+      height *= ratio;
+
+      console.log("Scaled image size:", { width, height, ratio });
+
+      // Set canvas display size
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+
+      // Set canvas drawing size (important for high DPI)
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      canvas.width = width * devicePixelRatio;
+      canvas.height = height * devicePixelRatio;
+
+      // Scale the drawing context so everything draws at the correct size
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(imgObj, 0, 0, width, height);
+      console.log("Image drawn to canvas");
+    }
+  }, [imageLoaded, imgObj]);
+
   const DEFAULT_COLOR = {
     color: "#9B6CE3",
     rgb: { r: 155, g: 108, b: 227 },
     hsl: { h: 265, s: 61, l: 66 },
   };
 
-  function resetPick() {
+  function resetTool() {
+    setImageLoaded(false);
     setPicked(false);
+    setImgObj(null);
     setColor(DEFAULT_COLOR.color);
     setRgb(DEFAULT_COLOR.rgb);
     setHsl(DEFAULT_COLOR.hsl);
+    setCopiedFormat("");
+    setError("");
+    setIsLoading(false);
+    if (imageInputRef.current) imageInputRef.current.value = "";
 
-    // ensure magnifier hidden until user moves over canvas again
+    // Clear canvas
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.style.width = "";
+      canvas.style.height = "";
+    }
+
     const m = magnifierRef.current;
     if (m) m.style.display = "none";
   }
@@ -239,68 +296,229 @@ export default function ColorPicker() {
     return {h:Math.round(h*360),s:Math.round(s*100),l:Math.round(l*100)};
   }
 
-  function copyText(text) {
+  function copyText(text, format) {
     navigator.clipboard.writeText(text);
-    alert(`Copied: ${text}`);
+    setCopiedFormat(format);
+    setTimeout(() => setCopiedFormat(""), 2000);
   }
 
   return (
-    <div className="min-h-screen bg-bgLight p-6 flex flex-col gap-8">
-      <h1 className="text-3xl font-bold text-center text-primary">🎨 Color Picker Tool</h1>
-      <p className="text-center text-textSecondary max-w-xl mx-auto">
-        Upload, paste, or drag & drop an image. Hover to preview. Click to pick color.
-      </p>
+    <div className="flex flex-col gap-8">
+      {/* HEADER */}
+      <section className="card p-6 sm:p-8">
+        <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
+          <Pipette size={28} className="text-[var(--primary)]" />
+        </div>
 
-      <div className="flex flex-col md:flex-row gap-6 max-w-screen-2xl mx-auto">
-        {/* Left panel */}
-        <div className="flex-[1.4] bg-white p-4 rounded-xl shadow-md">
-          {!imageLoaded && (
-            <div
+        <h1 className="text-3xl font-bold mb-3">
+          Color Picker
+        </h1>
+
+        <p className="text-[var(--text-secondary)] max-w-2xl">
+          Pick colors directly from images with precision. Get HEX, RGB, and HSL values instantly. Upload, paste, or drag & drop images.
+        </p>
+      </section>
+
+      {/* TOOL BODY */}
+      <section className="card p-6 sm:p-8">
+        {/* Upload Area */}
+        {!imageLoaded && (
+          <div className="mb-8">
+            <label
               ref={dropZoneRef}
-              className="border-2 border-dashed border-primary p-10 text-center cursor-pointer rounded-lg hover:bg-gray-50 transition mb-4"
+              className="block border-2 border-dashed border-[var(--border)] rounded-2xl p-8 text-center cursor-pointer hover:bg-[#f8f4ff] transition"
             >
-              <p>Click or drag & drop image here<br />Or paste screenshot (Ctrl+V)</p>
-            </div>
-          )}
-
-          <input type="file" ref={imageInputRef} accept="image/*" hidden />
-
-          <canvas ref={canvasRef} className="w-full rounded-lg max-h-[600px] bg-gray-50" />
-          <canvas ref={magnifierRef} width="250" height="250" className="fixed rounded-full border-2 border-textPrimary hidden pointer-events-none z-50" />
-        </div>
-
-        {/* Right panel */}
-        <div className="flex-[1.2] bg-white p-6 rounded-xl shadow-md flex flex-col gap-4">
-          <h3 className="text-xl font-semibold text-primary">Picked Color</h3>
-          <div
-            className="h-32 rounded-lg flex items-center justify-center text-white font-bold text-lg"
-            style={{ background: color }}
-          >
-            {color.toUpperCase()}
+              <Upload size={36} className="mx-auto mb-4 text-[var(--primary)]" />
+              <h2 className="text-xl font-semibold mb-2">
+                Upload Image
+              </h2>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Click to upload or drag & drop • Paste with Ctrl+V
+              </p>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+              />
+            </label>
           </div>
+        )}
 
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between items-center bg-gray-100 p-2 rounded">
-              <span>HEX: {color.toUpperCase()}</span>
-              <button onClick={() => copyText(color)} className="px-3 py-1 bg-primary text-white rounded hover:bg-primaryHover transition">Copy</button>
+        {/* Error Message */}
+        {error && (
+          <p className="text-sm text-red-500 bg-red-50 p-3 rounded-lg mb-4">
+            {error}
+          </p>
+        )}
+
+        {/* Canvas and Color Panel */}
+        {imageLoaded && (
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Left - Canvas Preview */}
+            <div className="lg:col-span-2">
+              <h3 className="font-semibold mb-3">Image Preview</h3>
+              <div className="border border-[var(--border)] rounded-2xl p-4 bg-gray-50 flex items-center justify-center overflow-hidden min-h-[200px] w-full">
+                {isLoading && (
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--primary)] mx-auto mb-2"></div>
+                    <p className="text-sm text-[var(--text-secondary)]">Loading image...</p>
+                  </div>
+                )}
+                <canvas
+                  ref={canvasRef}
+                  className="rounded-xl border border-[var(--border)] cursor-crosshair shadow-sm"
+                  style={{
+                    display: imageLoaded && !isLoading ? 'block' : 'none',
+                    maxWidth: '100%',
+                    maxHeight: '400px'
+                  }}
+                />
+                {imageLoaded && !isLoading && (
+                  <canvas
+                    ref={magnifierRef}
+                    width="250"
+                    height="250"
+                    className="fixed rounded-full border-4 border-white hidden pointer-events-none z-50 shadow-lg"
+                  />
+                )}
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-3">
+                💡 Hover to preview • Click to pick color
+              </p>
             </div>
-            <div className="flex justify-between items-center bg-gray-100 p-2 rounded">
-              <span>RGB: {rgb.r}, {rgb.g}, {rgb.b}</span>
-              <button onClick={() => copyText(`rgb(${rgb.r},${rgb.g},${rgb.b})`)} className="px-3 py-1 bg-primary text-white rounded hover:bg-primaryHover transition">Copy</button>
-            </div>
-            <div className="flex justify-between items-center bg-gray-100 p-2 rounded">
-              <span>HSL: {hsl.h}, {hsl.s}%, {hsl.l}%</span>
-              <button onClick={() => copyText(`hsl(${hsl.h},${hsl.s}%,${hsl.l}%)`)} className="px-3 py-1 bg-primary text-white rounded hover:bg-primaryHover transition">Copy</button>
+
+            {/* Right - Color Info */}
+            <div>
+              <h3 className="font-semibold mb-3">Picked Color</h3>
+
+              {/* Color Preview */}
+              <div
+                className="w-full h-24 rounded-2xl flex items-center justify-center text-white font-bold text-lg border-4 border-white shadow-md mb-4 transition"
+                style={{ background: color }}
+              >
+                {color.toUpperCase()}
+              </div>
+
+              {/* Color Values */}
+              <div className="space-y-3">
+                {/* HEX */}
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-[var(--text-secondary)] mb-1">HEX</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="font-mono font-semibold text-sm">
+                      {color.toUpperCase()}
+                    </code>
+                    <button
+                      onClick={() => copyText(color, "hex")}
+                      className={`p-1.5 rounded transition ${
+                        copiedFormat === "hex"
+                          ? "bg-green-500 text-white"
+                          : "bg-white border border-[var(--border)] hover:bg-gray-100"
+                      }`}
+                      title="Copy HEX"
+                    >
+                      {copiedFormat === "hex" ? (
+                        <Check size={16} />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* RGB */}
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-[var(--text-secondary)] mb-1">RGB</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="font-mono font-semibold text-sm">
+                      rgb({rgb.r}, {rgb.g}, {rgb.b})
+                    </code>
+                    <button
+                      onClick={() => copyText(`rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`, "rgb")}
+                      className={`p-1.5 rounded transition ${
+                        copiedFormat === "rgb"
+                          ? "bg-green-500 text-white"
+                          : "bg-white border border-[var(--border)] hover:bg-gray-100"
+                      }`}
+                      title="Copy RGB"
+                    >
+                      {copiedFormat === "rgb" ? (
+                        <Check size={16} />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* HSL */}
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-[var(--text-secondary)] mb-1">HSL</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="font-mono font-semibold text-sm">
+                      hsl({hsl.h}, {hsl.s}%, {hsl.l}%)
+                    </code>
+                    <button
+                      onClick={() => copyText(`hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`, "hsl")}
+                      className={`p-1.5 rounded transition ${
+                        copiedFormat === "hsl"
+                          ? "bg-green-500 text-white"
+                          : "bg-white border border-[var(--border)] hover:bg-gray-100"
+                      }`}
+                      title="Copy HSL"
+                    >
+                      {copiedFormat === "hsl" ? (
+                        <Check size={16} />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* RGB Values */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-red-50 p-2 rounded text-center">
+                    <p className="text-xs text-gray-600">R</p>
+                    <p className="font-semibold text-red-600">{rgb.r}</p>
+                  </div>
+                  <div className="bg-green-50 p-2 rounded text-center">
+                    <p className="text-xs text-gray-600">G</p>
+                    <p className="font-semibold text-green-600">{rgb.g}</p>
+                  </div>
+                  <div className="bg-blue-50 p-2 rounded text-center">
+                    <p className="text-xs text-gray-600">B</p>
+                    <p className="font-semibold text-blue-600">{rgb.b}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        )}
 
-          <button onClick={resetPick} className="mt-4 px-4 py-2 bg-secondary text-white rounded hover:bg-primaryHover transition">
-            Reset Pick
-          </button>
+        {/* Action Buttons */}
+        {imageLoaded && (
+          <div className="flex gap-3 mt-8">
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              className="btn-primary flex-1"
+            >
+              <Upload size={18} />
+              Upload New
+            </button>
+            <button
+              onClick={resetTool}
+              className="btn-secondary flex-1"
+            >
+              <RotateCcw size={18} />
+              Reset
+            </button>
+          </div>
+        )}
+      </section>
 
-          {/* Manual color picker */}
-        </div>
-      </div>
+      <SuggestedTools currentToolId="color-picker" />
     </div>
   );
 }

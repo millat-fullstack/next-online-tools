@@ -1,191 +1,107 @@
-import { useState, useRef } from "react";
-import { Loader } from "lucide-react"; // Using lucide icon for loader
-
-// Importing pdf.js from pdfjs-dist
-import { getDocument } from "pdfjs-dist";
-
-export const toolData = {
-  title: "PDF to JPG Converter",
-  path: "/pdf-to-jpg",
-  category: "File Conversion",
-  description:
-    "Convert PDF files into high-quality JPG images. Extract images from each PDF page instantly.",
-  metaTitle: "PDF to JPG Converter Tool - Convert PDF to Images | Next Online Tools",
-  metaDescription:
-    "Convert PDF documents into JPG images for easy sharing, viewing, and editing. Download individual page images in seconds.",
-};
+import { useState, useRef } from 'react';
+import { saveAs } from 'file-saver';
+import * as pdfjsLib from 'pdfjs-dist';
 
 export default function PDFToJpgConverter() {
-  const fileInputRef = useRef(null);
-  const [pdfFile, setPdfFile] = useState(null);
-  const [images, setImages] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [conversionTime, setConversionTime] = useState(null); // Track conversion time
-  const [progress, setProgress] = useState(0); // Progress percentage
+  const [file, setFile] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [downloadLink, setDownloadLink] = useState(null);
 
-  // Handle PDF file upload
+  const canvasRef = useRef(null);
+
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type === "application/pdf") {
-      setPdfFile(file);
-      setImages([]); // Clear previous images if any
-      setProgress(0); // Reset progress bar
-    } else {
-      alert("Please upload a valid PDF file.");
-    }
+    setFile(e.target.files[0]);
+    setDownloadLink(null); // Reset download link
   };
 
-  // Convert PDF to JPG
-  const convertPdfToJpg = () => {
-    if (!pdfFile) return;
+  const convertPDFToJPG = async () => {
+    if (!file) return alert('Please select a PDF file first.');
+    setIsProcessing(true);
+    setProgress(0);
 
-    const startTime = new Date().getTime(); // Record start time
-    setLoading(true);
     const fileReader = new FileReader();
-    fileReader.onload = async () => {
-      const typedarray = new Uint8Array(fileReader.result);
+    fileReader.onload = async function () {
+      const typedArray = new Uint8Array(this.result);
+      const pdf = await pdfjsLib.getDocument(typedArray).promise;
 
-      // Using pdf.js to load the document
-      const pdf = await getDocument(typedarray).promise;
-      const imagesArr = [];
-      const totalPages = pdf.numPages;
+      const zip = new JSZip();
+      let pageCount = pdf.numPages;
 
-      console.log("PDF Loaded: ", pdf);
+      for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2 });
 
-      // Loop through each page and convert to JPG
-      for (let i = 0; i < totalPages; i++) {
-        const page = await pdf.getPage(i + 1);
-        const scale = 1.5;
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        canvas.height = viewport.height;
+        const canvas = canvasRef.current;
+        const context = canvas.getContext('2d');
         canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-        // Render the page on the canvas
-        console.log(`Rendering page ${i + 1}...`);
-        await page.render({
-          canvasContext: context,
-          viewport,
-        }).promise;
+        await page.render({ canvasContext: context, viewport }).promise;
 
-        // Convert canvas to JPG
-        const imgUrl = canvas.toDataURL("image/jpeg", 0.9);
-        imagesArr.push(imgUrl);
+        const imgData = canvas.toDataURL('image/jpeg', 0.9); // Convert to JPG with 90% quality
+        const base64Data = imgData.split(',')[1];
+
+        // Add image to ZIP
+        zip.file(`page_${pageNum}.jpg`, base64Data, { base64: true });
 
         // Update progress
-        setProgress(((i + 1) / totalPages) * 100);
-        console.log(`Page ${i + 1} converted!`);
+        setProgress(((pageNum / pageCount) * 100).toFixed(0));
       }
 
-      // Calculate conversion time
-      const endTime = new Date().getTime();
-      const timeTaken = ((endTime - startTime) / 1000).toFixed(2); // in seconds
-      setConversionTime(timeTaken);
-
-      setImages(imagesArr);
-      setLoading(false);
+      // Save ZIP file
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, 'pdf_images.zip');
+      
+      setDownloadLink(URL.createObjectURL(content)); // Set the download link
+      setIsProcessing(false);
     };
 
-    fileReader.readAsArrayBuffer(pdfFile);
-  };
-
-  // Download JPG images
-  const handleDownload = (index) => {
-    const link = document.createElement("a");
-    link.href = images[index];
-    link.download = `page-${index + 1}.jpg`;
-    link.click();
+    fileReader.readAsArrayBuffer(file);
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f6fb] p-6 space-y-6">
-      <h1 className="text-3xl text-center font-bold text-[#6b4de6]">📄 PDF to JPG Converter</h1>
+    <div className="p-6 max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold text-center mb-4">PDF to JPG Converter</h1>
+      <p className="text-center mb-6">Convert PDF pages to JPG images without uploading anything to the cloud.</p>
 
-      <div className="flex flex-col lg:flex-row gap-6 max-w-6xl mx-auto">
-        {/* Left Panel */}
-        <div className="flex-1 bg-white rounded-2xl p-6 shadow-md space-y-4">
-          <h2 className="text-xl font-semibold text-[#6b4de6]">Upload PDF</h2>
-          <div
-            className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:bg-gray-50"
-            onClick={() => fileInputRef.current.click()}
+      {/* File Input */}
+      <input
+        type="file"
+        accept="application/pdf"
+        onChange={handleFileChange}
+        className="block w-full mb-4"
+      />
+
+      {/* Processing State */}
+      {isProcessing && (
+        <div className="text-center">
+          <p>Processing...</p>
+          <progress value={progress} max="100" className="w-full"></progress>
+        </div>
+      )}
+
+      {/* Convert Button */}
+      <button
+        onClick={convertPDFToJPG}
+        disabled={isProcessing}
+        className="btn-primary w-full mt-6"
+      >
+        {isProcessing ? 'Converting...' : 'Convert PDF to JPG'}
+      </button>
+
+      {/* Download Link */}
+      {downloadLink && (
+        <div className="mt-6 text-center">
+          <a
+            href={downloadLink}
+            download="pdf_images.zip"
+            className="btn-primary"
           >
-            <p>Click or drag & drop PDF here</p>
-            <input
-              type="file"
-              accept="application/pdf"
-              hidden
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
-          </div>
-
-          {/* Convert Button */}
-          {pdfFile && !loading && (
-            <button
-              onClick={convertPdfToJpg}
-              className="bg-[#8d6bcb] hover:bg-[#7552b6] text-white rounded px-4 py-2 font-semibold w-full"
-            >
-              Convert PDF to JPG
-            </button>
-          )}
-
-          {/* Loading State */}
-          {loading && (
-            <div className="flex justify-center items-center py-4">
-              <Loader size={30} className="animate-spin" />
-            </div>
-          )}
-
-          {/* Conversion Time */}
-          {conversionTime && !loading && (
-            <div className="text-sm text-center text-[var(--text-secondary)] mt-4">
-              Conversion Time: {conversionTime} seconds
-            </div>
-          )}
-
-          {/* Progress Bar */}
-          {loading && (
-            <div className="mt-4">
-              <div className="text-sm text-center text-[var(--text-secondary)]">
-                Converting: {Math.round(progress)}%
-              </div>
-              <div className="w-full bg-gray-300 h-2 rounded-full">
-                <div
-                  className="bg-[#6b4de6] h-2 rounded-full"
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-            </div>
-          )}
+            Download ZIP of Images
+          </a>
         </div>
-
-        {/* Right Panel (Preview) */}
-        <div className="flex-1 bg-white rounded-2xl p-6 shadow-md">
-          <h2 className="text-xl font-semibold text-[#6b4de6]">Preview</h2>
-          {images.length > 0 ? (
-            <div className="space-y-4">
-              {images.map((img, index) => (
-                <div key={index} className="mb-4">
-                  <img
-                    src={img}
-                    alt={`Page ${index + 1}`}
-                    className="w-full h-auto rounded-md shadow-md"
-                  />
-                  <button
-                    onClick={() => handleDownload(index)}
-                    className="mt-3 px-4 py-2 rounded-xl font-medium border border-[#9B6CE3] text-[#9B6CE3] hover:bg-[#9B6CE3] hover:text-white transition"
-                  >
-                    Download Page {index + 1}
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[var(--text-secondary)]">No preview available.</p>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
