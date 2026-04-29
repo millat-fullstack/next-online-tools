@@ -52,5 +52,14 @@
     "icon": "ImagePlus",
     "trending": true,
     "createdAt": "2025-11-07T12:00:00Z"
+  },
+  {
+    "id": "pdf-to-jpg-converter",
+    "name": "PDF to JPG Converter",
+    "category": "File Conversion",
+    "description": "Convert PDF files into JPG images quickly and download each page.",
+    "icon": "FileText",
+    "trending": true,
+    "createdAt": "2025-11-10T12:00:00Z"
   }
 ]

@@ -1,12 +1,13 @@
-// src/pages/ImageResizer.jsx
 import { useState, useRef, useEffect } from "react";
+import { Send, Loader } from "lucide-react"; // Lucide icons for loading and submit
 
-// Tool metadata
+// Tool metadata for Image Resizer
 export const toolData = {
   title: "Image Resizer",
   path: "/image-resizer",
   category: "Design Tools",
-  description: "Upload and resize images with custom dimensions, zoom, drag, and presets for social media.",
+  description:
+    "Upload and resize images with custom dimensions, zoom, drag, and presets for social media.",
   metaTitle: "Image Resizer Tool - Resize Images Easily | Next Online Tools",
   metaDescription:
     "Resize images online with custom width/height, drag, zoom, and quick presets for Facebook, Instagram, and YouTube. Download resized images instantly.",
@@ -23,10 +24,15 @@ export default function ImageResizer() {
   const [isDragging, setIsDragging] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [isProcessing, setIsProcessing] = useState(false); // Processing state
+  const [errorMessage, setErrorMessage] = useState(""); // Error message for invalid files
 
-  // Load image
+  // Handle image load
   const loadImage = (file) => {
+    setErrorMessage("");
+    setIsProcessing(true);
     setImgType(file.type);
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const image = new Image();
@@ -35,6 +41,11 @@ export default function ImageResizer() {
         setDimensions({ width: image.width, height: image.height });
         setScale(1);
         setOffset({ x: 0, y: 0 });
+        setIsProcessing(false);
+      };
+      image.onerror = () => {
+        setIsProcessing(false);
+        setErrorMessage("Failed to load image. Please try again.");
       };
       image.src = e.target.result;
     };
@@ -48,9 +59,10 @@ export default function ImageResizer() {
     const ctx = canvas.getContext("2d");
     const w = parseInt(dimensions.width);
     const h = parseInt(dimensions.height);
+
     canvas.width = w;
     canvas.height = h;
-    ctx.clearRect(0, 0, w, h);
+    ctx.clearRect(0, 0, w, h); // Clear previous image
 
     const iw = img.width * scale;
     const ih = img.height * scale;
@@ -62,7 +74,10 @@ export default function ImageResizer() {
 
   // Redraw when dependencies change
   useEffect(() => {
-    drawImage();
+    if (img) {
+      console.log("Drawing image...");
+      drawImage();
+    }
   }, [img, scale, offset, dimensions]);
 
   // Mouse drag handlers
@@ -70,6 +85,7 @@ export default function ImageResizer() {
     setIsDragging(true);
     setStartPos({ x: e.nativeEvent.offsetX - offset.x, y: e.nativeEvent.offsetY - offset.y });
   };
+
   const handleMouseMove = (e) => {
     if (!isDragging) return;
     setOffset({
@@ -77,6 +93,7 @@ export default function ImageResizer() {
       y: e.nativeEvent.offsetY - startPos.y,
     });
   };
+
   const handleMouseUp = () => setIsDragging(false);
 
   // Preset setter
@@ -92,6 +109,13 @@ export default function ImageResizer() {
     setDimensions({ width: img.width, height: img.height });
     setScale(1);
     setOffset({ x: 0, y: 0 });
+  };
+
+  // Handle resizing of the image
+  const handleResize = () => {
+    if (img) {
+      drawImage();
+    }
   };
 
   // Download
@@ -143,7 +167,7 @@ export default function ImageResizer() {
               value={dimensions.height}
               onChange={(e) => setDimensions({ ...dimensions, height: e.target.value })}
             />
-            <button onClick={drawImage} className="bg-[#8d6bcb] hover:bg-[#7552b6] text-white rounded px-4 py-2 font-semibold">Resize</button>
+            <button onClick={handleResize} className="bg-[#8d6bcb] hover:bg-[#7552b6] text-white rounded px-4 py-2 font-semibold">Resize</button>
             <button onClick={resetImage} className="bg-[#6EC3E3] hover:bg-[#4aa9d0] text-white rounded px-4 py-2 font-semibold">Reset</button>
           </div>
 
@@ -166,16 +190,16 @@ export default function ImageResizer() {
             <h3 className="font-semibold text-[#6b4de6]">Quick Presets</h3>
             <div className="flex flex-wrap gap-2">
               {/* Facebook */}
-              <button onClick={() => setPreset(820,312)} className="bg-[#3b5998] text-white px-3 py-1 rounded">FB Cover</button>
-              <button onClick={() => setPreset(1200,628)} className="bg-[#3b5998] text-white px-3 py-1 rounded">FB Ad</button>
-              <button onClick={() => setPreset(1080,1080)} className="bg-[#3b5998] text-white px-3 py-1 rounded">FB Post</button>
+              <button onClick={() => setPreset(820, 312)} className="bg-[#3b5998] text-white px-3 py-1 rounded">FB Cover</button>
+              <button onClick={() => setPreset(1200, 628)} className="bg-[#3b5998] text-white px-3 py-1 rounded">FB Ad</button>
+              <button onClick={() => setPreset(1080, 1080)} className="bg-[#3b5998] text-white px-3 py-1 rounded">FB Post</button>
               {/* Instagram */}
-              <button onClick={() => setPreset(1080,1080)} className="bg-[#C13584] text-white px-3 py-1 rounded">IG Square</button>
-              <button onClick={() => setPreset(1080,1350)} className="bg-[#C13584] text-white px-3 py-1 rounded">IG Portrait</button>
-              <button onClick={() => setPreset(1080,566)} className="bg-[#C13584] text-white px-3 py-1 rounded">IG Landscape</button>
+              <button onClick={() => setPreset(1080, 1080)} className="bg-[#C13584] text-white px-3 py-1 rounded">IG Square</button>
+              <button onClick={() => setPreset(1080, 1350)} className="bg-[#C13584] text-white px-3 py-1 rounded">IG Portrait</button>
+              <button onClick={() => setPreset(1080, 566)} className="bg-[#C13584] text-white px-3 py-1 rounded">IG Landscape</button>
               {/* YouTube */}
-              <button onClick={() => setPreset(2560,1440)} className="bg-[#FF0000] text-white px-3 py-1 rounded">YT Channel Art</button>
-              <button onClick={() => setPreset(1280,720)} className="bg-[#FF0000] text-white px-3 py-1 rounded">YT Thumbnail</button>
+              <button onClick={() => setPreset(2560, 1440)} className="bg-[#FF0000] text-white px-3 py-1 rounded">YT Channel Art</button>
+              <button onClick={() => setPreset(1280, 720)} className="bg-[#FF0000] text-white px-3 py-1 rounded">YT Thumbnail</button>
             </div>
           </div>
 

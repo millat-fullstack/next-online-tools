@@ -19,6 +19,7 @@ import ColorPreview from "./tools/ColorPreview";
 import ImageCompressor from "./tools/ImageCompressor";
 import ImageResizer from "./tools/ImageResizer";
 import WebpToJpgConverter from "./tools/WebpToJpgConverter";
+import PDFToJpgConverter from "./tools/PDFToJpgConverter";
 import BestFreeOnlineTools from "./pages/blogs/BestFreeOnlineTools";
 import ImageToolsGuide from "./pages/blogs/ImageToolsGuide";
 import ToolPage from "./pages/ToolPage";
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="/tool/image-compressor" element={<ImageCompressor />} />
         <Route path="/tool/image-resizer" element={<ImageResizer />} />
         <Route path="/tool/webp-to-jpg-converter" element={<WebpToJpgConverter />} />
+        <Route path="/tool/pdf-to-jpg-converter" element={<PDFToJpgConverter />} />
         <Route path="/blog/BestFreeOnlineTools" element={<BestFreeOnlineTools />} />
         <Route path="/blog/ImageToolsGuide" element={<ImageToolsGuide />} />
         <Route path="/tool/:slug" element={<ToolPage />} />

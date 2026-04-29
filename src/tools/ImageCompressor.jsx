@@ -1,14 +1,15 @@
-import { useState, useRef, Suspense, lazy } from "react";
-import SuggestedTools from "../components/sidebar/SuggestedTools";
+import { useState, useRef } from "react";
+import Compressor from "compressorjs"; // Using Compressor.js for advanced compression
 
 export default function ImageCompressor() {
   const [file, setFile] = useState(null);
   const [compressed, setCompressed] = useState(null);
-  const [quality, setQuality] = useState(0.9);
+  const [quality, setQuality] = useState(0.9);  // Default compression quality
   const [isCompressing, setIsCompressing] = useState(false);
   const [sizeInfo, setSizeInfo] = useState(null);
   const canvasRef = useRef(null);
 
+  // Handle file upload
   const handleFileChange = (e) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
@@ -21,77 +22,29 @@ export default function ImageCompressor() {
     setSizeInfo(null);
   };
 
+  // Compress the uploaded image
   const handleCompress = () => {
     if (!file) return alert("Please select an image first.");
-
     setIsCompressing(true);
-    const reader = new FileReader();
 
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
-
-        let { width, height } = img;
-        const maxDimension = 1920;
-
-        // 1️⃣ Resize large images proportionally
-        if (width > maxDimension || height > maxDimension) {
-          const scale = maxDimension / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        ctx.drawImage(img, 0, 0, width, height);
-
-        let mimeType = file.type;
-        let useWebP = false;
-
-        // 2️⃣ Detect WebP support
-        const testCanvas = document.createElement("canvas");
-        if (
-          testCanvas.toDataURL("image/webp").indexOf("data:image/webp") === 0
-        ) {
-          useWebP = true;
-        }
-
-        // 3️⃣ Use WebP if supported (except GIF)
-        if (useWebP && file.type !== "image/gif") {
-          mimeType = "image/webp";
-        }
-
-        // 4️⃣ Adjust quality dynamically
-        let dynamicQuality = quality;
-        const fileSizeMB = file.size / (1024 * 1024);
-        if (fileSizeMB > 5) dynamicQuality = 0.75;
-        else if (fileSizeMB > 2) dynamicQuality = 0.85;
-        else dynamicQuality = 0.9;
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              const url = URL.createObjectURL(blob);
-              setCompressed(url);
-              setSizeInfo({
-                original: (file.size / 1024).toFixed(1),
-                compressed: (blob.size / 1024).toFixed(1),
-              });
-            }
-            setIsCompressing(false);
-          },
-          mimeType,
-          dynamicQuality
-        );
-      };
-      img.src = e.target.result;
-    };
-
-    reader.readAsDataURL(file);
+    new Compressor(file, {
+      quality: quality, // Set quality based on slider value
+      success(result) {
+        setCompressed(URL.createObjectURL(result));
+        setSizeInfo({
+          original: (file.size / 1024).toFixed(1),
+          compressed: (result.size / 1024).toFixed(1),
+        });
+        setIsCompressing(false);
+      },
+      error(err) {
+        console.error("Compression Error:", err);
+        setIsCompressing(false);
+      },
+    });
   };
 
+  // Download the compressed image
   const handleDownload = () => {
     if (!compressed) return;
     const link = document.createElement("a");
@@ -101,9 +54,6 @@ export default function ImageCompressor() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => {
-      if (compressed) URL.revokeObjectURL(compressed);
-    }, 1500);
   };
 
   return (
@@ -185,10 +135,6 @@ export default function ImageCompressor() {
 
       {/* Hidden Canvas */}
       <canvas ref={canvasRef} className="hidden" />
-
-
-      {/* Suggested Tools */}
-      <SuggestedTools currentToolPath="/image-compressor" />
     </div>
   );
 }
