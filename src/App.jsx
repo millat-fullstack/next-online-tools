@@ -21,7 +21,7 @@ import ImageResizer from "./tools/ImageResizer";
 import WebpToJpgConverter from "./tools/WebpToJpgConverter";
 import PDFToJpgConverter from "./tools/PDFToJpgConverter";
 import TextToSlugGenerator from "./tools/TextToSlugGenerator";
-import InstagramVideoDownloader from "./tools/InstagramVideoDownloader";
+import ImageCropperTool from "./tools/ImageCropperTool";
 
 // Blog components
 import BestFreeOnlineTools from "./pages/blogs/BestFreeOnlineTools";
@@ -60,7 +60,7 @@ export default function App() {
         <Route path="/tool/webp-to-jpg-converter" element={<WebpToJpgConverter />} />
         <Route path="/tool/pdf-to-jpg-converter" element={<PDFToJpgConverter />} />
         <Route path="/tool/text-to-slug-generator" element={<TextToSlugGenerator />} />
-        <Route path="/tool/instagram-video-downloader" element={<InstagramVideoDownloader />} />
+        <Route path="/tool/image-cropper-tool" element={<ImageCropperTool />} />  
         <Route path="/tool/:slug" element={<ToolPage />} />
       </Route>
     </Routes>

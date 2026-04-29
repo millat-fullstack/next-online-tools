@@ -71,14 +71,14 @@
     "trending": true,
     "createdAt": "2025-11-15T12:00:00Z"
   },
-    {
-    "id": "instagram-video-downloader",
-    "name": "Instagram Video Downloader",
-    "category": "Video Tools",
-    "description": "Download Instagram videos directly to your device by simply pasting the video URL.",
-    "icon": "Video",
+  {
+    "id": "image-cropper-tool",
+    "name": "Image Cropper Tool",
+    "category": "Image Tools",
+    "description": "Crop your images easily with our intuitive image cropper tool.",
+    "icon": "Crop",
     "trending": true,
-    "createdAt": "2025-11-15T12:00:00Z"
+    "createdAt": "2025-11-20T12:00:00Z"
   }
 
 ]
