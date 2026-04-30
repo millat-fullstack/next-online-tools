@@ -1,44 +1,43 @@
-import { Link } from "react-router-dom";
+import React from "react";
+import { useParams, Link } from "react-router-dom";
 
-// List all available tools here
-const tools = [
-  { name: "Case Converter", slug: "case-converter" },
-  { name: "Color Picker", slug: "color-picker" },
-  { name: "Color Preview", slug: "color-preview" },
-  { name: "Image Compressor", slug: "image-compressor" },
-  { name: "Image Resizer", slug: "image-resizer" },
-  { name: "WEBP to JPG Converter", slug: "webp-to-jpg-converter" },
-  { name: "PDF to JPG Converter", slug: "pdf-to-jpg-converter" },
-  { name: "Text to Slug Generator", slug: "text-to-slug-generator" },
-  // Add more tools here as you add them
-];
+const toolModules = import.meta.glob("../tools/*.jsx", { eager: true });
+const normalizeToolId = (toolPath) =>
+  toolPath?.replace(/^\//, "").replace(/^tool\//, "").replace(/\/$/, "") || "";
 
-export default function Tools() {
-  return (
-    <div className="flex flex-col gap-8">
-      <section className="card p-6 sm:p-8">
-        <span className="badge mb-4 inline-block">Featured Tools</span>
+const toolComponentMap = Object.entries(toolModules).reduce((map, [filePath, module]) => {
+  let toolId = normalizeToolId(module.toolData?.path);
+  if (!toolId) {
+    const fileName = filePath.split('/').pop() || '';
+    toolId = fileName.replace(/\.jsx$/, '');
+  }
+  if (toolId && module.default) {
+    map[toolId] = module.default;
+  }
+  return map;
+}, {});
 
-        <h1 className="text-3xl sm:text-4xl font-bold mb-3">Tools</h1>
+export default function ToolPage() {
+  const { slug } = useParams();
+  const ToolComponent = toolComponentMap[slug];
 
-        <p className="text-[var(--text-secondary)] max-w-2xl">
-          Explore all the free and easy-to-use tools that can help you with your daily digital tasks.
+  if (!ToolComponent) {
+    return (
+      <div className="max-w-3xl mx-auto card p-6">
+        <h1 className="text-2xl font-bold mb-4">Tool not found</h1>
+        <p className="text-[var(--text-secondary)] mb-4">
+          We couldn’t find that tool. Try selecting another tool from the tools page.
         </p>
-      </section>
+        <Link to="/tools" className="btn-primary">
+          Back to Tools
+        </Link>
+      </div>
+    );
+  }
 
-      <section className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
-        {tools.map((tool) => (
-          <Link key={tool.slug} to={`/tool/${tool.slug}`}>
-            <article className="card card-hover p-5 h-full">
-              <h2 className="text-xl font-semibold mb-3">{tool.name}</h2>
-              <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-4">
-                A quick and easy way to use {tool.name} for your daily tasks.
-              </p>
-              <p className="text-xs text-[var(--text-secondary)]">Learn More</p>
-            </article>
-          </Link>
-        ))}
-      </section>
+  return (
+    <div className="max-w-5xl mx-auto">
+      <ToolComponent />
     </div>
   );
 }

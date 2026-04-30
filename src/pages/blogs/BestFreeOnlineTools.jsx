@@ -1,6 +1,15 @@
 import { Helmet } from "react-helmet-async";
 import { Share2 } from "lucide-react";
 
+export const blogData = {
+  title: "Best Free Online Tools for Daily Work",
+  slug: "BestFreeOnlineTools",
+  date: "2026-04-25",
+  category: "Tools",
+  excerpt: "Discover the best free online tools to help you complete daily tasks faster and more efficiently.",
+  image: "/images/free-online-tools.jpg"
+};
+
 export default function BestFreeOnlineTools() {
   return (
     <>

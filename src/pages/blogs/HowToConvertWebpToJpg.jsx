@@ -1,6 +1,15 @@
 import { Helmet } from "react-helmet-async";
 import { Share2 } from "lucide-react";
 
+export const blogData = {
+  title: "How to Convert WEBP to JPG Online",
+  slug: "HowToConvertWebpToJpg",
+  date: "2026-04-24",
+  category: "Image Tools",
+  excerpt: "Learn how to convert WEBP images to JPG format online easily and quickly.",
+  image: "/images/webp-to-jpg.png"
+};
+
 export default function HowToConvertWebpToJpg() {
   return (
     <>

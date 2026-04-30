@@ -2,6 +2,13 @@ import { useState, useRef } from 'react';
 import { saveAs } from 'file-saver';
 import * as pdfjsLib from 'pdfjs-dist';
 
+export const toolData = {
+  title: "PDF to JPG Converter",
+  path: "/pdf-to-jpg-converter",
+  category: "File Conversion",
+  description: "Convert PDF files to JPG images quickly. Get high-quality image output for every PDF page.",
+};
+
 export default function PDFToJpgConverter() {
   const [file, setFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);

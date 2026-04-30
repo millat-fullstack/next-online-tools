@@ -1,6 +1,15 @@
 import { Helmet } from "react-helmet-async";
 import { Share2 } from "lucide-react";
 
+export const blogData = {
+  title: "Essential Online Image Tools to Optimize, Resize, and Convert Images Easily",
+  slug: "ImageToolsGuide",
+  date: "2026-04-26",
+  category: "Image Tools",
+  excerpt: "Learn how online image tools like resizers, compressors, and converters can help you optimize images for speed, quality, and better SEO performance.",
+  image: "/images/image-tools-guide.jpg"
+};
+
 export default function ImageToolsGuide() {
   return (
     <>

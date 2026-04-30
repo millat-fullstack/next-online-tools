@@ -4,6 +4,8 @@ import SuggestedTools from "../components/sidebar/SuggestedTools";
 
 export const toolData = {
   title: "WEBP to JPG Converter",
+  path: "/webp-to-jpg-converter",
+  category: "Image Tools",
   description: "Convert WEBP images to JPG format quickly in your browser.",
 };
 

@@ -3,6 +3,8 @@ import SuggestedTools from "../components/sidebar/SuggestedTools";
 
 export const toolData = {
   title: "Color Preview",
+  path: "/color-preview",
+  category: "Design Tools",
   description: "Preview any color using HEX color code.",
 };
 

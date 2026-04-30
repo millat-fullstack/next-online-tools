@@ -1,21 +1,18 @@
+import React, { Suspense } from "react";
 import { useParams } from "react-router-dom";
-import { Suspense } from "react";
 
-// Dynamically import blog components based on slug
-const BlogComponents = {
-  HowToConvertWebpToJpg: () => import("./blogs/HowToConvertWebpToJpg"),
-  // Add more blog components here as you add more
-};
+const blogPages = import.meta.glob("./blogs/*.jsx");
 
 export default function BlogSingle() {
-  const { slug } = useParams(); // Capture the slug from URL
+  const { slug } = useParams();
+  const pagePath = `./blogs/${slug}.jsx`;
+  const loader = blogPages[pagePath];
 
-  // Dynamic import of the blog component
-  const BlogComponent = BlogComponents[slug];
-
-  if (!BlogComponent) {
+  if (!loader) {
     return <div>Blog not found</div>;
   }
+
+  const BlogComponent = React.lazy(loader);
 
   return (
     <div className="max-w-3xl mx-auto">

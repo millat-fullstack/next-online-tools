@@ -1,66 +1,111 @@
 [
   {
-    "id": "image-compressor",
-    "name": "Image Compressor",
+    "id": "avif-to-jpg-converter",
+    "name": "AVIF to JPG Converter",
     "category": "Image Tools",
-    "description": "Compress images quickly and reduce file size easily.",
-    "icon": "Image",
+    "description": "Convert AVIF images to JPG online for free with quality control and instant download.",
+    "icon": "Wrench",
+    "trending": false,
+    "createdAt": "2026-04-30T21:40:54.714Z"
+  },
+  {
+    "id": "case-converter",
+    "name": "Case Converter",
+    "category": "Text Tools",
+    "description": "Convert text to uppercase, lowercase, title case, sentence case, and more. Copy your result with a single click.",
+    "icon": "Type",
     "trending": true,
-    "createdAt": "2025-11-01T12:00:00Z"
+    "createdAt": "2026-04-30T21:40:54.716Z"
   },
   {
     "id": "color-picker",
     "name": "Color Picker",
     "category": "Design Tools",
-    "description": "Pick and copy beautiful colors easily.",
+    "description": "Pick colors from images with precision. Get HEX, RGB, and HSL values instantly.",
     "icon": "Palette",
     "trending": false,
-    "createdAt": "2025-11-05T12:00:00Z"
-  },
-  {
-    "id": "case-converter",
-    "name": "Text Case Converter",
-    "category": "Text Tools",
-    "description": "Convert text to uppercase, lowercase, title case and more.",
-    "icon": "Type",
-    "trending": true,
-    "createdAt": "2025-11-03T12:00:00Z"
-  },
-  {
-    "id": "image-resizer",
-    "name": "Image Resizer",
-    "category": "Image Tools",
-    "description": "Resize images quickly and easily.",
-    "icon": "Crop",
-    "trending": false,
-    "createdAt": "2025-10-28T12:00:00Z"
+    "createdAt": "2026-04-30T21:40:54.718Z"
   },
   {
     "id": "color-preview",
     "name": "Color Preview",
     "category": "Design Tools",
-    "description": "Preview colors and copy HEX color codes quickly.",
-    "icon": "Droplets",
+    "description": "Preview any color using HEX color code.",
+    "icon": "Palette",
     "trending": true,
-    "createdAt": "2025-11-07T12:00:00Z"
+    "createdAt": "2026-04-30T21:40:54.720Z"
   },
   {
-    "id": "webp-to-jpg-converter",
-    "name": "WEBP to JPG Converter",
-    "category": "Image Tools",
-    "description": "Convert WEBP images to JPG format instantly in your browser.",
-    "icon": "ImagePlus",
+    "id": "csv-to-xls-converter",
+    "name": "CSV to XLS Converter",
+    "category": "Document Tools",
+    "description": "Convert CSV files to Excel format in seconds. Get clean, editable spreadsheet output for Microsoft Excel.",
+    "icon": "FileSpreadsheet",
     "trending": true,
-    "createdAt": "2025-11-07T12:00:00Z"
+    "createdAt": "2026-04-30T21:40:54.722Z"
+  },
+  {
+    "id": "heic-to-jpg-converter",
+    "name": "HEIC to JPG Converter",
+    "category": "Image Tools",
+    "description": "Convert HEIC and HEIF images to JPG online for free. Fast, secure, and browser-based.",
+    "icon": "Wrench",
+    "trending": false,
+    "createdAt": "2026-04-30T21:40:54.723Z"
+  },
+  {
+    "id": "image-compressor",
+    "name": "Image Compressor",
+    "category": "Design Tools",
+    "description": "Compress images directly in your browser with adjustable quality control. Fast, secure, and no server uploads needed.",
+    "icon": "Wrench",
+    "trending": true,
+    "createdAt": "2026-04-30T21:40:54.724Z"
+  },
+  {
+    "id": "image-cropper-tool",
+    "name": "Image Cropper Tool",
+    "category": "Design Tools",
+    "description": "Upload an image, crop it using various selection types, and download the cropped image in JPG/PNG format.",
+    "icon": "Wrench",
+    "trending": false,
+    "createdAt": "2026-04-30T21:40:54.725Z"
+  },
+  {
+    "id": "image-resizer",
+    "name": "Image Resizer",
+    "category": "Design Tools",
+    "description": "Upload and resize images with custom dimensions, zoom, drag, and presets for social media.",
+    "icon": "Wrench",
+    "trending": false,
+    "createdAt": "2026-04-30T21:40:54.726Z"
+  },
+  {
+    "id": "instagram-video-downloader",
+    "name": "Instagram Video Downloader",
+    "category": "Video Tools",
+    "description": "Download Instagram videos directly to your device by simply pasting the video URL. No apps, no signups.",
+    "icon": "Wrench",
+    "trending": false,
+    "createdAt": "2026-04-30T21:40:54.726Z"
+  },
+  {
+    "id": "jpg-to-pdf-converter",
+    "name": "JPG to PDF Converter",
+    "category": "File Conversion",
+    "description": "Convert JPG images to PDF in seconds. Easily adjust orientation and margins.",
+    "icon": "FileText",
+    "trending": true,
+    "createdAt": "2026-04-30T21:40:54.728Z"
   },
   {
     "id": "pdf-to-jpg-converter",
     "name": "PDF to JPG Converter",
     "category": "File Conversion",
-    "description": "Convert PDF files into JPG images quickly and download each page.",
+    "description": "Convert PDF files to JPG images quickly. Get high-quality image output for every PDF page.",
     "icon": "FileText",
     "trending": true,
-    "createdAt": "2025-11-10T12:00:00Z"
+    "createdAt": "2026-04-30T21:40:54.729Z"
   },
   {
     "id": "text-to-slug-generator",
@@ -69,16 +114,15 @@
     "description": "Convert any title, heading, or sentence into a clean SEO-friendly URL slug instantly.",
     "icon": "Link",
     "trending": true,
-    "createdAt": "2025-11-15T12:00:00Z"
+    "createdAt": "2026-04-30T21:40:54.732Z"
   },
   {
-    "id": "image-cropper-tool",
-    "name": "Image Cropper Tool",
+    "id": "webp-to-jpg-converter",
+    "name": "WEBP to JPG Converter",
     "category": "Image Tools",
-    "description": "Crop your images easily with our intuitive image cropper tool.",
-    "icon": "Crop",
+    "description": "Convert WEBP images to JPG format quickly in your browser.",
+    "icon": "ImagePlus",
     "trending": true,
-    "createdAt": "2025-11-20T12:00:00Z"
+    "createdAt": "2026-04-30T21:40:54.733Z"
   }
-
 ]

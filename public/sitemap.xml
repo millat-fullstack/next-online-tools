@@ -1,24 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-
   <url>
     <loc>https://nextonlinetools.com/</loc>
   </url>
-
-  <url>
-    <loc>https://nextonlinetools.com/#/tools</loc>
-  </url>
-
-  <url>
-    <loc>https://nextonlinetools.com/#/blog</loc>
-  </url>
-
   <url>
     <loc>https://nextonlinetools.com/#/about</loc>
   </url>
-
+  <url>
+    <loc>https://nextonlinetools.com/#/blog</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/blog/BestFreeOnlineTools</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/blog/HowToConvertWebpToJpg</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/blog/ImageToolsGuide</loc>
+  </url>
   <url>
     <loc>https://nextonlinetools.com/#/contact</loc>
   </url>
-
+  <url>
+    <loc>https://nextonlinetools.com/#/privacy-policy</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/terms-of-service</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/avif-to-jpg-converter</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/case-converter</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/color-picker</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/color-preview</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/csv-to-xls-converter</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/heic-to-jpg-converter</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/image-compressor</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/image-cropper-tool</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/image-resizer</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/instagram-video-downloader</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/jpg-to-pdf-converter</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/pdf-to-jpg-converter</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/text-to-slug-generator</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tool/webp-to-jpg-converter</loc>
+  </url>
+  <url>
+    <loc>https://nextonlinetools.com/#/tools</loc>
+  </url>
 </urlset>
