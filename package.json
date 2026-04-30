@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run build-tools && vite build",
-    "build-tools": "node scripts/build-tools-json.js",
+    "build-tools": "node scripts/build-tools-json.cjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
