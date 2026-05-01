@@ -22,13 +22,13 @@ export default function Sidebar() {
 
   return (
     <div className="h-full flex flex-col p-5 overflow-y-auto">
-      <Link to="/" className="mb-8">
-        <h1 className="text-2xl font-bold text-[var(--primary)]">
-          Next Online Tools
-        </h1>
-        <p className="text-xs text-[var(--text-secondary)] mt-1">
-          100+ free online tools
-        </p>
+      <Link to="/" className="mb-8 flex items-center justify-center">
+        {/* Logo Section */}
+        <img
+          src="/logo.png" 
+          alt="Next Online Tools"
+          className="w-18 h-10" 
+        />
       </Link>
 
       <nav className="flex flex-col gap-2 mb-8">

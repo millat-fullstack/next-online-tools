@@ -39,16 +39,16 @@ export default function Home() {
       {/* HERO */}
       <section className="text-center py-10 sm:py-14">
         <span className="badge mb-5 inline-block">
-          100% Free • No Paid API • Simple Online Tools
+          100% Free, Easy-to-Use Online Tools
         </span>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold max-w-4xl mx-auto leading-tight text-[var(--text-primary)]">
-          100+ Free Online Tools for Everyday Tasks
+          100+ Free Tools for Fast Online Tasks
         </h1>
 
         <p className="text-[var(--text-secondary)] mt-5 max-w-2xl mx-auto text-base sm:text-lg">
-          Find fast and user-friendly tools for text, images, colors, SEO,
-          productivity, conversions, and daily online work — all in one place.
+          Access a wide range of fast, user-friendly tools for text editing, image manipulation, color schemes, SEO, conversions,
+           productivity, and more — all in one place.
         </p>
 
         <form
