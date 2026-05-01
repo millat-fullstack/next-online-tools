@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import * as Icons from "lucide-react";
 import tools from "../../data/tools.json";
+import { getTrendingTools } from "../../lib/tracking";
 
 export default function TrendingTools() {
-  const trendingTools = tools.slice(0, 5);
+  const trendingTools = getTrendingTools(tools, 5);
 
   return (
     <div className="flex flex-col gap-2">

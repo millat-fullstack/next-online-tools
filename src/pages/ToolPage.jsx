@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { incrementToolUsage } from "../lib/tracking";
 
 const toolModules = import.meta.glob("../tools/*.jsx", { eager: true });
 const normalizeToolId = (toolPath) =>
@@ -19,6 +20,13 @@ const toolComponentMap = Object.entries(toolModules).reduce((map, [filePath, mod
 
 export default function ToolPage() {
   const { slug } = useParams();
+
+  useEffect(() => {
+    if (slug) {
+      incrementToolUsage(slug);
+    }
+  }, [slug]);
+
   const ToolComponent = toolComponentMap[slug];
 
   if (!ToolComponent) {
