@@ -6,7 +6,7 @@
     "description": "Convert AVIF images to JPG online for free with quality control and instant download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-01T12:21:38.454Z"
+    "createdAt": "2026-05-01T12:39:03.839Z"
   },
   {
     "id": "case-converter",
@@ -15,7 +15,7 @@
     "description": "Convert text to uppercase, lowercase, title case, sentence case, and more. Copy your result with a single click.",
     "icon": "Type",
     "trending": true,
-    "createdAt": "2026-05-01T12:21:38.457Z"
+    "createdAt": "2026-05-01T12:39:03.843Z"
   },
   {
     "id": "color-picker",
@@ -24,7 +24,7 @@
     "description": "Pick colors from images with precision. Get HEX, RGB, and HSL values instantly.",
     "icon": "Palette",
     "trending": false,
-    "createdAt": "2026-05-01T12:21:38.460Z"
+    "createdAt": "2026-05-01T12:39:03.845Z"
   },
   {
     "id": "color-preview",
@@ -33,7 +33,7 @@
     "description": "Preview any color using HEX color code.",
     "icon": "Palette",
     "trending": true,
-    "createdAt": "2026-05-01T12:21:38.463Z"
+    "createdAt": "2026-05-01T12:39:03.846Z"
   },
   {
     "id": "csv-to-xls-converter",
@@ -42,7 +42,7 @@
     "description": "Convert CSV files to Excel format in seconds. Get clean, editable spreadsheet output for Microsoft Excel.",
     "icon": "FileSpreadsheet",
     "trending": true,
-    "createdAt": "2026-05-01T12:21:38.468Z"
+    "createdAt": "2026-05-01T12:39:03.849Z"
   },
   {
     "id": "heic-to-jpg-converter",
@@ -51,7 +51,7 @@
     "description": "Convert HEIC and HEIF images to JPG online for free. Fast, secure, and browser-based.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-01T12:21:38.470Z"
+    "createdAt": "2026-05-01T12:39:03.851Z"
   },
   {
     "id": "image-compressor",
@@ -60,7 +60,7 @@
     "description": "Compress images directly in your browser with adjustable quality control. Fast, secure, and no server uploads needed.",
     "icon": "Wrench",
     "trending": true,
-    "createdAt": "2026-05-01T12:21:38.472Z"
+    "createdAt": "2026-05-01T12:39:03.852Z"
   },
   {
     "id": "image-cropper-tool",
@@ -69,7 +69,7 @@
     "description": "Upload an image, crop it using various selection types, and download the cropped image in JPG/PNG format.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-01T12:21:38.480Z"
+    "createdAt": "2026-05-01T12:39:03.853Z"
   },
   {
     "id": "image-resizer",
@@ -78,7 +78,7 @@
     "description": "Upload and resize images with custom dimensions, zoom, drag, and presets for social media.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-01T12:21:38.483Z"
+    "createdAt": "2026-05-01T12:39:03.854Z"
   },
   {
     "id": "image-to-text-converter",
@@ -87,7 +87,7 @@
     "description": "Extract text from images online using OCR. Upload an image and convert it into editable text.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-01T12:21:38.490Z"
+    "createdAt": "2026-05-01T12:39:03.858Z"
   },
   {
     "id": "instagram-video-downloader",
@@ -96,7 +96,7 @@
     "description": "Download Instagram videos directly to your device by simply pasting the video URL. No apps, no signups.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-01T12:21:38.493Z"
+    "createdAt": "2026-05-01T12:39:03.860Z"
   },
   {
     "id": "jpg-to-pdf-converter",
@@ -105,7 +105,7 @@
     "description": "Convert JPG images to PDF in seconds. Easily adjust orientation and margins.",
     "icon": "FileText",
     "trending": true,
-    "createdAt": "2026-05-01T12:21:38.495Z"
+    "createdAt": "2026-05-01T12:39:03.862Z"
   },
   {
     "id": "passport-size-photo-maker",
@@ -114,7 +114,7 @@
     "description": "Create passport size photos online. Upload, crop, choose size, set background color, and download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-01T12:21:38.500Z"
+    "createdAt": "2026-05-01T12:39:03.866Z"
   },
   {
     "id": "pdf-to-jpg-converter",
@@ -123,7 +123,7 @@
     "description": "Convert PDF files to JPG images quickly. Get high-quality image output for every PDF page.",
     "icon": "FileText",
     "trending": true,
-    "createdAt": "2026-05-01T12:21:38.504Z"
+    "createdAt": "2026-05-01T12:39:03.869Z"
   },
   {
     "id": "text-to-slug-generator",
@@ -132,7 +132,7 @@
     "description": "Convert any title, heading, or sentence into a clean SEO-friendly URL slug instantly.",
     "icon": "Link",
     "trending": true,
-    "createdAt": "2026-05-01T12:21:38.506Z"
+    "createdAt": "2026-05-01T12:39:03.870Z"
   },
   {
     "id": "webp-to-jpg-converter",
@@ -141,6 +141,6 @@
     "description": "Convert WEBP images to JPG format quickly in your browser.",
     "icon": "ImagePlus",
     "trending": true,
-    "createdAt": "2026-05-01T12:21:38.509Z"
+    "createdAt": "2026-05-01T12:39:03.871Z"
   }
 ]
