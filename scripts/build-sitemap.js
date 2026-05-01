@@ -13,23 +13,23 @@ const { blogs } = await import(BLOGS_FILE.href);
 
 const urls = [
   "/",
-  "/#/tools",
-  "/#/blog",
-  "/#/about",
-  "/#/contact",
-  "/#/privacy-policy",
-  "/#/terms-of-service",
+  "/tools",
+  "/blog",
+  "/about",
+  "/contact",
+  "/privacy-policy",
+  "/terms-of-service",
 ];
 
 for (const tool of toolsData) {
   if (tool.id) {
-    urls.push(`/#/tool/${tool.id}`);
+    urls.push(`/tool/${tool.id}`);
   }
 }
 
 for (const blog of blogs) {
   if (blog.slug) {
-    urls.push(`/#/blog/${blog.slug}`);
+    urls.push(`/blog/${blog.slug}`);
   }
 }
 

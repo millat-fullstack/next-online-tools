@@ -1,6 +1,7 @@
 {
   "name": "mytools",
   "private": true,
+  "homepage": "https://nextonlinetools.com",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
