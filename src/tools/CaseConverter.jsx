@@ -19,51 +19,70 @@ export default function CaseConverter() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [lastConversion, setLastConversion] = useState("");
 
-  // Case conversion functions
-  const toUpperCase = () => {
-    setOutputText(inputText.toUpperCase());
-    setLastConversion("UPPERCASE");
-  };
-  const toLowerCase = () => {
-    setOutputText(inputText.toLowerCase());
-    setLastConversion("lowercase");
-  };
-  const toTitleCase = () => {
-    setOutputText(toTitle(inputText));
-    setLastConversion("Title Case");
-  };
-  const toSentenceCase = () => {
-    setOutputText(toSentence(inputText));
-    setLastConversion("Sentence case");
-  };
-  const toCamelCase = () => {
-    setOutputText(toCamel(inputText));
-    setLastConversion("camelCase");
-  };
-  const toSnakeCase = () => {
-    setOutputText(toSnake(inputText));
-    setLastConversion("snake_case");
-  };
-  const toKebabCase = () => {
-    setOutputText(toKebab(inputText));
-    setLastConversion("kebab-case");
+  const handleConversion = (type) => {
+    let result = "";
+
+    if (type === "upper") {
+      result = inputText.toUpperCase();
+      setLastConversion("UPPERCASE");
+    }
+
+    if (type === "lower") {
+      result = inputText.toLowerCase();
+      setLastConversion("lowercase");
+    }
+
+    if (type === "title") {
+      result = toTitle(inputText);
+      setLastConversion("Title Case");
+    }
+
+    if (type === "sentence") {
+      result = toSentence(inputText);
+      setLastConversion("Sentence case");
+    }
+
+    if (type === "camel") {
+      result = toCamel(inputText);
+      setLastConversion("camelCase");
+    }
+
+    if (type === "snake") {
+      result = toSnake(inputText);
+      setLastConversion("snake_case");
+    }
+
+    if (type === "kebab") {
+      result = toKebab(inputText);
+      setLastConversion("kebab-case");
+    }
+
+    setOutputText(result);
+    setCopySuccess(false);
   };
 
-  // Copy to clipboard function with visual feedback
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (!outputText) return;
-    navigator.clipboard.writeText(outputText);
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 2000);
+
+    try {
+      await navigator.clipboard.writeText(outputText);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (error) {
+      setCopySuccess(false);
+    }
   };
 
-  // Reset the input and output
   const resetTool = () => {
     setInputText("");
     setOutputText("");
     setLastConversion("");
     setCopySuccess(false);
   };
+
+  const inputWords = countWords(inputText);
+  const outputWords = countWords(outputText);
+  const outputLines = outputText ? outputText.split("\n").length : 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -73,192 +92,256 @@ export default function CaseConverter() {
           <Type size={28} className="text-[var(--primary)]" />
         </div>
 
-        <h1 className="text-3xl font-bold mb-3">
-          Case Converter
-        </h1>
+        <h1 className="text-3xl font-bold mb-3">Case Converter</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Convert text to different cases including uppercase, lowercase, title case, camelCase, snake_case, and more. Perfect for coding, writing, and text formatting.
+          Convert text to different cases including uppercase, lowercase, title
+          case, sentence case, camelCase, snake_case, and kebab-case.
         </p>
       </section>
 
       {/* TOOL BODY */}
       <section className="card p-6 sm:p-8">
-        {/* Input Area */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-lg">Input Text</h3>
-            <span className="text-xs text-[var(--text-secondary)]">
-              {inputText.length} characters
-            </span>
-          </div>
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            rows="6"
-            className="w-full p-4 border border-[var(--border)] rounded-2xl outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent resize-none"
-            placeholder="Type or paste your text here..."
-          />
-        </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* LEFT COLUMN - INPUT */}
+          <div className="flex flex-col gap-5">
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-semibold text-lg">Input Text</h3>
 
-        {/* Conversion Buttons */}
-        <div className="mb-8">
-          <h3 className="font-semibold mb-4">Conversion Options</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            <button
-              onClick={toUpperCase}
-              className="btn-primary text-sm"
-              title="Convert to UPPERCASE"
-            >
-              UPPERCASE
-            </button>
-            <button
-              onClick={toLowerCase}
-              className="btn-primary text-sm"
-              title="Convert to lowercase"
-            >
-              lowercase
-            </button>
-            <button
-              onClick={toTitleCase}
-              className="btn-primary text-sm"
-              title="Convert to Title Case"
-            >
-              Title Case
-            </button>
-            <button
-              onClick={toSentenceCase}
-              className="btn-primary text-sm"
-              title="Convert to Sentence case"
-            >
-              Sentence case
-            </button>
-            <button
-              onClick={toCamelCase}
-              className="btn-primary text-sm"
-              title="Convert to camelCase"
-            >
-              camelCase
-            </button>
-            <button
-              onClick={toSnakeCase}
-              className="btn-primary text-sm"
-              title="Convert to snake_case"
-            >
-              snake_case
-            </button>
-            <button
-              onClick={toKebabCase}
-              className="btn-primary text-sm"
-              title="Convert to kebab-case"
-            >
-              kebab-case
-            </button>
-            <button
-              onClick={resetTool}
-              className="btn-secondary text-sm"
-              title="Clear all text"
-            >
-              <RotateCcw size={16} />
-              Reset
-            </button>
-          </div>
-        </div>
-
-        {/* Output Area */}
-        {outputText && (
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-3">
-              <div>
-                <h3 className="font-semibold text-lg">Converted Text</h3>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Format: <span className="font-medium text-[var(--primary)]">{lastConversion}</span>
-                </p>
+                <span className="text-xs text-[var(--text-secondary)]">
+                  {inputText.length} characters
+                </span>
               </div>
-              <span className="text-xs text-[var(--text-secondary)]">
-                {outputText.length} characters
-              </span>
-            </div>
-            <div className="bg-gray-50 p-4 border border-[var(--border)] rounded-2xl mb-4">
+
               <textarea
-                value={outputText}
-                readOnly
-                rows="6"
-                className="w-full p-4 border border-[var(--border)] rounded-xl outline-none bg-white resize-none font-mono"
-                placeholder="Converted text will appear here"
+                value={inputText}
+                onChange={(e) => {
+                  setInputText(e.target.value);
+                  setCopySuccess(false);
+                }}
+                rows="12"
+                className="w-full p-4 border border-[var(--border)] rounded-2xl outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent resize-none"
+                placeholder="Type or paste your text here..."
               />
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-              <div className="bg-gray-50 p-3 rounded-lg text-center">
-                <p className="text-xs text-[var(--text-secondary)]">Words</p>
-                <p className="text-lg font-bold text-[var(--primary)]">
-                  {outputText.trim().split(/\s+/).filter(w => w).length}
+            {/* Conversion Buttons */}
+            <div>
+              <h3 className="font-semibold mb-4">Conversion Options</h3>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <button
+                  onClick={() => handleConversion("upper")}
+                  disabled={!inputText}
+                  className={`btn-primary text-sm ${
+                    !inputText ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  UPPERCASE
+                </button>
+
+                <button
+                  onClick={() => handleConversion("lower")}
+                  disabled={!inputText}
+                  className={`btn-primary text-sm ${
+                    !inputText ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  lowercase
+                </button>
+
+                <button
+                  onClick={() => handleConversion("title")}
+                  disabled={!inputText}
+                  className={`btn-primary text-sm ${
+                    !inputText ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  Title Case
+                </button>
+
+                <button
+                  onClick={() => handleConversion("sentence")}
+                  disabled={!inputText}
+                  className={`btn-primary text-sm ${
+                    !inputText ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  Sentence case
+                </button>
+
+                <button
+                  onClick={() => handleConversion("camel")}
+                  disabled={!inputText}
+                  className={`btn-primary text-sm ${
+                    !inputText ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  camelCase
+                </button>
+
+                <button
+                  onClick={() => handleConversion("snake")}
+                  disabled={!inputText}
+                  className={`btn-primary text-sm ${
+                    !inputText ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  snake_case
+                </button>
+
+                <button
+                  onClick={() => handleConversion("kebab")}
+                  disabled={!inputText}
+                  className={`btn-primary text-sm ${
+                    !inputText ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  kebab-case
+                </button>
+
+                <button onClick={resetTool} className="btn-secondary text-sm">
+                  <RotateCcw size={16} />
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Input Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-gray-50 border border-[var(--border)] p-4 rounded-xl">
+                <p className="text-xs text-[var(--text-secondary)]">Input Words</p>
+                <p className="text-xl font-bold text-[var(--primary)]">
+                  {inputWords}
                 </p>
               </div>
-              <div className="bg-gray-50 p-3 rounded-lg text-center">
-                <p className="text-xs text-[var(--text-secondary)]">Characters</p>
-                <p className="text-lg font-bold text-[var(--primary)]">
+
+              <div className="bg-gray-50 border border-[var(--border)] p-4 rounded-xl">
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Input Characters
+                </p>
+                <p className="text-xl font-bold text-[var(--primary)]">
+                  {inputText.length}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN - OUTPUT */}
+          <div className="flex flex-col gap-5">
+            <div>
+              <div className="flex justify-between items-start gap-3 mb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-lg">Output Text</h3>
+                    <ArrowRight size={16} className="text-[var(--primary)]" />
+                  </div>
+
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Format:{" "}
+                    <span className="font-medium text-[var(--primary)]">
+                      {lastConversion || "Not selected"}
+                    </span>
+                  </p>
+                </div>
+
+                {/* Small Copy Button */}
+                <button
+                  onClick={copyToClipboard}
+                  disabled={!outputText}
+                  className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+                    outputText
+                      ? copySuccess
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : "bg-white text-[var(--primary)] border-[var(--primary)] hover:bg-[var(--primary)]/5"
+                      : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                  }`}
+                  title="Copy output text"
+                >
+                  {copySuccess ? <Check size={14} /> : <Copy size={14} />}
+                  {copySuccess ? "Copied" : "Copy"}
+                </button>
+              </div>
+
+              <textarea
+                value={outputText}
+                readOnly
+                rows="12"
+                className="w-full p-4 border border-[var(--border)] rounded-2xl outline-none bg-gray-50 resize-none font-mono"
+                placeholder="Converted text will appear here..."
+              />
+            </div>
+
+            {/* Output Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-gray-50 border border-[var(--border)] p-4 rounded-xl text-center">
+                <p className="text-xs text-[var(--text-secondary)]">Words</p>
+                <p className="text-xl font-bold text-[var(--primary)]">
+                  {outputWords}
+                </p>
+              </div>
+
+              <div className="bg-gray-50 border border-[var(--border)] p-4 rounded-xl text-center">
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Characters
+                </p>
+                <p className="text-xl font-bold text-[var(--primary)]">
                   {outputText.length}
                 </p>
               </div>
-              <div className="bg-gray-50 p-3 rounded-lg text-center">
+
+              <div className="bg-gray-50 border border-[var(--border)] p-4 rounded-xl text-center">
                 <p className="text-xs text-[var(--text-secondary)]">Lines</p>
-                <p className="text-lg font-bold text-[var(--primary)]">
-                  {outputText.split('\n').length}
+                <p className="text-xl font-bold text-[var(--primary)]">
+                  {outputLines}
                 </p>
               </div>
-              <div className="bg-gray-50 p-3 rounded-lg text-center">
-                <p className="text-xs text-[var(--text-secondary)]">Saved</p>
-                <p className="text-lg font-bold text-green-600">
-                  {Math.max(0, (inputText.length - outputText.length))} bytes
+
+              <div className="bg-gray-50 border border-[var(--border)] p-4 rounded-xl text-center">
+                <p className="text-xs text-[var(--text-secondary)]">Change</p>
+                <p className="text-xl font-bold text-green-600">
+                  {outputText
+                    ? `${Math.abs(inputText.length - outputText.length)}`
+                    : "0"}
                 </p>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={copyToClipboard}
-                className={`btn-primary flex-1 ${copySuccess ? 'bg-green-600 hover:bg-green-700' : ''}`}
-              >
-                {copySuccess ? (
-                  <>
-                    <Check size={18} />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy size={18} />
-                    Copy Result
-                  </>
-                )}
-              </button>
-              <button
-                onClick={resetTool}
-                className="btn-secondary flex-1"
-              >
-                <RotateCcw size={18} />
-                Clear All
-              </button>
-            </div>
-          </div>
-        )}
+            {/* Output Empty Message */}
+            {!outputText && (
+              <div className="text-center py-8 border border-dashed border-[var(--border)] rounded-2xl bg-gray-50">
+                <Type size={36} className="mx-auto mb-3 text-gray-300" />
+                <p className="text-[var(--text-secondary)]">
+                  Select a conversion option to generate output.
+                </p>
+              </div>
+            )}
 
-        {/* Empty State */}
-        {!outputText && inputText && (
-          <div className="text-center py-8">
-            <p className="text-[var(--text-secondary)]">Select a conversion option above to get started</p>
-          </div>
-        )}
+            {outputText && (
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button onClick={copyToClipboard} className="btn-primary flex-1">
+                  {copySuccess ? (
+                    <>
+                      <Check size={18} />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={18} />
+                      Copy Result
+                    </>
+                  )}
+                </button>
 
-        {!inputText && (
-          <div className="text-center py-8">
-            <Type size={40} className="mx-auto mb-3 text-[var(--border)]" />
-            <p className="text-[var(--text-secondary)]">Paste your text above to convert it</p>
+                <button onClick={resetTool} className="btn-secondary flex-1">
+                  <RotateCcw size={18} />
+                  Clear All
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </section>
 
       <SuggestedTools currentToolId="case-converter" />
@@ -267,25 +350,35 @@ export default function CaseConverter() {
 }
 
 // Helper Functions
+function countWords(str) {
+  return str.trim() ? str.trim().split(/\s+/).length : 0;
+}
+
 function toTitle(str) {
-  return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+  return str.replace(/\w\S*/g, (txt) => {
+    return txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase();
+  });
 }
 
 function toSentence(str) {
   if (!str) return "";
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+
+  return str
+    .toLowerCase()
+    .replace(/(^\s*\w|[.!?]\s*\w)/g, (letter) => letter.toUpperCase());
 }
 
 function toCamel(str) {
   return str
     .toLowerCase()
-    .replace(/[^a-zA-Z0-9]+(.)/g, (match, chr) => chr.toUpperCase())
+    .replace(/[^a-zA-Z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
     .replace(/^[A-Z]/, (match) => match.toLowerCase());
 }
 
 function toSnake(str) {
   return str
     .toLowerCase()
+    .trim()
     .replace(/\s+/g, "_")
     .replace(/[^\w_]/g, "");
 }
@@ -293,6 +386,7 @@ function toSnake(str) {
 function toKebab(str) {
   return str
     .toLowerCase()
+    .trim()
     .replace(/\s+/g, "-")
-    .replace(/[^\w\-]/g, "");
+    .replace(/[^\w-]/g, "");
 }
