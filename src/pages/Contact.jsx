@@ -1,14 +1,6 @@
 import { useState } from "react";
-import {
-  Mail,
-  MessageCircle,
-  Send,
-  HelpCircle,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Loader,
-} from "lucide-react";
+import { Mail, MessageCircle, Send, HelpCircle, CheckCircle, XCircle, AlertTriangle, Loader } from "lucide-react";
+import Helmet from "react-helmet";  // Ensure Helmet is imported for SEO and schema
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -81,16 +73,21 @@ export default function Contact() {
 
   return (
     <div className="flex flex-col gap-8">
+      <Helmet>
+        <title>Contact Us - Next Online Tools</title>
+        <meta name="description" content="Get in touch with Next Tools Online for support, tool suggestions, or website feedback." />
+        <meta name="robots" content="index, follow" />
+        <meta property="og:title" content="Contact Us - Next Online Tools" />
+        <meta property="og:description" content="Reach out to Next Tools Online for any inquiries or suggestions. We are here to help!" />
+        <meta property="og:image" content="/images/contact-us.png" />
+        <meta property="og:url" content="https://nextonlinetools.com/#/contact" />
+      </Helmet>
+
       <section className="card p-6 sm:p-8">
         <span className="badge mb-4 inline-block">Contact Us</span>
-
-        <h1 className="text-3xl sm:text-4xl font-bold mb-4">
-          Get in Touch with Next Tools Online
-        </h1>
-
+        <h1 className="text-3xl sm:text-4xl font-bold mb-4">Get in Touch with Next Tools Online</h1>
         <p className="text-[var(--text-secondary)] max-w-3xl leading-7">
-          Have a question, suggestion, or tool request? Send us a message.
-          We are always working to improve our free online tools.
+          Have a question, suggestion, or tool request? Send us a message. We are always working to improve our free online tools.
         </p>
       </section>
 
@@ -112,9 +109,7 @@ export default function Contact() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Your Name
-              </label>
+              <label className="block text-sm font-medium mb-2">Your Name</label>
               <input
                 type="text"
                 name="name"
@@ -127,9 +122,7 @@ export default function Contact() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Email Address
-              </label>
+              <label className="block text-sm font-medium mb-2">Email Address</label>
               <input
                 type="email"
                 name="email"
@@ -142,9 +135,7 @@ export default function Contact() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Message
-              </label>
+              <label className="block text-sm font-medium mb-2">Message</label>
               <textarea
                 name="message"
                 value={formData.message}
@@ -176,28 +167,44 @@ export default function Contact() {
           <div className="card p-5">
             <Mail className="text-[var(--primary)] mb-4" size={30} />
             <h3 className="font-semibold mb-2">Email Support</h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              For general questions, tool requests, or website feedback.
-            </p>
+            <p className="text-sm text-[var(--text-secondary)]">For general questions, tool requests, or website feedback.</p>
           </div>
 
           <div className="card p-5">
             <MessageCircle className="text-[var(--primary)] mb-4" size={30} />
             <h3 className="font-semibold mb-2">Tool Suggestions</h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Suggest new free tools that can help users complete online tasks.
-            </p>
+            <p className="text-sm text-[var(--text-secondary)]">Suggest new free tools that can help users complete online tasks.</p>
           </div>
 
           <div className="card p-5">
             <HelpCircle className="text-[var(--primary)] mb-4" size={30} />
             <h3 className="font-semibold mb-2">Need Help?</h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Tell us what is not working and we will try to improve the tool.
-            </p>
+            <p className="text-sm text-[var(--text-secondary)]">Tell us what is not working and we will try to improve the tool.</p>
           </div>
         </aside>
       </section>
+
+      {/* Schema Markup */}
+      <script type="application/ld+json">
+        {`
+          {
+            "@context": "https://schema.org",
+            "@type": "ContactPage",
+            "name": "Contact Us - Next Online Tools",
+            "url": "https://nextonlinetools.com/#/contact",
+            "mainEntity": {
+              "@type": "Organization",
+              "name": "Next Online Tools",
+              "url": "https://nextonlinetools.com",
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "areaServed": "Global",
+                "availableLanguage": "English"
+              }
+            }
+          }
+        `}
+      </script>
     </div>
   );
 }
