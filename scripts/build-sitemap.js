@@ -12,24 +12,24 @@ const toolsData = JSON.parse(fs.readFileSync(TOOLS_FILE, "utf8"));
 const { blogs } = await import(BLOGS_FILE.href);
 
 const urls = [
-  "/",
-  "/tools",
-  "/blog",
-  "/about",
-  "/contact",
-  "/privacy-policy",
-  "/terms-of-service",
+  "/#/", // Home URL for HashRouter
+  "/#/tools", // Tools URL for HashRouter
+  "/#/blog", // Blog URL for HashRouter
+  "/#/about", // About URL for HashRouter
+  "/#/contact", // Contact URL for HashRouter
+  "/#/privacy-policy", // Privacy Policy URL for HashRouter
+  "/#/terms-of-service", // Terms of Service URL for HashRouter
 ];
 
 for (const tool of toolsData) {
   if (tool.id) {
-    urls.push(`/tool/${tool.id}`);
+    urls.push(`/#/tool/${tool.id}`); // Tool URLs with HashRouter
   }
 }
 
 for (const blog of blogs) {
   if (blog.slug) {
-    urls.push(`/blog/${blog.slug}`);
+    urls.push(`/#/blog/${blog.slug}`); // Blog URLs with HashRouter
   }
 }
 
