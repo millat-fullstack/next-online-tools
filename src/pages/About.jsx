@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { CheckCircle, ShieldCheck, Zap, Users, Send, Loader, XCircle, AlertTriangle } from "lucide-react";
+import Helmet from "react-helmet";  // Updated import
 
 const About = () => {
   const [email, setEmail] = useState("");
@@ -40,113 +41,112 @@ const About = () => {
 
   return (
     <div className="about-container">
+      <Helmet>
+        <title>About Next Online Tools</title>
+        <meta name="description" content="Next Tools Online provides simple, free tools for everyday online tasks. Streamline your work with easy-to-use, fast solutions." />
+        <meta name="robots" content="index, follow" />
+        <meta property="og:title" content="About Next Online Tools" />
+        <meta property="og:description" content="Next Tools Online offers over 100 free tools for text editing, image processing, file conversion, and more." />
+        <meta property="og:image" content="/images/next-online-tools-about.png" />
+        <meta property="og:url" content="https://nextonlinetools.com/#/about" />
+      </Helmet>
+
       <section className="flex flex-col gap-8">
-              {/* HEADER */}
-      <section className="card p-6 sm:p-8">
-        <span className="badge mb-4 inline-block">About Next Tools Online</span>
+        {/* HEADER */}
+        <section className="card p-6 sm:p-8">
+          <span className="badge mb-4 inline-block">About Next Tools Online</span>
+          <h1 className="text-3xl sm:text-4xl font-bold mb-4">Simple Free Tools for Everyday Online Tasks</h1>
+          <p className="text-[var(--text-secondary)] max-w-3xl leading-7">
+            Next Tools Online is a free online tools website built to help users complete small digital tasks quickly. Our goal is to make useful tools simple, fast, and easy for everyone.
+          </p>
+        </section>
 
-        <h1 className="text-3xl sm:text-4xl font-bold mb-4">
-          Simple Free Tools for Everyday Online Tasks
-        </h1>
+        {/* MISSION */}
+        <section className="card p-6 sm:p-8">
+          <h2 className="text-2xl font-bold mb-4">Our Mission</h2>
+          <p className="text-[var(--text-secondary)] leading-7">
+            We want to provide 100+ free online tools for text editing, image processing, colors, SEO, productivity, file conversion, and daily web tasks. Every tool is designed to be clean, beginner-friendly, and easy to use without complicated steps.
+          </p>
+        </section>
 
-        <p className="text-[var(--text-secondary)] max-w-3xl leading-7">
-          Next Tools Online is a free online tools website built to help users complete
-          small digital tasks quickly. Our goal is to make useful tools simple,
-          fast, and easy for everyone.
-        </p>
-      </section>
+        {/* VALUES */}
+        <section className="card p-6 sm:p-8">
+          <h2 className="text-2xl font-bold mb-5">What We Focus On</h2>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            <div className="card p-5">
+              <CheckCircle className="text-[var(--primary)] mb-4" size={30} />
+              <h3 className="font-semibold mb-2">Free to Use</h3>
+              <p className="text-sm text-[var(--text-secondary)]">Our tools are made for users who need quick solutions without payment.</p>
+            </div>
 
-              {/* MISSION */}
-      <section className="card p-6 sm:p-8">
-        <h2 className="text-2xl font-bold mb-4">Our Mission</h2>
+            <div className="card p-5">
+              <Zap className="text-[var(--primary)] mb-4" size={30} />
+              <h3 className="font-semibold mb-2">Fast Workflow</h3>
+              <p className="text-sm text-[var(--text-secondary)]">Each tool is focused on one task, so users can finish work faster.</p>
+            </div>
 
-        <p className="text-[var(--text-secondary)] leading-7">
-          We want to provide 100+ free online tools for text editing, image
-          processing, colors, SEO, productivity, file conversion, and daily web
-          tasks. Every tool is designed to be clean, beginner-friendly, and easy
-          to use without complicated steps.
-        </p>
-      </section>
+            <div className="card p-5">
+              <Users className="text-[var(--primary)] mb-4" size={30} />
+              <h3 className="font-semibold mb-2">User Friendly</h3>
+              <p className="text-sm text-[var(--text-secondary)]">Clean layout, clear buttons, and simple instructions for everyone.</p>
+            </div>
 
-      {/* VALUES */}
-      <section className="card p-6 sm:p-8">
-        <h2 className="text-2xl font-bold mb-5">What We Focus On</h2>
-
-        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
-          <div className="card p-5">
-            <CheckCircle className="text-[var(--primary)] mb-4" size={30} />
-            <h3 className="font-semibold mb-2">Free to Use</h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Our tools are made for users who need quick solutions without
-              payment.
-            </p>
+            <div className="card p-5">
+              <ShieldCheck className="text-[var(--primary)] mb-4" size={30} />
+              <h3 className="font-semibold mb-2">Safe Direction</h3>
+              <p className="text-sm text-[var(--text-secondary)]">We focus on transparency and avoid unnecessary complicated systems.</p>
+            </div>
           </div>
+        </section>
 
-          <div className="card p-5">
-            <Zap className="text-[var(--primary)] mb-4" size={30} />
-            <h3 className="font-semibold mb-2">Fast Workflow</h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Each tool is focused on one task, so users can finish work faster.
-            </p>
-          </div>
-
-          <div className="card p-5">
-            <Users className="text-[var(--primary)] mb-4" size={30} />
-            <h3 className="font-semibold mb-2">User Friendly</h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Clean layout, clear buttons, and simple instructions for everyone.
-            </p>
-          </div>
-
-          <div className="card p-5">
-            <ShieldCheck className="text-[var(--primary)] mb-4" size={30} />
-            <h3 className="font-semibold mb-2">Safe Direction</h3>
-            <p className="text-sm text-[var(--text-secondary)]">
-              We focus on transparency and avoid unnecessary complicated
-              systems.
-            </p>
-          </div>
-        </div>
-      </section>
+        {/* Subscription Form */}
         <span className="card p-6 sm:p-8 text-center mt-4">
-              {/* Subscription Form Section */}
-        <h2 className="text-2xl font-bold mb-3">
-          Stay Updated with Our Latest Tools
-        </h2>
-        <p className="text-[var(--text-secondary)] mb-6">
-          Subscribe to our newsletter and get notified when we release new tools and updates
-        </p>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4 justify-center">
-          <input
-            type="email"
-            name="email"
-            placeholder="Your Email"
-            className="p-3 rounded-md border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={isLoading}
-          />
-          <button type="submit" className="btn-primary p-3 text-white rounded-md hover:bg-[var(--primary)] flex items-center justify-center gap-2" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader className="animate-spin" size={20} />
-                Subscribing...
-              </>
-            ) : (
-              "Subscribe"
-            )}
-          </button>
-        </form>
-        
-        <p id="responseMsg" className="flex items-center justify-center gap-2" style={{ color: responseMsg.includes("error") ? "red" : "green" }}>
-          {responseIcon}
-          {responseMsg}
-        </p>
+          <h2 className="text-2xl font-bold mb-3">Stay Updated with Our Latest Tools</h2>
+          <p className="text-[var(--text-secondary)] mb-6">
+            Subscribe to our newsletter and get notified when we release new tools and updates
+          </p>
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4 justify-center">
+            <input
+              type="email"
+              name="email"
+              placeholder="Your Email"
+              className="p-3 rounded-md border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+            <button type="submit" className="btn-primary p-3 text-white rounded-md hover:bg-[var(--primary)] flex items-center justify-center gap-2" disabled={isLoading}>
+              {isLoading ? <><Loader className="animate-spin" size={20} /> Subscribing...</> : "Subscribe"}
+            </button>
+          </form>
+          <p id="responseMsg" className="flex items-center justify-center gap-2" style={{ color: responseMsg.includes("error") ? "red" : "green" }}>
+            {responseIcon} {responseMsg}
+          </p>
         </span>
       </section>
+
+      {/* Schema Markup */}
+      <script type="application/ld+json">
+        {`
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "Next Online Tools",
+            "url": "https://nextonlinetools.com",
+            "logo": "https://nextonlinetools.com/logo.png",
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "areaServed": "Global",
+              "availableLanguage": "English"
+            },
+            "sameAs": [
+              "https://www.facebook.com/nextonlinetools",
+              "https://twitter.com/nextonlinetools"
+            ]
+          }
+        `}
+      </script>
     </div>
   );
 };
