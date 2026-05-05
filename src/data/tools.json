@@ -6,7 +6,7 @@
     "description": "Convert AVIF images to JPG online for free with quality control and instant download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-04T18:53:59.866Z"
+    "createdAt": "2026-05-05T18:37:47.888Z"
   },
   {
     "id": "case-converter",
@@ -15,7 +15,7 @@
     "description": "Convert text to uppercase, lowercase, title case, sentence case, and more. Copy your result with a single click.",
     "icon": "Type",
     "trending": true,
-    "createdAt": "2026-05-04T18:53:59.871Z"
+    "createdAt": "2026-05-05T18:37:47.896Z"
   },
   {
     "id": "color-picker",
@@ -24,7 +24,7 @@
     "description": "Pick colors from images with precision. Get HEX, RGB, and HSL values instantly.",
     "icon": "Palette",
     "trending": false,
-    "createdAt": "2026-05-04T18:53:59.873Z"
+    "createdAt": "2026-05-05T18:37:47.901Z"
   },
   {
     "id": "color-preview",
@@ -33,7 +33,16 @@
     "description": "Preview any color using HEX color code.",
     "icon": "Palette",
     "trending": true,
-    "createdAt": "2026-05-04T18:53:59.877Z"
+    "createdAt": "2026-05-05T18:37:47.905Z"
+  },
+  {
+    "id": "compress-pdf",
+    "name": "Compress PDF",
+    "category": "PDF Tools",
+    "description": "Compress PDF files online by reducing file size while keeping pages easy to view and share.",
+    "icon": "Wrench",
+    "trending": false,
+    "createdAt": "2026-05-05T18:37:47.934Z"
   },
   {
     "id": "csv-to-xls-converter",
@@ -42,7 +51,16 @@
     "description": "Convert CSV files to Excel format in seconds. Get clean, editable spreadsheet output for Microsoft Excel.",
     "icon": "FileSpreadsheet",
     "trending": true,
-    "createdAt": "2026-05-04T18:53:59.880Z"
+    "createdAt": "2026-05-05T18:37:47.908Z"
+  },
+  {
+    "id": "favicon-generator",
+    "name": "Favicon Generator",
+    "category": "Image Tools",
+    "description": "Create favicons from your logo or text. Generate multiple favicon sizes and download a ready-to-use favicon package.",
+    "icon": "Wrench",
+    "trending": false,
+    "createdAt": "2026-05-05T18:37:47.910Z"
   },
   {
     "id": "heic-to-jpg-converter",
@@ -51,7 +69,7 @@
     "description": "Convert HEIC and HEIF images to JPG online for free. Fast, secure, and browser-based.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-04T18:53:59.884Z"
+    "createdAt": "2026-05-05T18:37:47.913Z"
   },
   {
     "id": "image-compressor",
@@ -60,7 +78,7 @@
     "description": "Compress images directly in your browser with adjustable quality control. Fast, secure, and no server uploads needed.",
     "icon": "Wrench",
     "trending": true,
-    "createdAt": "2026-05-04T18:53:59.886Z"
+    "createdAt": "2026-05-05T18:37:47.916Z"
   },
   {
     "id": "image-cropper-tool",
@@ -69,7 +87,7 @@
     "description": "Upload an image, crop it using various selection types, and download the cropped image in JPG/PNG format.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-04T18:53:59.890Z"
+    "createdAt": "2026-05-05T18:37:47.918Z"
   },
   {
     "id": "image-resizer",
@@ -78,7 +96,7 @@
     "description": "Upload and resize images with custom dimensions, zoom, drag, and presets for social media.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-04T18:53:59.894Z"
+    "createdAt": "2026-05-05T18:37:47.921Z"
   },
   {
     "id": "image-to-text-converter",
@@ -87,7 +105,7 @@
     "description": "Extract text from images online using OCR. Upload an image and convert it into editable text.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-04T18:53:59.899Z"
+    "createdAt": "2026-05-05T18:37:47.924Z"
   },
   {
     "id": "instagram-video-downloader",
@@ -96,7 +114,7 @@
     "description": "Download Instagram videos directly to your device by simply pasting the video URL. No apps, no signups.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-04T18:53:59.908Z"
+    "createdAt": "2026-05-05T18:37:47.927Z"
   },
   {
     "id": "jpg-to-pdf-converter",
@@ -105,7 +123,7 @@
     "description": "Convert JPG images to PDF in seconds. Easily adjust orientation and margins.",
     "icon": "FileText",
     "trending": true,
-    "createdAt": "2026-05-04T18:53:59.917Z"
+    "createdAt": "2026-05-05T18:37:47.929Z"
   },
   {
     "id": "passport-size-photo-maker",
@@ -114,7 +132,7 @@
     "description": "Create passport size photos online. Upload, crop, choose size, set background color, and download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-04T18:53:59.924Z"
+    "createdAt": "2026-05-05T18:37:47.932Z"
   },
   {
     "id": "pdf-to-jpg-converter",
@@ -123,7 +141,7 @@
     "description": "Convert PDF files to JPG images quickly. Get high-quality image output for every PDF page.",
     "icon": "FileText",
     "trending": true,
-    "createdAt": "2026-05-04T18:53:59.926Z"
+    "createdAt": "2026-05-05T18:37:47.937Z"
   },
   {
     "id": "text-to-slug-generator",
@@ -132,7 +150,7 @@
     "description": "Convert any title, heading, or sentence into a clean SEO-friendly URL slug instantly.",
     "icon": "Link",
     "trending": true,
-    "createdAt": "2026-05-04T18:53:59.929Z"
+    "createdAt": "2026-05-05T18:37:47.939Z"
   },
   {
     "id": "webp-to-jpg-converter",
@@ -141,7 +159,7 @@
     "description": "Convert WEBP images to JPG format quickly in your browser.",
     "icon": "ImagePlus",
     "trending": true,
-    "createdAt": "2026-05-04T18:53:59.932Z"
+    "createdAt": "2026-05-05T18:37:47.940Z"
   },
   {
     "id": "word-cloud-generator",
@@ -150,6 +168,15 @@
     "description": "Transform your text into beautiful visual word clouds. Paste your content and generate a visual summary of the most frequent words.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-04T18:53:59.940Z"
+    "createdAt": "2026-05-05T18:37:47.942Z"
+  },
+  {
+    "id": "word-counter",
+    "name": "Word Counter",
+    "category": "Text Tools",
+    "description": "Quickly count words, characters, sentences, and paragraphs in any text.",
+    "icon": "Wrench",
+    "trending": false,
+    "createdAt": "2026-05-05T18:37:47.944Z"
   }
 ]
