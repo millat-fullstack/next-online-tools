@@ -35,27 +35,20 @@ export default function WordCounter() {
   const stats = useMemo(() => {
     const trimmedText = inputText.trim();
 
-    const words = trimmedText ? trimmedText.match(/\S+/g) || [] : [];
-    const sentences = trimmedText
-      ? trimmedText
-          .split(/[.!?]+/)
-          .map((item) => item.trim())
-          .filter(Boolean)
-      : [];
-
-    const paragraphs = trimmedText
-      ? trimmedText
-          .split(/\n+/)
-          .map((item) => item.trim())
-          .filter(Boolean)
-      : [];
+    const words = getWords(inputText);
+    const sentences = getSentences(inputText);
+    const paragraphs = getParagraphs(inputText);
 
     const characters = inputText.length;
     const charactersNoSpaces = inputText.replace(/\s/g, "").length;
-    const lines = inputText ? inputText.split("\n").length : 0;
+    const spaces = (inputText.match(/\s/g) || []).length;
+    const lines = inputText ? inputText.split(/\r\n|\r|\n/).length : 0;
 
-    const readingMinutes = words.length > 0 ? Math.ceil(words.length / 200) : 0;
-    const speakingMinutes = words.length > 0 ? Math.ceil(words.length / 130) : 0;
+    const readingSeconds =
+      words.length > 0 ? Math.round((words.length / 200) * 60) : 0;
+
+    const speakingSeconds =
+      words.length > 0 ? Math.round((words.length / 130) * 60) : 0;
 
     const longestWord =
       words.length > 0
@@ -68,11 +61,12 @@ export default function WordCounter() {
       words: words.length,
       characters,
       charactersNoSpaces,
+      spaces,
       sentences: sentences.length,
       paragraphs: paragraphs.length,
       lines,
-      readingMinutes,
-      speakingMinutes,
+      readingSeconds,
+      speakingSeconds,
       longestWord,
     };
   }, [inputText]);
@@ -105,13 +99,14 @@ export default function WordCounter() {
     const content = `Word Counter Result
 
 Words: ${stats.words}
-Characters: ${stats.characters}
+Characters with spaces: ${stats.characters}
 Characters without spaces: ${stats.charactersNoSpaces}
+Spaces: ${stats.spaces}
 Sentences: ${stats.sentences}
 Paragraphs: ${stats.paragraphs}
 Lines: ${stats.lines}
-Reading Time: ${stats.readingMinutes} minute(s)
-Speaking Time: ${stats.speakingMinutes} minute(s)
+Reading Time: ${formatTime(stats.readingSeconds)}
+Speaking Time: ${formatTime(stats.speakingSeconds)}
 Longest Word: ${stats.longestWord}
 
 Text:
@@ -296,9 +291,10 @@ ${inputText}`;
                   label="No Spaces"
                   value={stats.charactersNoSpaces}
                 />
+                <StatCard label="Spaces" value={stats.spaces} />
                 <StatCard label="Sentences" value={stats.sentences} />
                 <StatCard label="Paragraphs" value={stats.paragraphs} />
-                <StatCard label="Lines" value={stats.lines} />
+                <StatCard label="Text Lines" value={stats.lines} />
               </div>
             </div>
 
@@ -314,7 +310,7 @@ ${inputText}`;
                     Reading Time
                   </p>
                   <p className="text-xl font-bold text-[var(--primary)]">
-                    {stats.readingMinutes} min
+                    {formatTime(stats.readingSeconds)}
                   </p>
                 </div>
 
@@ -323,7 +319,7 @@ ${inputText}`;
                     Speaking Time
                   </p>
                   <p className="text-xl font-bold text-[var(--primary)]">
-                    {stats.speakingMinutes} min
+                    {formatTime(stats.speakingSeconds)}
                   </p>
                 </div>
               </div>
@@ -354,6 +350,56 @@ ${inputText}`;
       <SuggestedTools currentToolId="word-counter" />
     </div>
   );
+}
+
+function getWords(text) {
+  const cleanedText = text.replace(/[—–]/g, " ");
+
+  return (
+    cleanedText.match(/[\p{L}\p{N}]+(?:[-'][\p{L}\p{N}]+)*/gu) || []
+  );
+}
+
+function getSentences(text) {
+  const trimmedText = text.trim();
+
+  if (!trimmedText) return [];
+
+  return (
+    trimmedText
+      .replace(/\s+/g, " ")
+      .match(/[^.!?।]+[.!?।]+|[^.!?।]+$/g) || []
+  )
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function getParagraphs(text) {
+  const trimmedText = text.trim();
+
+  if (!trimmedText) return [];
+
+  return trimmedText
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
+function formatTime(seconds) {
+  if (!seconds) return "0 sec";
+
+  if (seconds < 60) {
+    return `${seconds} sec`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (remainingSeconds === 0) {
+    return `${minutes} min`;
+  }
+
+  return `${minutes} min ${remainingSeconds} sec`;
 }
 
 function StatCard({ label, value }) {
