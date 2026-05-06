@@ -1,5 +1,16 @@
-import { useState } from "react";
-import { Type, Zap, RefreshCw } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import {
+  Type,
+  Copy,
+  Download,
+  RotateCcw,
+  Upload,
+  Check,
+  AlertCircle,
+  BarChart3,
+  Clock,
+  FileText,
+} from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
 export const toolData = {
@@ -8,39 +19,160 @@ export const toolData = {
   category: "Text Tools",
   description:
     "Quickly count words, characters, sentences, and paragraphs in any text.",
-  metaTitle: "Word Counter Tool | Count Words, Sentences, Paragraphs Quickly",
+  metaTitle: "Word Counter Tool | Count Words Online Free",
   metaDescription:
-    "Use the Word Counter tool to quickly count words, characters, sentences, and paragraphs. Just paste your text, and get the count instantly.",
+    "Free online word counter tool. Count words, characters, sentences, paragraphs, reading time, and speaking time instantly.",
 };
 
 export default function WordCounter() {
+  const fileInputRef = useRef(null);
+
   const [inputText, setInputText] = useState("");
-  const [wordCount, setWordCount] = useState(0);
-  const [charCount, setCharCount] = useState(0);
-  const [sentenceCount, setSentenceCount] = useState(0);
-  const [paragraphCount, setParagraphCount] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const handleChange = (e) => {
-    const text = e.target.value;
-    setInputText(text);
+  const stats = useMemo(() => {
+    const trimmedText = inputText.trim();
 
-    // Update word, char, sentence, and paragraph counts
-    const words = text.trim().split(/\s+/).filter(Boolean);
-    const sentences = text.split(/[.!?]+/).filter(Boolean);
-    const paragraphs = text.split(/\n+/).filter(Boolean);
+    const words = trimmedText ? trimmedText.match(/\S+/g) || [] : [];
+    const sentences = trimmedText
+      ? trimmedText
+          .split(/[.!?]+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
 
-    setWordCount(words.length);
-    setCharCount(text.length);
-    setSentenceCount(sentences.length);
-    setParagraphCount(paragraphs.length);
+    const paragraphs = trimmedText
+      ? trimmedText
+          .split(/\n+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+
+    const characters = inputText.length;
+    const charactersNoSpaces = inputText.replace(/\s/g, "").length;
+    const lines = inputText ? inputText.split("\n").length : 0;
+
+    const readingMinutes = words.length > 0 ? Math.ceil(words.length / 200) : 0;
+    const speakingMinutes = words.length > 0 ? Math.ceil(words.length / 130) : 0;
+
+    const longestWord =
+      words.length > 0
+        ? words.reduce((longest, current) =>
+            current.length > longest.length ? current : longest
+          )
+        : "-";
+
+    return {
+      words: words.length,
+      characters,
+      charactersNoSpaces,
+      sentences: sentences.length,
+      paragraphs: paragraphs.length,
+      lines,
+      readingMinutes,
+      speakingMinutes,
+      longestWord,
+    };
+  }, [inputText]);
+
+  const handleCopy = async () => {
+    if (!inputText.trim()) return;
+
+    try {
+      await navigator.clipboard.writeText(inputText);
+      setCopied(true);
+      setError("");
+      setSuccess("Text copied successfully.");
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 1500);
+    } catch {
+      setError("Copy failed. Please copy the text manually.");
+      setSuccess("");
+    }
+  };
+
+  const handleDownload = () => {
+    if (!inputText.trim()) {
+      setError("Please enter some text before downloading.");
+      setSuccess("");
+      return;
+    }
+
+    const content = `Word Counter Result
+
+Words: ${stats.words}
+Characters: ${stats.characters}
+Characters without spaces: ${stats.charactersNoSpaces}
+Sentences: ${stats.sentences}
+Paragraphs: ${stats.paragraphs}
+Lines: ${stats.lines}
+Reading Time: ${stats.readingMinutes} minute(s)
+Speaking Time: ${stats.speakingMinutes} minute(s)
+Longest Word: ${stats.longestWord}
+
+Text:
+${inputText}`;
+
+    const blob = new Blob([content], {
+      type: "text/plain;charset=utf-8",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "word-counter-result.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+
+    setSuccess("Word count result downloaded successfully.");
+    setError("");
+  };
+
+  const handleUploadTextFile = (e) => {
+    const file = e.target.files?.[0];
+
+    setError("");
+    setSuccess("");
+    setCopied(false);
+
+    if (!file) return;
+
+    if (!file.type.includes("text") && !file.name.endsWith(".txt")) {
+      setError("Please upload a valid .txt file.");
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      setInputText(String(reader.result || ""));
+      setSuccess("Text file uploaded successfully.");
+    };
+
+    reader.onerror = () => {
+      setError("Failed to read the file. Please try another text file.");
+    };
+
+    reader.readAsText(file);
   };
 
   const resetTool = () => {
     setInputText("");
-    setWordCount(0);
-    setCharCount(0);
-    setSentenceCount(0);
-    setParagraphCount(0);
+    setCopied(false);
+    setError("");
+    setSuccess("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   return (
@@ -54,118 +186,181 @@ export default function WordCounter() {
         <h1 className="text-3xl font-bold mb-3">Word Counter</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Quickly count words, characters, sentences, and paragraphs in your
-          text. Just paste your content, and get detailed word statistics.
+          Paste or type your text and instantly count words, characters,
+          sentences, paragraphs, lines, reading time, and speaking time.
         </p>
       </section>
 
       {/* TOOL BODY */}
       <section className="card p-6 sm:p-8">
-        <div className="grid lg:grid-cols-[1.4fr_0.8fr] gap-6">
-          {/* LEFT COLUMN - INPUT AREA */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* LEFT COLUMN */}
           <div className="flex flex-col gap-5">
             <div>
               <div className="flex justify-between items-center mb-3">
-                <h3 className="font-semibold text-lg">Enter Your Text</h3>
+                <div className="flex items-center gap-2">
+                  <FileText size={20} className="text-[var(--primary)]" />
+                  <h2 className="text-xl font-semibold">Enter Your Text</h2>
+                </div>
+
                 <span className="text-xs text-[var(--text-secondary)]">
-                  {inputText.length} characters
+                  {stats.characters} characters
                 </span>
               </div>
 
               <textarea
                 value={inputText}
-                onChange={handleChange}
-                placeholder="Paste your text here..."
-                rows="12"
+                onChange={(e) => {
+                  setInputText(e.target.value);
+                  setCopied(false);
+                  setError("");
+                  setSuccess("");
+                }}
+                placeholder="Paste or type your text here..."
+                rows="14"
                 className="w-full p-4 border border-[var(--border)] rounded-2xl outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent resize-none"
               />
             </div>
 
-            <div className="mt-4 flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <label className="btn-secondary cursor-pointer inline-flex items-center justify-center gap-2">
+                <Upload size={18} />
+                Upload TXT
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,text/plain"
+                  onChange={handleUploadTextFile}
+                  className="hidden"
+                />
+              </label>
+
+              <button
+                onClick={handleCopy}
+                disabled={!inputText.trim()}
+                className={`btn-primary inline-flex items-center justify-center gap-2 ${
+                  !inputText.trim() ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                {copied ? <Check size={18} /> : <Copy size={18} />}
+                {copied ? "Copied" : "Copy Text"}
+              </button>
+
+              <button
+                onClick={handleDownload}
+                disabled={!inputText.trim()}
+                className={`btn-secondary inline-flex items-center justify-center gap-2 ${
+                  !inputText.trim() ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                <Download size={18} />
+                Download
+              </button>
+
               <button
                 onClick={resetTool}
                 className="btn-secondary inline-flex items-center justify-center gap-2"
               >
-                <RefreshCw size={18} />
+                <RotateCcw size={18} />
                 Reset
               </button>
             </div>
+
+            {error && (
+              <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
+                <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                <p>{error}</p>
+              </div>
+            )}
+
+            {success && (
+              <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
+                <Check size={18} className="shrink-0 mt-0.5" />
+                <p>{success}</p>
+              </div>
+            )}
           </div>
 
-          {/* RIGHT COLUMN - STATS */}
+          {/* RIGHT COLUMN */}
           <div className="flex flex-col gap-5">
-            <div className="flex justify-between items-center mb-3">
-              <div className="flex items-center gap-2">
-                <Zap size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold text-lg">Text Stats</h3>
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 size={20} className="text-[var(--primary)]" />
+                <h2 className="text-xl font-semibold">Text Statistics</h2>
               </div>
-              <span className="text-xs text-[var(--text-secondary)]">
-                Total: {wordCount} words
-              </span>
-            </div>
 
-            <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="text-center">
-                  <p className="text-xs text-[var(--text-secondary)]">Words</p>
-                  <p className="text-xl font-bold text-[var(--primary)]">
-                    {wordCount}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-[var(--text-secondary)]">Characters</p>
-                  <p className="text-xl font-bold text-[var(--primary)]">
-                    {charCount}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-[var(--text-secondary)]">Sentences</p>
-                  <p className="text-xl font-bold text-[var(--primary)]">
-                    {sentenceCount}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-[var(--text-secondary)]">Paragraphs</p>
-                  <p className="text-xl font-bold text-[var(--primary)]">
-                    {paragraphCount}
-                  </p>
-                </div>
+              <div className="grid grid-cols-2 gap-4">
+                <StatCard label="Words" value={stats.words} />
+                <StatCard label="Characters" value={stats.characters} />
+                <StatCard
+                  label="No Spaces"
+                  value={stats.charactersNoSpaces}
+                />
+                <StatCard label="Sentences" value={stats.sentences} />
+                <StatCard label="Paragraphs" value={stats.paragraphs} />
+                <StatCard label="Lines" value={stats.lines} />
               </div>
             </div>
 
-            {/* ACTION BUTTONS */}
-            <div className="mt-5 flex gap-3">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(inputText);
-                }}
-                className="btn-primary inline-flex items-center justify-center gap-2"
-              >
-                <Copy size={18} />
-                Copy Text
-              </button>
+            <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock size={20} className="text-[var(--primary)]" />
+                <h3 className="font-semibold">Reading Details</h3>
+              </div>
 
-              <button
-                onClick={() => {
-                  const blob = new Blob([inputText], { type: "text/plain" });
-                  const link = document.createElement("a");
-                  link.href = URL.createObjectURL(blob);
-                  link.download = "text.txt";
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                }}
-                className="btn-secondary inline-flex items-center justify-center gap-2"
-              >
-                <Download size={18} />
-                Download Text
-              </button>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="bg-white border border-[var(--border)] rounded-xl p-4">
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Reading Time
+                  </p>
+                  <p className="text-xl font-bold text-[var(--primary)]">
+                    {stats.readingMinutes} min
+                  </p>
+                </div>
+
+                <div className="bg-white border border-[var(--border)] rounded-xl p-4">
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Speaking Time
+                  </p>
+                  <p className="text-xl font-bold text-[var(--primary)]">
+                    {stats.speakingMinutes} min
+                  </p>
+                </div>
+              </div>
             </div>
+
+            <div className="bg-white border border-[var(--border)] rounded-2xl p-5">
+              <p className="text-sm text-[var(--text-secondary)] mb-2">
+                Longest Word
+              </p>
+
+              <p className="text-xl font-bold text-[var(--primary)] break-all">
+                {stats.longestWord}
+              </p>
+            </div>
+
+            {!inputText && (
+              <div className="text-center py-8 border border-dashed border-[var(--border)] rounded-2xl bg-gray-50">
+                <Type size={40} className="mx-auto mb-3 text-gray-300" />
+                <p className="text-[var(--text-secondary)]">
+                  Paste your text to see instant word count results.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>
 
       <SuggestedTools currentToolId="word-counter" />
+    </div>
+  );
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div className="bg-gray-50 border border-[var(--border)] rounded-2xl p-4 text-center">
+      <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
+      <p className="text-2xl font-bold text-[var(--primary)]">{value}</p>
     </div>
   );
 }
