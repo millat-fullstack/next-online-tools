@@ -11,33 +11,65 @@ const BLOGS_FILE = new URL("../src/data/Blogs.js", import.meta.url);
 const toolsData = JSON.parse(fs.readFileSync(TOOLS_FILE, "utf8"));
 const { blogs } = await import(BLOGS_FILE.href);
 
+function cleanPath(urlPath) {
+  if (!urlPath) return "/";
+  let finalPath = urlPath.startsWith("/") ? urlPath : `/${urlPath}`;
+
+  // Remove trailing slash except homepage
+  if (finalPath.length > 1) {
+    finalPath = finalPath.replace(/\/+$/, "");
+  }
+
+  return finalPath;
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 const urls = [
-  "/#/", // Home URL for HashRouter
-  "/#/tools", // Tools URL for HashRouter
-  "/#/blog", // Blog URL for HashRouter
-  "/#/about", // About URL for HashRouter
-  "/#/contact", // Contact URL for HashRouter
-  "/#/privacy-policy", // Privacy Policy URL for HashRouter
-  "/#/terms-of-service", // Terms of Service URL for HashRouter
+  "/", 
+  "/tools",
+  "/blog",
+  "/about",
+  "/contact",
+  "/privacy-policy",
+  "/terms-of-service",
 ];
 
 for (const tool of toolsData) {
   if (tool.id) {
-    urls.push(`/#/tool/${tool.id}`); // Tool URLs with HashRouter
+    urls.push(`/tool/${tool.id}`);
   }
 }
 
 for (const blog of blogs) {
   if (blog.slug) {
-    urls.push(`/#/blog/${blog.slug}`); // Blog URLs with HashRouter
+    urls.push(`/blog/${blog.slug}`);
   }
 }
 
-const uniqueUrls = Array.from(new Set(urls)).sort();
+const uniqueUrls = Array.from(new Set(urls.map(cleanPath))).sort();
 
-const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${uniqueUrls
-  .map((url) => `  <url>\n    <loc>${BASE_URL}${url}</loc>\n  </url>`)
-  .join("\n")}\n</urlset>\n`;
+const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${uniqueUrls
+  .map((url) => {
+    const loc = escapeXml(`${BASE_URL}${url === "/" ? "/" : url}`);
+
+    return `  <url>
+    <loc>${loc}</loc>
+  </url>`;
+  })
+  .join("\n")}
+</urlset>
+`;
 
 fs.writeFileSync(OUTPUT_FILE, xml, "utf8");
+
 console.log(`✅ Generated sitemap with ${uniqueUrls.length} URLs: ${OUTPUT_FILE}`);
