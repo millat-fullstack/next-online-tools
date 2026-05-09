@@ -6,7 +6,16 @@
     "description": "Join multiple audio files online for free. Upload audio files, arrange the order, merge them, preview, and download as one file.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.791Z"
+    "createdAt": "2026-05-09T13:16:17.978Z"
+  },
+  {
+    "id": "audio-to-text-converter",
+    "name": "Audio to Text Converter",
+    "category": "Audio Tools",
+    "description": "Convert audio, voice notes, and speech recordings into text. Upload an audio file and transcribe it online in your browser.",
+    "icon": "Wrench",
+    "trending": false,
+    "createdAt": "2026-05-09T13:16:17.989Z"
   },
   {
     "id": "avif-to-jpg-converter",
@@ -15,7 +24,7 @@
     "description": "Convert AVIF images to JPG online for free with quality control and instant download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.796Z"
+    "createdAt": "2026-05-09T13:16:17.997Z"
   },
   {
     "id": "case-converter",
@@ -24,7 +33,7 @@
     "description": "Convert text to uppercase, lowercase, title case, sentence case, and more. Copy your result with a single click.",
     "icon": "Type",
     "trending": true,
-    "createdAt": "2026-05-08T20:29:57.799Z"
+    "createdAt": "2026-05-09T13:16:18.006Z"
   },
   {
     "id": "color-picker",
@@ -33,7 +42,7 @@
     "description": "Pick colors from images with precision. Get HEX, RGB, and HSL values instantly.",
     "icon": "Palette",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.803Z"
+    "createdAt": "2026-05-09T13:16:18.014Z"
   },
   {
     "id": "color-preview",
@@ -42,7 +51,7 @@
     "description": "Preview any color using HEX color code.",
     "icon": "Palette",
     "trending": true,
-    "createdAt": "2026-05-08T20:29:57.805Z"
+    "createdAt": "2026-05-09T13:16:18.023Z"
   },
   {
     "id": "compress-pdf",
@@ -51,7 +60,7 @@
     "description": "Compress PDF files online by reducing file size while keeping pages easy to view and share.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.852Z"
+    "createdAt": "2026-05-09T13:16:18.271Z"
   },
   {
     "id": "csv-to-xls-converter",
@@ -60,7 +69,7 @@
     "description": "Convert CSV files to Excel format in seconds. Get clean, editable spreadsheet output for Microsoft Excel.",
     "icon": "FileSpreadsheet",
     "trending": true,
-    "createdAt": "2026-05-08T20:29:57.808Z"
+    "createdAt": "2026-05-09T13:16:18.032Z"
   },
   {
     "id": "extract-images-from-google-docs",
@@ -69,7 +78,7 @@
     "description": "Extract images from Google Docs by uploading a DOCX file. Preview and download all images instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.811Z"
+    "createdAt": "2026-05-09T13:16:18.038Z"
   },
   {
     "id": "favicon-generator",
@@ -78,7 +87,7 @@
     "description": "Create favicons from your logo or text. Generate multiple favicon sizes and download a ready-to-use favicon package.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.813Z"
+    "createdAt": "2026-05-09T13:16:18.050Z"
   },
   {
     "id": "heic-to-jpg-converter",
@@ -87,7 +96,7 @@
     "description": "Convert HEIC and HEIF images to JPG online for free. Fast, secure, and browser-based.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.815Z"
+    "createdAt": "2026-05-09T13:16:18.061Z"
   },
   {
     "id": "image-compressor",
@@ -96,7 +105,7 @@
     "description": "Compress images directly in your browser with adjustable quality control. Fast, secure, and no server uploads needed.",
     "icon": "Wrench",
     "trending": true,
-    "createdAt": "2026-05-08T20:29:57.818Z"
+    "createdAt": "2026-05-09T13:16:18.071Z"
   },
   {
     "id": "image-cropper-tool",
@@ -105,7 +114,7 @@
     "description": "Upload an image, crop it using various selection types, and download the cropped image in JPG/PNG format.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.820Z"
+    "createdAt": "2026-05-09T13:16:18.080Z"
   },
   {
     "id": "image-resizer",
@@ -114,7 +123,7 @@
     "description": "Upload and resize images with custom dimensions, zoom, drag, and presets for social media.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.823Z"
+    "createdAt": "2026-05-09T13:16:18.097Z"
   },
   {
     "id": "image-to-text-converter",
@@ -123,7 +132,7 @@
     "description": "Extract text from images online using OCR. Upload an image and convert it into editable text.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.827Z"
+    "createdAt": "2026-05-09T13:16:18.119Z"
   },
   {
     "id": "instagram-video-downloader",
@@ -132,7 +141,7 @@
     "description": "Download Instagram videos directly to your device by simply pasting the video URL. No apps, no signups.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.828Z"
+    "createdAt": "2026-05-09T13:16:18.130Z"
   },
   {
     "id": "instagram-video-resizer",
@@ -141,7 +150,7 @@
     "description": "Resize and crop videos for Instagram Feed, Reels, and Stories. Upload a video, choose an Instagram size, preview, and download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.830Z"
+    "createdAt": "2026-05-09T13:16:18.145Z"
   },
   {
     "id": "jpg-to-pdf-converter",
@@ -150,7 +159,7 @@
     "description": "Convert JPG images to PDF in seconds. Easily adjust orientation and margins.",
     "icon": "FileText",
     "trending": true,
-    "createdAt": "2026-05-08T20:29:57.832Z"
+    "createdAt": "2026-05-09T13:16:18.163Z"
   },
   {
     "id": "merge-pdf",
@@ -159,7 +168,7 @@
     "description": "Merge multiple PDF files online for free. Upload PDFs, arrange the order, combine them, and download one merged PDF.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.834Z"
+    "createdAt": "2026-05-09T13:16:18.189Z"
   },
   {
     "id": "passport-size-photo-maker",
@@ -168,7 +177,7 @@
     "description": "Create passport size photos online. Upload, crop, choose size, set background color, and download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.838Z"
+    "createdAt": "2026-05-09T13:16:18.230Z"
   },
   {
     "id": "pdf-to-jpg-converter",
@@ -177,7 +186,7 @@
     "description": "Convert PDF files to JPG images quickly. Get high-quality image output for every PDF page.",
     "icon": "FileText",
     "trending": true,
-    "createdAt": "2026-05-08T20:29:57.856Z"
+    "createdAt": "2026-05-09T13:16:18.324Z"
   },
   {
     "id": "phone-number-cleaner",
@@ -186,7 +195,7 @@
     "description": "Clean and format phone numbers in bulk for Google Sheets and Excel. Remove plus signs, formulas, spaces, dashes, and unwanted formatting.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.860Z"
+    "createdAt": "2026-05-09T13:16:18.350Z"
   },
   {
     "id": "svg-to-png-converter",
@@ -195,7 +204,7 @@
     "description": "Convert SVG files to PNG online for free. Upload SVG, choose output size and background, then download PNG instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.872Z"
+    "createdAt": "2026-05-09T13:16:18.370Z"
   },
   {
     "id": "text-to-slug-generator",
@@ -204,7 +213,7 @@
     "description": "Convert any title, heading, or sentence into a clean SEO-friendly URL slug instantly.",
     "icon": "Link",
     "trending": true,
-    "createdAt": "2026-05-08T20:29:57.875Z"
+    "createdAt": "2026-05-09T13:16:18.387Z"
   },
   {
     "id": "webp-to-jpg-converter",
@@ -213,7 +222,7 @@
     "description": "Convert WEBP images to JPG format quickly in your browser.",
     "icon": "ImagePlus",
     "trending": true,
-    "createdAt": "2026-05-08T20:29:57.877Z"
+    "createdAt": "2026-05-09T13:16:18.400Z"
   },
   {
     "id": "word-cloud-generator",
@@ -222,7 +231,7 @@
     "description": "Transform your text into beautiful visual word clouds. Paste your content and generate a visual summary of the most frequent words.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.879Z"
+    "createdAt": "2026-05-09T13:16:18.420Z"
   },
   {
     "id": "word-counter",
@@ -231,7 +240,7 @@
     "description": "Quickly count words, characters, sentences, and paragraphs in any text.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.884Z"
+    "createdAt": "2026-05-09T13:16:18.438Z"
   },
   {
     "id": "youtube-thumbnail-downloader",
@@ -240,6 +249,6 @@
     "description": "Download YouTube video thumbnails in multiple sizes. Paste a YouTube video or Shorts link and get thumbnail previews instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-05-08T20:29:57.891Z"
+    "createdAt": "2026-05-09T13:16:18.464Z"
   }
 ]
