@@ -6,10 +6,10 @@ export default function CategorySelector({ categories = [] }) {
   const selectedCategory = queryParams.get("category");
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    <div className="category-selector">
       <Link
         to="/tools"
-        className={!selectedCategory ? "btn-primary whitespace-nowrap" : "btn-secondary whitespace-nowrap"}
+        className={!selectedCategory ? "category-chip active" : "category-chip"}
       >
         All Tools
       </Link>
@@ -20,8 +20,8 @@ export default function CategorySelector({ categories = [] }) {
           to={`/tools?category=${encodeURIComponent(category)}`}
           className={
             selectedCategory === category
-              ? "btn-primary whitespace-nowrap"
-              : "btn-secondary whitespace-nowrap"
+              ? "category-chip active"
+              : "category-chip"
           }
         >
           {category}
