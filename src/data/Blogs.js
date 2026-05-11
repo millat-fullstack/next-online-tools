@@ -1,5 +1,13 @@
 export const blogs = [
   {
+    "title": "How to Extract Hidden Links from Google Sheets Easily",
+    "slug": "HowToExtractGoogleSheetLinks",
+    "date": "2026-05-11",
+    "category": "Spreadsheet Tools",
+    "excerpt": "Learn how to extract hidden hyperlinks from Google Sheets cells quickly using the Google Sheet Link Extractor by Next Online Tools.",
+    "image": "/images/google-sheet-link-extractor.jpg"
+  },
+  {
     "title": "10 Best Free Online Image Compressor Tools to Reduce File Size",
     "slug": "BestFreeImageCompressorTools",
     "date": "2026-05-10",

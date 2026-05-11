@@ -63,16 +63,9 @@ export default function Tools() {
           colors, SEO, productivity, conversions, and daily online work.
         </p>
 
-        <div className="tools-search-box">
-          <Icons.Search size={20} />
-          <input
-            type="text"
-            placeholder="Search tools..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
+        <h2>
+        <u>  Choose a Category </u>
+        </h2>
         <CategorySelector categories={categories} />
 
       </section>

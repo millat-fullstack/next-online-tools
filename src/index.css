@@ -204,12 +204,23 @@ select {
   overflow-wrap: break-word;
 }
 
+.tools-hero h2 {
+  max-width: 780px;
+  color: var(--text-primary);
+  font-size: clamp(10px, 1.5vw, 30px);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -1.2px;
+  margin: 0 0 15px;
+  overflow-wrap: break-word;
+}
+
 .tools-hero p {
   max-width: 780px;
   color: var(--text-secondary);
   font-size: 17px;
   line-height: 1.5;
-  margin: 0 0 10px;
+  margin: 0 0 15px;
   overflow-wrap: break-word;
 }
 
@@ -292,7 +303,7 @@ select {
   background: #ffffff;
   color: var(--primary);
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.25;
   text-align: center;
   transition: all 0.2s ease;
