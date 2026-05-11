@@ -63,10 +63,6 @@ export default function Tools() {
           colors, SEO, productivity, conversions, and daily online work.
         </p>
 
-      </section>
-
-      {/* SEARCH + CATEGORY */}
-      <section className="tools-filter-card">
         <div className="tools-search-box">
           <Icons.Search size={20} />
           <input
@@ -78,6 +74,7 @@ export default function Tools() {
         </div>
 
         <CategorySelector categories={categories} />
+
       </section>
 
       {/* TOOLS */}

@@ -196,11 +196,11 @@ select {
 .tools-hero h1 {
   max-width: 780px;
   color: var(--text-primary);
-  font-size: clamp(32px, 5vw, 58px);
+  font-size: clamp(20px, 2.5vw, 50px);
   line-height: 1.05;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: -1.5px;
-  margin: 0 0 18px;
+  margin: 0 0 10px;
   overflow-wrap: break-word;
 }
 
@@ -208,24 +208,9 @@ select {
   max-width: 780px;
   color: var(--text-secondary);
   font-size: 17px;
-  line-height: 1.8;
-  margin: 0;
+  line-height: 1.5;
+  margin: 0 0 10px;
   overflow-wrap: break-word;
-}
-
-.tools-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 160px));
-  gap: 14px;
-  margin-top: 28px;
-}
-
-.tools-stat-card {
-  padding: 16px 18px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(155, 108, 227, 0.13);
-  box-shadow: 0 10px 30px rgba(155, 108, 227, 0.08);
 }
 
 .tools-stat-card strong {
