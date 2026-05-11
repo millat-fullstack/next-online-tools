@@ -1,5 +1,13 @@
 export const blogs = [
   {
+    "title": "10 Best Free Online Image Compressor Tools to Reduce File Size",
+    "slug": "BestFreeImageCompressorTools",
+    "date": "2026-05-10",
+    "category": "Image Tools",
+    "excerpt": "Discover the 10 best free online image compressor tools to reduce image file size, improve website speed, and optimize photos without losing quality.",
+    "image": "/images/free-image-compressor-tools.jpg"
+  },
+  {
     "title": "Essential Online Image Tools to Optimize, Resize, and Convert Images Easily",
     "slug": "ImageToolsGuide",
     "date": "2026-04-26",

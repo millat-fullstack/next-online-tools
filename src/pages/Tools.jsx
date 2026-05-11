@@ -63,22 +63,6 @@ export default function Tools() {
           colors, SEO, productivity, conversions, and daily online work.
         </p>
 
-        <div className="tools-stats">
-          <div className="tools-stat-card">
-            <strong>{tools.length}+</strong>
-            <span>Total Tools</span>
-          </div>
-
-          <div className="tools-stat-card">
-            <strong>{categories.length}</strong>
-            <span>Categories</span>
-          </div>
-
-          <div className="tools-stat-card">
-            <strong>{filteredTools.length}</strong>
-            <span>Showing Now</span>
-          </div>
-        </div>
       </section>
 
       {/* SEARCH + CATEGORY */}
