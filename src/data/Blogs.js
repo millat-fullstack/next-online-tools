@@ -1,5 +1,21 @@
 export const blogs = [
   {
+    "title": "Best Free Online Passport Photo Maker for Visa, ID, and Documents",
+    "slug": "BestFreeOnlinePassportPhotoMaker",
+    "date": "2026-05-12",
+    "category": "Image Tools",
+    "excerpt": "Create passport size photos online for visa, ID, job application, school forms, and documents using the free Passport Size Photo Maker by Next Online Tools.",
+    "image": "/images/passport-photo-maker.jpg"
+  },
+  {
+    "title": "Best Free Online Screenshot Editor Tools for Quick Editing",
+    "slug": "BestFreeOnlineScreenshotEditorTools",
+    "date": "2026-05-12",
+    "category": "Image Tools",
+    "excerpt": "Discover the best free online screenshot editor tools for quick editing, annotation, cropping, blurring, and sharing screenshots faster.",
+    "image": "/images/free-online-screenshot-editor-tools.jpg"
+  },
+  {
     "title": "How to Extract Hidden Links from Google Sheets Easily",
     "slug": "HowToExtractGoogleSheetLinks",
     "date": "2026-05-11",
