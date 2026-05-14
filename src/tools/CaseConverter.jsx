@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { Type, Copy, RotateCcw, ArrowRight, Check } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -7,11 +8,16 @@ export const toolData = {
   path: "/case-converter",
   category: "Text Tools",
   description:
-    "Convert text to uppercase, lowercase, title case, sentence case, and more. Copy your result with a single click.",
-  metaTitle: "Case Converter Tool - Convert Text Easily | Next Online Tools",
+    "Convert text to uppercase, lowercase, title case, sentence case, camelCase, snake_case, and kebab-case. Copy your result with a single click.",
+  metaTitle:
+    "Case Converter Tool - Free Online Text Case Converter | Next Online Tools",
   metaDescription:
-    "Easily convert text to uppercase, lowercase, title case, sentence case, and more. Simple, fast, and free online tool to adjust your text formatting.",
+    "Convert text case instantly with this free online Case Converter. Change text to uppercase, lowercase, title case, sentence case, camelCase, snake_case, or kebab-case in one click.",
+  metaKeywords:
+    "case converter, text case converter, uppercase converter, lowercase converter, title case tool, sentence case tool, camelCase converter, snake_case converter, kebab-case converter, online text formatting",
 };
+
+const SITE_URL = "https://nextonlinetools.com";
 
 export default function CaseConverter() {
   const [inputText, setInputText] = useState("");
@@ -84,10 +90,63 @@ export default function CaseConverter() {
   const outputWords = countWords(outputText);
   const outputLines = outputText ? outputText.split("\n").length : 0;
 
+  const canonicalUrl = `${SITE_URL}${toolData.path.startsWith("/tool") ? toolData.path : `/tool${toolData.path}`}`;
+
   return (
-    <div className="flex flex-col gap-8">
-      {/* HEADER */}
-      <section className="card p-6 sm:p-8">
+    <>
+      <Helmet>
+        <title>{toolData.metaTitle}</title>
+        <meta name="description" content={toolData.metaDescription} />
+        <meta name="keywords" content={toolData.metaKeywords} />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href={canonicalUrl} />
+
+        <meta property="og:title" content={toolData.metaTitle} />
+        <meta property="og:description" content={toolData.metaDescription} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:image" content={`${SITE_URL}/og-image.png`} />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={toolData.metaTitle} />
+        <meta name="twitter:description" content={toolData.metaDescription} />
+
+        <script type="application/ld+json">{JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          url: canonicalUrl,
+          name: toolData.metaTitle,
+          description: toolData.metaDescription,
+          inLanguage: "en-US",
+          breadcrumb: {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Home",
+                item: `${SITE_URL}`,
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Tools",
+                item: `${SITE_URL}/tools`,
+              },
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: "Case Converter",
+                item: canonicalUrl,
+              },
+            ],
+          },
+        })}</script>
+      </Helmet>
+
+      <div className="flex flex-col gap-8">
+        {/* HEADER */}
+        <section className="card p-6 sm:p-8">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
           <Type size={28} className="text-[var(--primary)]" />
         </div>
@@ -346,6 +405,7 @@ export default function CaseConverter() {
 
       <SuggestedTools currentToolId="case-converter" />
     </div>
+    </>
   );
 }
 
