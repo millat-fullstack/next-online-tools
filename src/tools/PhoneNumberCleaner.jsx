@@ -20,10 +20,10 @@ export const toolData = {
   path: "/phone-number-cleaner",
   category: "Productivity Tools",
   description:
-    "Clean and format phone numbers in bulk for Google Sheets and Excel. Remove plus signs, formulas, spaces, dashes, and unwanted formatting.",
+    "Clean and format phone numbers in bulk for Google Sheets and Excel. Remove plus signs, formulas, spaces, dashes, and unwanted formatting while preserving spreadsheet rows and columns.",
   metaTitle: "Phone Number Cleaner | Format Numbers for Google Sheets",
   metaDescription:
-    "Clean phone numbers online for free. Remove plus signs, formula symbols, spaces, dashes, and formatting problems before pasting into Google Sheets or Excel.",
+    "Clean phone numbers online for free. Remove plus signs, formula symbols, spaces, dashes, and formatting problems before pasting into Google Sheets or Excel without losing row and column formatting.",
 };
 
 export default function PhoneNumberCleaner() {
@@ -42,7 +42,7 @@ export default function PhoneNumberCleaner() {
   const [removeBrackets, setRemoveBrackets] = useState(true);
   const [keepOnlyDigits, setKeepOnlyDigits] = useState(true);
   const [removeDuplicates, setRemoveDuplicates] = useState(false);
-  const [makeSheetSafe, setMakeSheetSafe] = useState(false);
+  const [makeSheetSafe, setMakeSheetSafe] = useState(true);
   const [skipInvalidLines, setSkipInvalidLines] = useState(true);
 
   const [lastStats, setLastStats] = useState({
@@ -54,23 +54,114 @@ export default function PhoneNumberCleaner() {
     reductionPercent: 0,
   });
 
-  const splitInputLines = (text) => {
-    return text
-      .split(/\r?\n/)
-      .flatMap((line) => line.split(/[\t,]+/))
-      .map((line) => line.trim())
-      .filter(Boolean);
+  const parseCsvLine = (line) => {
+    const cells = [];
+    let current = "";
+    let insideQuotes = false;
+
+    for (let i = 0; i < line.length; i += 1) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"' && insideQuotes && nextChar === '"') {
+        current += '"';
+        i += 1;
+        continue;
+      }
+
+      if (char === '"') {
+        insideQuotes = !insideQuotes;
+        continue;
+      }
+
+      if (char === "," && !insideQuotes) {
+        cells.push(current);
+        current = "";
+        continue;
+      }
+
+      current += char;
+    }
+
+    cells.push(current);
+    return cells;
+  };
+
+  const parseSheetGrid = (text) => {
+    const normalizedText = String(text || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n");
+
+    if (!normalizedText) return [];
+
+    const rows = normalizedText.split("\n");
+
+    while (rows.length && rows[rows.length - 1] === "") {
+      rows.pop();
+    }
+
+    return rows.map((row) => {
+      if (row.includes("\t")) {
+        return row.split("\t");
+      }
+
+      return parseCsvLine(row);
+    });
+  };
+
+  const countFilledCells = (grid) => {
+    return grid.flat().filter((cell) => String(cell || "").trim()).length;
+  };
+
+  const makeGoogleSheetsSafeValue = (value) => {
+    if (!makeSheetSafe || !value) return value;
+
+    const plainValue = String(value).replace(/^'/, "");
+
+    return `'${plainValue}`;
+  };
+
+  const normalizePossibleFormulaPhone = (value) => {
+    let number = String(value || "").trim();
+
+    number = number
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .trim();
+
+    if (
+      (number.startsWith('"') && number.endsWith('"')) ||
+      (number.startsWith("'") && number.endsWith("'"))
+    ) {
+      number = number.slice(1, -1).trim();
+    }
+
+    // Remove Google Sheets text marker.
+    number = number.replace(/^'/, "").trim();
+
+    // Handle formula-like phone values:
+    // =01712345678
+    // =+8801712345678
+    // ="+8801712345678"
+    // ='01712345678'
+    if (removeLeadingEquals) {
+      number = number.replace(/^=+\s*/, "").trim();
+
+      if (
+        (number.startsWith('"') && number.endsWith('"')) ||
+        (number.startsWith("'") && number.endsWith("'"))
+      ) {
+        number = number.slice(1, -1).trim();
+      }
+    }
+
+    return number;
   };
 
   const cleanSingleNumber = (value) => {
-    let number = String(value || "").trim();
+    const rawValue = String(value || "");
+    let number = normalizePossibleFormulaPhone(rawValue);
     const originalLength = number.length;
-
-    number = number.replace(/^["']+|["']+$/g, "");
-
-    if (removeLeadingEquals) {
-      number = number.replace(/^=+/, "");
-    }
 
     if (removeLeadingPlus) {
       number = number.replace(/^\++/, "");
@@ -92,16 +183,15 @@ export default function PhoneNumberCleaner() {
       number = number.replace(/\D/g, "");
     }
 
-    const isValid = number.length >= 6;
+    const plainNumber = number.replace(/^'/, "");
+    const isValid = plainNumber.length >= 6;
 
-    if (makeSheetSafe && number) {
-      number = `'${number}`;
-    }
+    const safeNumber = makeGoogleSheetsSafeValue(plainNumber);
 
     return {
-      value: number,
+      value: safeNumber,
       isValid,
-      removedCharacters: Math.max(0, originalLength - number.replace(/^'/, "").length),
+      removedCharacters: Math.max(0, originalLength - plainNumber.length),
     };
   };
 
@@ -116,51 +206,67 @@ export default function PhoneNumberCleaner() {
       return;
     }
 
-    const lines = splitInputLines(inputText);
+    const grid = parseSheetGrid(inputText);
+    const totalCells = countFilledCells(grid);
 
-    if (!lines.length) {
+    if (!grid.length || !totalCells) {
       setOutputText("");
-      setError("No phone numbers found. Please paste one number per line.");
+      setError(
+        "No phone numbers found. Please paste numbers from Google Sheets, Excel, TXT, or CSV."
+      );
       return;
     }
 
     const seen = new Set();
-    const cleaned = [];
 
+    let cleanedNumbers = 0;
     let invalidLines = 0;
     let duplicatesRemoved = 0;
     let charactersRemoved = 0;
 
-    lines.forEach((line) => {
-      const result = cleanSingleNumber(line);
-      charactersRemoved += result.removedCharacters;
+    const cleanedGrid = grid.map((row) => {
+      return row.map((cell) => {
+        const originalCell = String(cell || "");
 
-      if (!result.value || !result.isValid) {
-        invalidLines += 1;
-
-        if (!skipInvalidLines && result.value) {
-          cleaned.push(result.value);
+        // Keep empty cells empty so spreadsheet layout does not shift.
+        if (!originalCell.trim()) {
+          return "";
         }
 
-        return;
-      }
+        const result = cleanSingleNumber(originalCell);
+        charactersRemoved += result.removedCharacters;
 
-      const duplicateKey = result.value.replace(/^'/, "");
+        if (!result.value || !result.isValid) {
+          invalidLines += 1;
 
-      if (removeDuplicates && seen.has(duplicateKey)) {
-        duplicatesRemoved += 1;
-        return;
-      }
+          // Keep the cell position. Do not remove the cell.
+          return skipInvalidLines ? "" : result.value;
+        }
 
-      seen.add(duplicateKey);
-      cleaned.push(result.value);
+        const duplicateKey = result.value.replace(/^'/, "");
+
+        if (removeDuplicates && seen.has(duplicateKey)) {
+          duplicatesRemoved += 1;
+
+          // Keep the grid shape by blanking duplicate cells instead of deleting rows/cells.
+          return "";
+        }
+
+        seen.add(duplicateKey);
+        cleanedNumbers += 1;
+
+        return result.value;
+      });
     });
 
-    if (!cleaned.length) {
+    const resultText = cleanedGrid.map((row) => row.join("\t")).join("\n");
+    const hasOutput = resultText.replace(/[\t\n]/g, "").trim();
+
+    if (!hasOutput) {
       setOutputText("");
       setError("No valid phone numbers found after cleaning.");
       setLastStats({
-        totalLines: lines.length,
+        totalLines: totalCells,
         cleanedNumbers: 0,
         invalidLines,
         duplicatesRemoved,
@@ -170,24 +276,25 @@ export default function PhoneNumberCleaner() {
       return;
     }
 
-    const resultText = cleaned.join("\n");
-
     const reductionPercent =
       inputText.length > 0
         ? Math.max(0, Math.round((charactersRemoved / inputText.length) * 100))
         : 0;
 
     setOutputText(resultText);
+
     setLastStats({
-      totalLines: lines.length,
-      cleanedNumbers: cleaned.length,
+      totalLines: totalCells,
+      cleanedNumbers,
       invalidLines,
       duplicatesRemoved,
       charactersRemoved,
       reductionPercent,
     });
 
-    setSuccess("Phone numbers cleaned successfully. You can now copy and paste into Google Sheets.");
+    setSuccess(
+      "Phone numbers cleaned successfully. Row and column layout is preserved for Google Sheets."
+    );
   };
 
   const handleCopy = async () => {
@@ -197,7 +304,9 @@ export default function PhoneNumberCleaner() {
       await navigator.clipboard.writeText(outputText);
       setCopied(true);
       setError("");
-      setSuccess("Cleaned numbers copied successfully.");
+      setSuccess(
+        "Cleaned numbers copied successfully. Paste directly into Google Sheets."
+      );
 
       setTimeout(() => {
         setCopied(false);
@@ -233,19 +342,20 @@ export default function PhoneNumberCleaner() {
     downloadBlob(blob, "cleaned-phone-numbers.txt");
   };
 
+  const csvEscape = (value) => {
+    return `"${String(value || "").replace(/^'/, "").replace(/"/g, '""')}"`;
+  };
+
   const handleDownloadCsv = () => {
     if (!outputText) {
       setError("Please clean phone numbers first.");
       return;
     }
 
-    const rows = outputText
+    const csv = outputText
       .split(/\r?\n/)
-      .filter(Boolean)
-      .map((number) => `"${number.replace(/^'/, "")}"`)
+      .map((row) => row.split("\t").map(csvEscape).join(","))
       .join("\n");
-
-    const csv = `Phone Number\n${rows}`;
 
     const blob = new Blob([csv], {
       type: "text/csv;charset=utf-8",
@@ -267,26 +377,27 @@ export default function PhoneNumberCleaner() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Cleaned Numbers");
 
-      worksheet.columns = [
-        {
-          header: "Phone Number",
-          key: "phone",
-          width: 24,
-          style: { numFmt: "@" },
-        },
-      ];
+      const rows = outputText.split(/\r?\n/).map((row) => {
+        return row
+          .split("\t")
+          .map((cell) => String(cell || "").replace(/^'/, ""));
+      });
 
-      outputText
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .forEach((number) => {
-          worksheet.addRow({
-            phone: String(number).replace(/^'/, ""),
-          });
+      const maxColumns = Math.max(...rows.map((row) => row.length));
+
+      for (let col = 1; col <= maxColumns; col += 1) {
+        worksheet.getColumn(col).width = 24;
+        worksheet.getColumn(col).numFmt = "@";
+      }
+
+      rows.forEach((row) => {
+        const excelRow = worksheet.addRow(row);
+
+        excelRow.eachCell((cell) => {
+          cell.numFmt = "@";
+          cell.value = String(cell.value || "");
         });
-
-      worksheet.getRow(1).font = { bold: true };
-      worksheet.getColumn("phone").numFmt = "@";
+      });
 
       const buffer = await workbook.xlsx.writeBuffer();
 
@@ -348,7 +459,7 @@ export default function PhoneNumberCleaner() {
     setRemoveBrackets(true);
     setKeepOnlyDigits(true);
     setRemoveDuplicates(false);
-    setMakeSheetSafe(false);
+    setMakeSheetSafe(true);
     setSkipInvalidLines(true);
 
     setLastStats({
@@ -366,7 +477,7 @@ export default function PhoneNumberCleaner() {
   };
 
   const liveInputCount = useMemo(() => {
-    return splitInputLines(inputText).length;
+    return countFilledCells(parseSheetGrid(inputText));
   }, [inputText]);
 
   return (
@@ -380,9 +491,10 @@ export default function PhoneNumberCleaner() {
         <h1 className="text-3xl font-bold mb-3">Phone Number Cleaner</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Clean phone numbers in bulk before pasting into Google Sheets or Excel.
-          Remove plus signs, formula symbols, spaces, dashes, brackets, and messy
-          formatting instantly.
+          Clean phone numbers in bulk before pasting into Google Sheets or
+          Excel. Remove plus signs, formula symbols, spaces, dashes, brackets,
+          and messy formatting while keeping the same spreadsheet row and column
+          layout.
         </p>
       </section>
 
@@ -412,9 +524,10 @@ export default function PhoneNumberCleaner() {
                   setError("");
                   setSuccess("");
                 }}
-                placeholder={`Paste numbers here, one per line:
+                placeholder={`Paste from Google Sheets, Excel, TXT, or CSV:
 +8801712345678
 =01712345678
+="+8801712345678"
 01712-345-678
 +88 01712 345678`}
                 rows="14"
@@ -473,7 +586,7 @@ export default function PhoneNumberCleaner() {
                 />
 
                 <CheckOption
-                  label="Skip invalid lines"
+                  label="Skip invalid cells"
                   checked={skipInvalidLines}
                   onChange={setSkipInvalidLines}
                 />
@@ -487,8 +600,9 @@ export default function PhoneNumberCleaner() {
                 />
 
                 <p className="text-xs text-[var(--text-secondary)] mt-2">
-                  This adds an apostrophe before each number to help Google Sheets
-                  or Excel keep leading zeros as text.
+                  Recommended. This adds an apostrophe before each cleaned number
+                  so Google Sheets and Excel keep phone numbers as text and do
+                  not convert them into formulas or remove leading zeros.
                 </p>
               </div>
             </div>
@@ -546,8 +660,9 @@ export default function PhoneNumberCleaner() {
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
               <p className="text-sm text-yellow-800">
-                Tip: For direct pasting into Google Sheets, copy the cleaned
-                output. Each line will paste into a separate cell row.
+                Tip: You can paste directly from Google Sheets. This tool keeps
+                the same row and column layout, so cleaned results paste back
+                into Sheets without shifting cells.
               </p>
             </div>
           </div>
@@ -563,7 +678,8 @@ export default function PhoneNumberCleaner() {
                   </div>
 
                   <p className="text-xs text-[var(--text-secondary)] mt-1">
-                    Ready to paste into Google Sheets or Excel.
+                    Ready to paste into Google Sheets or Excel with the same
+                    layout.
                   </p>
                 </div>
 
@@ -635,9 +751,9 @@ export default function PhoneNumberCleaner() {
 
             {/* STATS */}
             <div className="grid grid-cols-2 gap-4">
-              <StatCard label="Total Lines" value={lastStats.totalLines} />
+              <StatCard label="Detected Cells" value={lastStats.totalLines} />
               <StatCard label="Cleaned" value={lastStats.cleanedNumbers} />
-              <StatCard label="Invalid Lines" value={lastStats.invalidLines} />
+              <StatCard label="Invalid Cells" value={lastStats.invalidLines} />
               <StatCard
                 label="Duplicates Removed"
                 value={lastStats.duplicatesRemoved}
