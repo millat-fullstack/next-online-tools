@@ -17,14 +17,14 @@ import {
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
 export const toolData = {
-  title: "WEBP to JPG Converter",
+  title: "WEBP to JPG/PNG Converter",
   path: "/webp-to-jpg-converter",
   category: "Image Tools",
   description:
-    "Convert up to 10 WEBP images to JPG format in one batch directly in your browser.",
-  metaTitle: "Batch WEBP to JPG Converter | Convert Multiple Images Online",
+    "Convert up to 10 WEBP images in one batch. Transparent WEBP files are saved as PNG, and opaque files are saved as JPG.",
+  metaTitle: "WEBP to JPG/PNG Converter | Preserve Transparency Online",
   metaDescription:
-    "Convert WEBP images to JPG online for free. Upload up to 10 WEBP photos, batch convert them in your browser, control JPG quality, and download individually or as a ZIP file.",
+    "Convert WEBP images online for free. Transparent WEBP files are automatically converted to PNG, opaque WEBP files are converted to JPG, and batch downloads are supported.",
 };
 
 const MAX_FILES = 10;
@@ -45,7 +45,7 @@ export default function WebpToJpgConverter() {
   const [success, setSuccess] = useState("");
 
   const readyImages = useMemo(() => {
-    return images.filter((image) => image.status === "done" && image.jpgBlob);
+    return images.filter((image) => image.status === "done" && image.outputBlob);
   }, [images]);
 
   const totalSizeText = useMemo(() => {
@@ -67,9 +67,11 @@ export default function WebpToJpgConverter() {
       name: file.name,
       size: file.size,
       previewUrl,
-      jpgUrl: null,
-      jpgBlob: null,
-      outputName: getOutputName(file.name),
+      outputUrl: null,
+      outputBlob: null,
+      outputName: getOutputName(file.name, "jpg"),
+      outputFormat: "",
+      wasTransparent: false,
       status: "queued",
       progress: 0,
       width: 0,
@@ -164,8 +166,8 @@ export default function WebpToJpgConverter() {
       URL.revokeObjectURL(image.previewUrl);
     }
 
-    if (image.jpgUrl) {
-      URL.revokeObjectURL(image.jpgUrl);
+    if (image.outputUrl) {
+      URL.revokeObjectURL(image.outputUrl);
     }
   }
 
@@ -203,15 +205,18 @@ export default function WebpToJpgConverter() {
   function resetConvertedResults() {
     setImages((currentImages) => {
       currentImages.forEach((image) => {
-        if (image.jpgUrl) {
-          URL.revokeObjectURL(image.jpgUrl);
+        if (image.outputUrl) {
+          URL.revokeObjectURL(image.outputUrl);
         }
       });
 
       return currentImages.map((image) => ({
         ...image,
-        jpgUrl: null,
-        jpgBlob: null,
+        outputUrl: null,
+        outputBlob: null,
+        outputName: getOutputName(image.name, "jpg"),
+        outputFormat: "",
+        wasTransparent: false,
         status: "queued",
         progress: 0,
         width: 0,
@@ -279,11 +284,11 @@ export default function WebpToJpgConverter() {
 
       if (conversionResult.successCount > 0) {
         setSuccess(
-          `Batch conversion completed. ${conversionResult.successCount} image(s) are ready to download.`
+          `${images.length > 1 ? "Batch conversion" : "Conversion"} completed. ${conversionResult.successCount} file(s) are ready to download.`
         );
       } else {
         setError(
-          "No images could be converted. Please try again with different WEBP files."
+          "No files could be converted. Please try again with different WEBP files."
         );
       }
     } catch {
@@ -311,15 +316,22 @@ export default function WebpToJpgConverter() {
       });
 
       try {
-        const result = await convertWebpToJpg(image.previewUrl, quality);
+        const result = await convertWebpPreservingTransparency(
+          image.previewUrl,
+          image.name,
+          quality
+        );
 
         successCount += 1;
 
         updateImage(image.id, {
           status: "done",
           progress: 100,
-          jpgBlob: result.blob,
-          jpgUrl: result.url,
+          outputBlob: result.blob,
+          outputUrl: result.url,
+          outputName: result.outputName,
+          outputFormat: result.outputFormat,
+          wasTransparent: result.wasTransparent,
           width: result.width,
           height: result.height,
           error: "",
@@ -351,44 +363,99 @@ export default function WebpToJpgConverter() {
     });
   }
 
-  async function convertWebpToJpg(imageUrl, jpgQuality) {
+  async function convertWebpPreservingTransparency(imageUrl, fileName, jpgQuality) {
     const img = await loadImage(imageUrl);
 
-    const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth || img.width;
-    canvas.height = img.naturalHeight || img.height;
+    const sourceCanvas = document.createElement("canvas");
+    sourceCanvas.width = img.naturalWidth || img.width;
+    sourceCanvas.height = img.naturalHeight || img.height;
 
-    const ctx = canvas.getContext("2d");
+    const sourceCtx = sourceCanvas.getContext("2d", {
+      willReadFrequently: true,
+    });
 
-    if (!ctx) {
+    if (!sourceCtx) {
       throw new Error("Canvas is not supported.");
     }
 
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
+    sourceCtx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+    sourceCtx.drawImage(img, 0, 0);
 
-    const blob = await new Promise((resolve, reject) => {
+    const hasTransparency = canvasHasTransparency(
+      sourceCtx,
+      sourceCanvas.width,
+      sourceCanvas.height
+    );
+
+    const outputFormat = hasTransparency ? "png" : "jpg";
+    const mimeType = hasTransparency ? "image/png" : "image/jpeg";
+    const outputCanvas = hasTransparency
+      ? sourceCanvas
+      : createJpgCanvas(sourceCanvas);
+
+    const blob = await canvasToBlob(
+      outputCanvas,
+      mimeType,
+      hasTransparency ? undefined : jpgQuality
+    );
+
+    return {
+      blob,
+      url: URL.createObjectURL(blob),
+      outputName: getOutputName(fileName, outputFormat),
+      outputFormat: outputFormat.toUpperCase(),
+      wasTransparent: hasTransparency,
+      width: sourceCanvas.width,
+      height: sourceCanvas.height,
+    };
+  }
+
+  function createJpgCanvas(sourceCanvas) {
+    const jpgCanvas = document.createElement("canvas");
+    jpgCanvas.width = sourceCanvas.width;
+    jpgCanvas.height = sourceCanvas.height;
+
+    const jpgCtx = jpgCanvas.getContext("2d");
+
+    if (!jpgCtx) {
+      throw new Error("Canvas is not supported.");
+    }
+
+    jpgCtx.fillStyle = "#ffffff";
+    jpgCtx.fillRect(0, 0, jpgCanvas.width, jpgCanvas.height);
+    jpgCtx.drawImage(sourceCanvas, 0, 0);
+
+    return jpgCanvas;
+  }
+
+  function canvasHasTransparency(ctx, width, height) {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+
+    for (let index = 3; index < pixels.length; index += 4) {
+      if (pixels[index] < 255) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function canvasToBlob(canvas, mimeType, quality) {
+    return new Promise((resolve, reject) => {
       canvas.toBlob(
         (generatedBlob) => {
           if (!generatedBlob) {
-            reject(new Error("Could not generate JPG file."));
+            reject(new Error(`Could not generate ${mimeType} file.`));
             return;
           }
 
           resolve(generatedBlob);
         },
-        "image/jpeg",
-        jpgQuality
+        mimeType,
+        quality
       );
     });
-
-    return {
-      blob,
-      url: URL.createObjectURL(blob),
-      width: canvas.width,
-      height: canvas.height,
-    };
   }
 
   async function handleDownloadAllZip() {
@@ -406,14 +473,14 @@ export default function WebpToJpgConverter() {
       const zip = new JSZip();
 
       readyImages.forEach((image) => {
-        zip.file(image.outputName, image.jpgBlob);
+        zip.file(image.outputName, image.outputBlob);
       });
 
       const zipBlob = await zip.generateAsync({
         type: "blob",
       });
 
-      downloadBlob(zipBlob, "converted-jpg-images.zip");
+      downloadBlob(zipBlob, "converted-images.zip");
 
       setSuccess("ZIP file downloaded successfully.");
     } catch {
@@ -460,12 +527,12 @@ export default function WebpToJpgConverter() {
           <ImageIcon size={28} className="text-[var(--primary)]" />
         </div>
 
-        <h1 className="text-3xl font-bold mb-3">WEBP to JPG Converter</h1>
+        <h1 className="text-3xl font-bold mb-3">WEBP to JPG/PNG Converter</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Convert up to {MAX_FILES} WEBP images to JPG in one batch. The tool
-          runs directly in your browser with smart processing progress, quality
-          control, individual downloads, and ZIP download after conversion.
+          Convert up to {MAX_FILES} WEBP images in one batch. Transparent WEBP
+          files are saved as PNG to keep transparency, while opaque files are
+          saved as JPG with quality control.
         </p>
       </section>
 
@@ -564,7 +631,11 @@ export default function WebpToJpgConverter() {
             {isProcessing && (
               <div className="mt-5">
                 <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                  <span>Processing batch...</span>
+                  <span>
+                    {images.length > 1
+                      ? "Processing batch..."
+                      : "Processing file..."}
+                  </span>
                   <span>{overallProgress}%</span>
                 </div>
 
@@ -593,7 +664,13 @@ export default function WebpToJpgConverter() {
                 ) : (
                   <Zap size={18} />
                 )}
-                {isProcessing ? "Converting..." : "Convert Batch"}
+                {isProcessing
+                  ? images.length > 1
+                    ? "Converting Batch..."
+                    : "Converting..."
+                  : images.length > 1
+                    ? "Convert Batch"
+                    : "Convert"}
               </button>
 
               <button
@@ -628,28 +705,35 @@ export default function WebpToJpgConverter() {
           <div className="mt-6 bg-white border border-[var(--border)] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <Archive size={20} className="text-[var(--primary)]" />
-              <h3 className="font-semibold">Download Converted JPG Files</h3>
+              <h3 className="font-semibold">
+                {readyImages.length > 1
+                  ? "Download Converted Files"
+                  : "Download Converted File"}
+              </h3>
             </div>
 
             <p className="text-sm text-[var(--text-secondary)] mb-5">
-              Conversion is complete. You can download all converted JPG images
-              together as a ZIP file, or download individual JPG files from the
-              image cards below.
+              Conversion is complete. Transparent files are available as PNG,
+              and opaque files are available as JPG. You can download files from
+              the image cards below.
             </p>
 
-            <button
-              type="button"
-              onClick={handleDownloadAllZip}
-              className="btn-primary inline-flex items-center justify-center gap-2"
-            >
-              <Archive size={18} />
-              Download All as ZIP
-            </button>
+            {readyImages.length > 1 && (
+              <button
+                type="button"
+                onClick={handleDownloadAllZip}
+                className="btn-primary inline-flex items-center justify-center gap-2"
+              >
+                <Archive size={18} />
+                Download All as ZIP
+              </button>
+            )}
 
             <div className="mt-5 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
               <p className="text-sm text-yellow-800">
-                Note: JPG does not support transparent backgrounds. Transparent
-                WEBP areas are filled with a white background during conversion.
+                Note: Transparent WEBP files are exported as PNG so the
+                transparent background stays transparent. Opaque WEBP files are
+                exported as JPG.
               </p>
             </div>
           </div>
@@ -660,7 +744,9 @@ export default function WebpToJpgConverter() {
           <div className="mt-6">
             <div className="flex items-center gap-2 mb-4">
               <Images size={20} className="text-[var(--primary)]" />
-              <h3 className="font-semibold">Batch Images</h3>
+              <h3 className="font-semibold">
+                {images.length > 1 ? "Batch Images" : "Selected Image"}
+              </h3>
             </div>
 
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -700,7 +786,8 @@ function ImageCard({ image, isProcessing, batchDone, onRemove }) {
     error: "Failed",
   }[image.status];
 
-  const canDownload = batchDone && !isProcessing && image.status === "done" && image.jpgUrl;
+  const canDownload =
+    batchDone && !isProcessing && image.status === "done" && image.outputUrl;
 
   return (
     <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white">
@@ -750,19 +837,19 @@ function ImageCard({ image, isProcessing, batchDone, onRemove }) {
         {canDownload && (
           <div className="mt-3">
             <p className="text-xs text-green-700 mb-3">
-              Converted to JPG
+              Converted to {image.outputFormat || "file"}
               {image.width && image.height
                 ? ` • ${image.width}×${image.height}`
                 : ""}
             </p>
 
             <a
-              href={image.jpgUrl}
+              href={image.outputUrl}
               download={image.outputName}
               className="btn-secondary w-full inline-flex items-center justify-center gap-2"
             >
               <Download size={16} />
-              Download JPG
+              Download {image.outputFormat || "File"}
             </a>
           </div>
         )}
@@ -795,9 +882,9 @@ function makeId(file) {
   return `${file.name}-${file.size}-${file.lastModified}-${randomPart}`;
 }
 
-function getOutputName(fileName) {
+function getOutputName(fileName, extension = "jpg") {
   const cleanName = String(fileName || "converted-image").replace(/\.[^/.]+$/, "");
-  return `${cleanName}.jpg`;
+  return `${cleanName}.${extension}`;
 }
 
 function getProcessingDelayMs(images) {
