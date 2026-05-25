@@ -1,5 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
-import tools from "../data/tools.json";
+﻿import { Link, useLocation } from "react-router-dom";
+import { searchAllGrouped } from "../lib/searchUtils";
 import ToolCard from "../components/ui/ToolCard";
 
 export default function SearchResults() {
@@ -7,10 +7,8 @@ export default function SearchResults() {
   const queryParams = new URLSearchParams(location.search);
   const query = queryParams.get("q") || "";
 
-  const filteredTools = tools.filter((tool) => {
-    const searchText = `${tool.name} ${tool.category} ${tool.description}`.toLowerCase();
-    return searchText.includes(query.toLowerCase());
-  });
+  const { tools, blogs } = searchAllGrouped(query);
+  const totalResults = tools.length + blogs.length;
 
   return (
     <div className="flex flex-col gap-8">
@@ -22,20 +20,41 @@ export default function SearchResults() {
         </h1>
 
         <p className="text-[var(--text-secondary)]">
-          Found {filteredTools.length} tool
-          {filteredTools.length !== 1 ? "s" : ""}.
+          Found {totalResults} result{totalResults !== 1 ? "s" : ""}.
         </p>
       </section>
 
-      {filteredTools.length > 0 ? (
-        <section className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
-          {filteredTools.map((tool) => (
-            <ToolCard key={tool.id} tool={tool} />
-          ))}
-        </section>
+      {totalResults > 0 ? (
+        <>
+          {tools.length > 0 && (
+            <section className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              {tools.map((tool) => (
+                <ToolCard key={tool.id} tool={tool} />
+              ))}
+            </section>
+          )}
+
+          {blogs.length > 0 && (
+            <section className="card p-6 sm:p-8">
+              <h2 className="text-2xl font-bold mb-4">Related Blog Posts</h2>
+              <div className="grid gap-4">
+                {blogs.map((blog) => (
+                  <Link
+                    key={blog.slug}
+                    to={`/blog/${blog.slug}`}
+                    className="block rounded-3xl border border-slate-200 p-4 transition hover:border-[var(--primary)] hover:bg-slate-50"
+                  >
+                    <h3 className="text-xl font-semibold">{blog.title}</h3>
+                    <p className="text-[var(--text-secondary)] mt-2">{blog.excerpt}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       ) : (
         <section className="card p-8 text-center">
-          <h2 className="text-2xl font-bold mb-3">No Tools Found</h2>
+          <h2 className="text-2xl font-bold mb-3">No Results Found</h2>
           <p className="text-[var(--text-secondary)] mb-6">
             Try searching with another keyword like image, color, text, or
             converter.
