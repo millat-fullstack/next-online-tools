@@ -128,21 +128,6 @@ export default function Home() {
           more — all in one place.
         </p>
 
-        <form onSubmit={handleSearch} className="home-search-card">
-          <div className="home-search-box">
-            <Icons.Search size={20} />
-
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tools... example: case converter, image compressor"
-            />
-
-            <button type="submit">Search</button>
-          </div>
-        </form>
-
         <div className="home-hero-actions">
           <Link to="/tools" className="home-primary-btn">
             Browse All Tools
