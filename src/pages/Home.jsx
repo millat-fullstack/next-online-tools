@@ -139,6 +139,27 @@ export default function Home() {
         </div>
       </section>
 
+      {/* POPULAR TOOLS */}
+      <section className="home-section">
+        <div className="home-section-head home-section-head-row">
+          <div>
+            <span>Popular</span>
+            <h2>Popular Tools</h2>
+            <p>Most useful tools to complete common online tasks quickly.</p>
+          </div>
+
+          <Link to="/tools" className="home-secondary-btn home-view-btn">
+            View All
+          </Link>
+        </div>
+
+        <div className="home-tools-grid popular">
+          {popularTools.map((tool, index) => (
+            <ToolCard key={tool.id || index} tool={tool} />
+          ))}
+        </div>
+      </section>
+
       {/* CATEGORIES */}
       <section className="home-section">
         <div className="home-section-head">
@@ -162,27 +183,6 @@ export default function Home() {
             >
               {category}
             </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* POPULAR TOOLS */}
-      <section className="home-section">
-        <div className="home-section-head home-section-head-row">
-          <div>
-            <span>Popular</span>
-            <h2>Popular Tools</h2>
-            <p>Most useful tools to complete common online tasks quickly.</p>
-          </div>
-
-          <Link to="/tools" className="home-secondary-btn home-view-btn">
-            View All
-          </Link>
-        </div>
-
-        <div className="home-tools-grid popular">
-          {popularTools.map((tool, index) => (
-            <ToolCard key={tool.id || index} tool={tool} />
           ))}
         </div>
       </section>
