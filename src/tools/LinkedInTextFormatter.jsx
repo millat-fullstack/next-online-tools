@@ -46,6 +46,9 @@ const SEE_MORE_PREVIEW_LIMIT = 210;
 const SAMPLE_POST =
   "Big lesson from building online tools:\n\nSimple tools win when they solve one clear problem fast.\n\nMake it useful. Make it easy. Make it reliable.\n\nWhat is one small tool you use every week?";
 
+const SITE_URL = "https://nextonlinetools.com";
+const canonicalUrl = `${SITE_URL}${toolData.path.startsWith("/tool") ? toolData.path : `/tool${toolData.path}`}`;
+
 const STYLE_OPTIONS = [
   {
     id: "bold",
@@ -212,7 +215,8 @@ export default function LinkedInTextFormatter() {
       name: "LinkedIn Text Formatter",
       applicationCategory: "UtilitiesApplication",
       operatingSystem: "Any",
-      url: "https://nextonlinetools.com/linkedin-text-formatter",
+      "@id": canonicalUrl,
+      url: canonicalUrl,
       description:
         "Format LinkedIn posts with bold, italic, underline, strikethrough, monospace, bullets, and copyable Unicode text styles.",
       offers: {
@@ -432,25 +436,23 @@ export default function LinkedInTextFormatter() {
       <Helmet>
         <title>{toolData.metaTitle}</title>
         <meta name="description" content={toolData.metaDescription} />
-        <link
-          rel="canonical"
-          href="https://nextonlinetools.com/linkedin-text-formatter"
-        />
+        <link rel="canonical" href={canonicalUrl} />
 
         <meta property="og:type" content="website" />
         <meta property="og:title" content={toolData.metaTitle} />
         <meta property="og:description" content={toolData.metaDescription} />
-        <meta
-          property="og:url"
-          content="https://nextonlinetools.com/linkedin-text-formatter"
-        />
+        <meta property="og:url" content={canonicalUrl} />
 
         <meta name="twitter:card" content="summary" />
         <meta name="twitter:title" content={toolData.metaTitle} />
         <meta name="twitter:description" content={toolData.metaDescription} />
 
         <script type="application/ld+json">
-          {JSON.stringify(seoJsonLd)}
+          {JSON.stringify({
+            ...seoJsonLd,
+            url: canonicalUrl,
+            "@id": canonicalUrl,
+          })}
         </script>
 
         <script type="application/ld+json">

@@ -1,17 +1,40 @@
 ﻿import { Link, useLocation } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { searchAllGrouped } from "../lib/searchUtils";
 import ToolCard from "../components/ui/ToolCard";
+
+const SITE_URL = "https://nextonlinetools.com";
 
 export default function SearchResults() {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const query = queryParams.get("q") || "";
+  const pageUrl = `${SITE_URL}${location.pathname}${location.search}`;
+  const pageTitle = query
+    ? `Search results for ${query} | Next Online Tools`
+    : "Search | Next Online Tools";
 
   const { tools, blogs } = searchAllGrouped(query);
   const totalResults = tools.length + blogs.length;
 
   return (
     <div className="flex flex-col gap-8">
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta
+          name="description"
+          content="Search Next Online Tools for tools and blog posts by keyword. Browse free online image, text, PDF, SEO, color, and productivity tools."
+        />
+        <meta name="robots" content="noindex, follow" />
+        <link rel="canonical" href={pageUrl} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={pageTitle} />
+        <meta
+          property="og:description"
+          content="Search Next Online Tools for tools and blog posts by keyword. Browse free online image, text, PDF, SEO, color, and productivity tools."
+        />
+        <meta property="og:url" content={pageUrl} />
+      </Helmet>
       <section className="card p-6 sm:p-8">
         <span className="badge mb-4 inline-block">Search Results</span>
 

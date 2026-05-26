@@ -1,8 +1,27 @@
+import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
+
+const SITE_URL = "https://nextonlinetools.com";
+const canonicalUrl = `${SITE_URL}/terms-of-service`;
 
 export default function TermsOfService() {
   return (
     <div className="flex flex-col gap-8">
+      <Helmet>
+        <title>Terms of Service | Next Online Tools</title>
+        <meta
+          name="description"
+          content="Review the Terms of Service for Next Online Tools, covering responsible use of free browser-based image, text, PDF, SEO, and productivity tools."
+        />
+        <link rel="canonical" href={canonicalUrl} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Terms of Service | Next Online Tools" />
+        <meta
+          property="og:description"
+          content="Review the Terms of Service for Next Online Tools, covering responsible use of free browser-based image, text, PDF, SEO, and productivity tools."
+        />
+        <meta property="og:url" content={canonicalUrl} />
+      </Helmet>
       <section className="card p-6 sm:p-8">
         <span className="badge mb-4 inline-block">Terms of Service</span>
 

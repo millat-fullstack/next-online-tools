@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import * as Icons from "lucide-react";
 import tools from "../data/tools.json";
 import { blogs } from "../data/Blogs";
-import { Helmet } from "react-helmet";
+import { Helmet } from "react-helmet-async";
 
 function HomeToolIcon({ icon }) {
   const IconComponent = Icons[icon] || Icons.Wrench;
@@ -109,8 +109,10 @@ export default function Home() {
           property="og:description"
           content="Access free tools for text editing, image manipulation, color schemes, SEO, conversions, productivity, and more — all in one place."
         />
+        <meta property="og:type" content="website" />
         <meta property="og:image" content="/images/home-page-banner.png" />
         <meta property="og:url" content="https://nextonlinetools.com" />
+        <link rel="canonical" href="https://nextonlinetools.com" />
       </Helmet>
 
       {/* HERO */}

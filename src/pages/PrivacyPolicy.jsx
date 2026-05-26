@@ -1,6 +1,26 @@
+import { Helmet } from "react-helmet-async";
+
+const SITE_URL = "https://nextonlinetools.com";
+const canonicalUrl = `${SITE_URL}/privacy-policy`;
+
 export default function PrivacyPolicy() {
   return (
     <div className="flex flex-col gap-8">
+      <Helmet>
+        <title>Privacy Policy | Next Online Tools</title>
+        <meta
+          name="description"
+          content="Read the Privacy Policy for Next Online Tools, a free browser-based tool platform for images, text, color, PDF, SEO, and productivity tasks."
+        />
+        <link rel="canonical" href={canonicalUrl} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Privacy Policy | Next Online Tools" />
+        <meta
+          property="og:description"
+          content="Read the Privacy Policy for Next Online Tools, a free browser-based tool platform for images, text, color, PDF, SEO, and productivity tasks."
+        />
+        <meta property="og:url" content={canonicalUrl} />
+      </Helmet>
       <section className="card p-6 sm:p-8">
         <span className="badge mb-4 inline-block">Privacy Policy</span>
 
