@@ -2,7 +2,7 @@ import { Helmet } from "react-helmet-async";
 import { Share2 } from "lucide-react";
 
 export const blogData = {
-  title: "10 Best Free Online Image Compressor Tools to Reduce File Size",
+  title: "10 Best Free Online Image Compressor Tools to Reduce/Compress File Size",
   slug: "BestFreeImageCompressorTools",
   date: "2026-05-10",
   category: "Image Tools",
