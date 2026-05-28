@@ -1,8 +1,13 @@
+import { useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./components/sidebar/Sidebar";
 import Header from "./components/header/Header";
 
 export default function MainLayout() {
+  useEffect(() => {
+    document.dispatchEvent(new Event("prerender-ready"));
+  }, []);
+
   return (
     <div className="min-h-screen bg-[var(--bg)] flex">
       <aside className="hidden lg:block w-[270px] fixed left-0 top-0 h-screen bg-white border-r border-[var(--border)]">
