@@ -18,7 +18,7 @@ export default function SocialLinks() {
       </div>
 
       <p className="text-xs text-[var(--text-secondary)] mt-3">
-        © {new Date().getFullYear()} ToolNest
+        © {new Date().getFullYear()} Next Online Tools
       </p>
     </div>
   );
