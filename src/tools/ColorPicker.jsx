@@ -104,6 +104,7 @@ export default function ColorPicker() {
       { r: rgb.r, g: rgb.g, b: rgb.b },
       { r: 0, g: 0, b: 0 }
     );
+
     const whiteRatio = getContrastRatio(
       { r: rgb.r, g: rgb.g, b: rgb.b },
       { r: 255, g: 255, b: 255 }
@@ -161,7 +162,9 @@ export default function ColorPicker() {
         naturalHeight: loadedImage.naturalHeight || loadedImage.height,
       });
 
-      setSuccess("Image loaded successfully. Hover over the image and click to pick a color.");
+      setSuccess(
+        "Image loaded successfully. Move over the image to zoom, then click to pick a color."
+      );
     } catch {
       setError("Failed to load this image. Please try another file.");
 
@@ -239,15 +242,6 @@ export default function ColorPicker() {
 
     const extractedPalette = extractPalette(ctx, canvasWidth, canvasHeight);
     setPaletteColors(extractedPalette);
-
-    const centerPixel = ctx.getImageData(
-      Math.floor(canvasWidth / 2),
-      Math.floor(canvasHeight / 2),
-      1,
-      1
-    ).data;
-
-    updateCurrentColor(centerPixel[0], centerPixel[1], centerPixel[2], centerPixel[3]);
   }, [imageElement]);
 
   function resetFileInput() {
@@ -339,15 +333,15 @@ export default function ColorPicker() {
     };
   }
 
+  // Important:
+  // This function now only moves/updates the magnifier.
+  // It does NOT update the selected color.
   function handlePointerMove(event) {
     if (!hasImage) return;
 
     const point = getCanvasPoint(event);
-    const nextColor = readColorAtPoint(point);
 
-    if (!point || !nextColor) return;
-
-    updateCurrentColor(nextColor.r, nextColor.g, nextColor.b, nextColor.a);
+    if (!point) return;
 
     if (showMagnifier) {
       drawMagnifier(point);
@@ -368,6 +362,8 @@ export default function ColorPicker() {
     }));
   }
 
+  // Important:
+  // The selected color changes only here, when user clicks/taps the image.
   function handlePickColor(event) {
     if (!hasImage) return;
 
@@ -650,14 +646,14 @@ export default function ColorPicker() {
                 )}
               </div>
 
-              <div className="bg-gray-50 border border-[var(--border)] rounded-2xl min-h-[360px] flex items-center justify-center overflow-hidden p-4 checkerboard-bg">
+              <div className="bg-gray-50 border border-[var(--border)] rounded-2xl min-h-[360px] flex items-center justify-center overflow-hidden p-4">
                 {hasImage ? (
                   <div className="relative max-w-full">
                     <canvas
                       ref={canvasRef}
                       onPointerMove={handlePointerMove}
                       onPointerLeave={handlePointerLeave}
-                      onPointerDown={handlePickColor}
+                      onClick={handlePickColor}
                       className="max-w-full max-h-[520px] rounded-xl border border-[var(--border)] shadow-sm cursor-crosshair bg-white touch-none"
                     />
 
@@ -665,8 +661,14 @@ export default function ColorPicker() {
                       <div
                         className="absolute w-4 h-4 rounded-full border-2 border-white shadow pointer-events-none"
                         style={{
-                          left: `calc(${(pickedPoint.x / (canvasRef.current?.width || 1)) * 100}% - 8px)`,
-                          top: `calc(${(pickedPoint.y / (canvasRef.current?.height || 1)) * 100}% - 8px)`,
+                          left: `calc(${
+                            (pickedPoint.x / (canvasRef.current?.width || 1)) *
+                            100
+                          }% - 8px)`,
+                          top: `calc(${
+                            (pickedPoint.y / (canvasRef.current?.height || 1)) *
+                            100
+                          }% - 8px)`,
                           backgroundColor: color,
                         }}
                       />
@@ -702,10 +704,10 @@ export default function ColorPicker() {
                       How to use
                     </p>
                     <p className="font-semibold text-sm">
-                      Hover to preview • Click to save color
+                      Move over the image to zoom • Click to pick color
                     </p>
                     <p className="text-xs text-[var(--text-secondary)] mt-1">
-                      Works with mouse, touchpad, and pointer devices.
+                      The selected color changes only when you click/tap.
                     </p>
                   </div>
                 </div>
@@ -1182,9 +1184,9 @@ function hexToRgb(hex) {
 }
 
 function rgbToHsl(r, g, b) {
-  let nextR = r / 255;
-  let nextG = g / 255;
-  let nextB = b / 255;
+  const nextR = r / 255;
+  const nextG = g / 255;
+  const nextB = b / 255;
 
   const max = Math.max(nextR, nextG, nextB);
   const min = Math.min(nextR, nextG, nextB);
