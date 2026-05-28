@@ -6,48 +6,9 @@ import Header from "./components/header/Header";
 
 const SITE_URL = "https://nextonlinetools.com";
 
-function ensureSingleCanonical(canonicalUrl) {
-  const head = document.head;
-  const canonicalLinks = Array.from(head.querySelectorAll('link[rel="canonical"]'));
-  let primaryLink = canonicalLinks.find((link) => link.dataset.generatedCanonical === "true");
-
-  if (!primaryLink && canonicalLinks.length > 0) {
-    primaryLink = canonicalLinks[0];
-  }
-
-  if (!primaryLink) {
-    primaryLink = document.createElement("link");
-    primaryLink.rel = "canonical";
-    primaryLink.dataset.generatedCanonical = "true";
-    head.appendChild(primaryLink);
-  }
-
-  if (primaryLink.href !== canonicalUrl) {
-    primaryLink.href = canonicalUrl;
-  }
-
-  canonicalLinks.forEach((link) => {
-    if (link !== primaryLink) {
-      link.remove();
-    }
-  });
-}
-
 export default function MainLayout() {
   const location = useLocation();
   const canonicalUrl = `${SITE_URL}${location.pathname}${location.search}`;
-
-  useEffect(() => {
-    ensureSingleCanonical(canonicalUrl);
-
-    const observer = new MutationObserver(() => {
-      ensureSingleCanonical(canonicalUrl);
-    });
-
-    observer.observe(document.head, { childList: true, subtree: false });
-
-    return () => observer.disconnect();
-  }, [canonicalUrl]);
 
   useEffect(() => {
     document.dispatchEvent(new Event("prerender-ready"));
