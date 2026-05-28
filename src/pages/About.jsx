@@ -262,8 +262,6 @@ export default function About() {
         />
         <meta name="bingbot" content="index, follow, max-image-preview:large" />
 
-        <link rel="canonical" href={ABOUT_URL} />
-
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Next Online Tools" />
         <meta property="og:title" content={seoTitle} />

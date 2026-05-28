@@ -26,7 +26,6 @@ export default function SearchResults() {
           content="Search Next Online Tools for tools and blog posts by keyword. Browse free online image, text, PDF, SEO, color, and productivity tools."
         />
         <meta name="robots" content="noindex, follow" />
-        <link rel="canonical" href={pageUrl} />
         <meta property="og:type" content="website" />
         <meta property="og:title" content={pageTitle} />
         <meta

@@ -224,8 +224,6 @@ export default function Tools() {
         <meta name="googlebot" content={robotsContent} />
         <meta name="bingbot" content={robotsContent} />
 
-        <link rel="canonical" href={canonicalUrl} />
-
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Next Online Tools" />
         <meta property="og:title" content={seoTitle} />

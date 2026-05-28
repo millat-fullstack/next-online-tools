@@ -13,7 +13,6 @@ export default function TermsOfService() {
           name="description"
           content="Review the Terms of Service for Next Online Tools, covering responsible use of free browser-based image, text, PDF, SEO, and productivity tools."
         />
-        <link rel="canonical" href={canonicalUrl} />
         <meta property="og:type" content="website" />
         <meta property="og:title" content="Terms of Service | Next Online Tools" />
         <meta

@@ -99,7 +99,6 @@ export default function CaseConverter() {
         <meta name="description" content={toolData.metaDescription} />
         <meta name="keywords" content={toolData.metaKeywords} />
         <meta name="robots" content="index, follow" />
-        <link rel="canonical" href={canonicalUrl} />
 
         <meta property="og:title" content={toolData.metaTitle} />
         <meta property="og:description" content={toolData.metaDescription} />

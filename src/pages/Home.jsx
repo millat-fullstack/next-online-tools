@@ -112,7 +112,6 @@ export default function Home() {
         <meta property="og:type" content="website" />
         <meta property="og:image" content="/images/home-page-banner.png" />
         <meta property="og:url" content="https://nextonlinetools.com" />
-        <link rel="canonical" href="https://nextonlinetools.com" />
       </Helmet>
 
       {/* HERO */}

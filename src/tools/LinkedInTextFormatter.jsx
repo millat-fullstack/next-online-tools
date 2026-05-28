@@ -436,7 +436,6 @@ export default function LinkedInTextFormatter() {
       <Helmet>
         <title>{toolData.metaTitle}</title>
         <meta name="description" content={toolData.metaDescription} />
-        <link rel="canonical" href={canonicalUrl} />
 
         <meta property="og:type" content="website" />
         <meta property="og:title" content={toolData.metaTitle} />

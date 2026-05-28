@@ -12,7 +12,6 @@ export default function PrivacyPolicy() {
           name="description"
           content="Read the Privacy Policy for Next Online Tools, a free browser-based tool platform for images, text, color, PDF, SEO, and productivity tasks."
         />
-        <link rel="canonical" href={canonicalUrl} />
         <meta property="og:type" content="website" />
         <meta property="og:title" content="Privacy Policy | Next Online Tools" />
         <meta

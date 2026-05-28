@@ -180,8 +180,6 @@ export default function Contact() {
         <meta name="googlebot" content="index, follow, max-image-preview:large" />
         <meta name="bingbot" content="index, follow, max-image-preview:large" />
 
-        <link rel="canonical" href={CONTACT_URL} />
-
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Next Online Tools" />
         <meta property="og:title" content={seoTitle} />
