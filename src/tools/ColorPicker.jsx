@@ -48,8 +48,11 @@ export default function ColorPicker() {
   const [imageData, setImageData] = useState(null);
   const [imageElement, setImageElement] = useState(null);
 
-  const [color, setColor] = useState(DEFAULT_COLOR.hex);
-  const [rgb, setRgb] = useState(DEFAULT_COLOR.rgb);
+  const [pickedColor, setPickedColor] = useState(DEFAULT_COLOR.hex);
+  const [pickedRgb, setPickedRgb] = useState(DEFAULT_COLOR.rgb);
+
+  const [previewColor, setPreviewColor] = useState(DEFAULT_COLOR.hex);
+  const [previewRgb, setPreviewRgb] = useState(DEFAULT_COLOR.rgb);
 
   const [paletteColors, setPaletteColors] = useState([]);
   const [savedColors, setSavedColors] = useState([]);
@@ -57,56 +60,63 @@ export default function ColorPicker() {
   const [copiedFormat, setCopiedFormat] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
   const [showMagnifier, setShowMagnifier] = useState(true);
+  const [zoomLevel, setZoomLevel] = useState(14);
   const [magnifierPosition, setMagnifierPosition] = useState({
     left: 0,
     top: 0,
     visible: false,
   });
 
-  const [zoomLevel, setZoomLevel] = useState(14);
   const [pickedPoint, setPickedPoint] = useState(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const hsl = useMemo(() => {
-    return rgbToHsl(rgb.r, rgb.g, rgb.b);
-  }, [rgb]);
+  const hasImage = Boolean(imageData && imageElement);
 
-  const cmyk = useMemo(() => {
-    return rgbToCmyk(rgb.r, rgb.g, rgb.b);
-  }, [rgb]);
+  const pickedHsl = useMemo(() => {
+    return rgbToHsl(pickedRgb.r, pickedRgb.g, pickedRgb.b);
+  }, [pickedRgb]);
 
-  const rgbaText = useMemo(() => {
-    const alpha = Number((rgb.a / 255).toFixed(2));
-    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
-  }, [rgb]);
+  const pickedCmyk = useMemo(() => {
+    return rgbToCmyk(pickedRgb.r, pickedRgb.g, pickedRgb.b);
+  }, [pickedRgb]);
 
-  const rgbText = useMemo(() => {
-    return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-  }, [rgb]);
+  const pickedRgbText = useMemo(() => {
+    return `rgb(${pickedRgb.r}, ${pickedRgb.g}, ${pickedRgb.b})`;
+  }, [pickedRgb]);
 
-  const hslText = useMemo(() => {
-    return `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`;
-  }, [hsl]);
+  const pickedRgbaText = useMemo(() => {
+    const alpha = Number((pickedRgb.a / 255).toFixed(2));
+    return `rgba(${pickedRgb.r}, ${pickedRgb.g}, ${pickedRgb.b}, ${alpha})`;
+  }, [pickedRgb]);
 
-  const cmykText = useMemo(() => {
-    return `cmyk(${cmyk.c}%, ${cmyk.m}%, ${cmyk.y}%, ${cmyk.k}%)`;
-  }, [cmyk]);
+  const pickedHslText = useMemo(() => {
+    return `hsl(${pickedHsl.h}, ${pickedHsl.s}%, ${pickedHsl.l}%)`;
+  }, [pickedHsl]);
 
-  const readableTextColor = useMemo(() => {
-    return getReadableTextColor(rgb.r, rgb.g, rgb.b);
-  }, [rgb]);
+  const pickedCmykText = useMemo(() => {
+    return `cmyk(${pickedCmyk.c}%, ${pickedCmyk.m}%, ${pickedCmyk.y}%, ${pickedCmyk.k}%)`;
+  }, [pickedCmyk]);
+
+  const pickedTextColor = useMemo(() => {
+    return getReadableTextColor(pickedRgb.r, pickedRgb.g, pickedRgb.b);
+  }, [pickedRgb]);
+
+  const previewTextColor = useMemo(() => {
+    return getReadableTextColor(previewRgb.r, previewRgb.g, previewRgb.b);
+  }, [previewRgb]);
 
   const contrastSuggestion = useMemo(() => {
     const blackRatio = getContrastRatio(
-      { r: rgb.r, g: rgb.g, b: rgb.b },
+      { r: pickedRgb.r, g: pickedRgb.g, b: pickedRgb.b },
       { r: 0, g: 0, b: 0 }
     );
 
     const whiteRatio = getContrastRatio(
-      { r: rgb.r, g: rgb.g, b: rgb.b },
+      { r: pickedRgb.r, g: pickedRgb.g, b: pickedRgb.b },
       { r: 255, g: 255, b: 255 }
     );
 
@@ -121,9 +131,7 @@ export default function ColorPicker() {
           color: "#000000",
           ratio: blackRatio,
         };
-  }, [rgb]);
-
-  const hasImage = Boolean(imageData && imageElement);
+  }, [pickedRgb]);
 
   const handleImageFile = useCallback(async (file) => {
     setError("");
@@ -163,7 +171,7 @@ export default function ColorPicker() {
       });
 
       setSuccess(
-        "Image loaded successfully. Move over the image to zoom, then click to pick a color."
+        "Image loaded successfully. Move over the image to preview colors, then click to pick and copy."
       );
     } catch {
       setError("Failed to load this image. Please try another file.");
@@ -250,16 +258,22 @@ export default function ColorPicker() {
     }
   }
 
-  function updateCurrentColor(r, g, b, a = 255) {
-    const hex = rgbToHex(r, g, b);
+  function setPickedColorFromRgba(r, g, b, a = 255) {
+    const hex = rgbToHex(r, g, b).toUpperCase();
 
-    setColor(hex);
-    setRgb({
-      r,
-      g,
-      b,
-      a,
-    });
+    setPickedColor(hex);
+    setPickedRgb({ r, g, b, a });
+
+    return hex;
+  }
+
+  function setPreviewColorFromRgba(r, g, b, a = 255) {
+    const hex = rgbToHex(r, g, b).toUpperCase();
+
+    setPreviewColor(hex);
+    setPreviewRgb({ r, g, b, a });
+
+    return hex;
   }
 
   function handleFileInputChange(event) {
@@ -303,8 +317,13 @@ export default function ColorPicker() {
 
     if (!rect.width || !rect.height) return null;
 
-    const x = Math.floor(((event.clientX - rect.left) / rect.width) * canvas.width);
-    const y = Math.floor(((event.clientY - rect.top) / rect.height) * canvas.height);
+    const x = Math.floor(
+      ((event.clientX - rect.left) / rect.width) * canvas.width
+    );
+
+    const y = Math.floor(
+      ((event.clientY - rect.top) / rect.height) * canvas.height
+    );
 
     return {
       x: clampNumber(x, 0, canvas.width - 1),
@@ -333,15 +352,20 @@ export default function ColorPicker() {
     };
   }
 
-  // Important:
-  // This function now only moves/updates the magnifier.
-  // It does NOT update the selected color.
   function handlePointerMove(event) {
     if (!hasImage) return;
 
     const point = getCanvasPoint(event);
+    const nextColor = readColorAtPoint(point);
 
-    if (!point) return;
+    if (!point || !nextColor) return;
+
+    setPreviewColorFromRgba(
+      nextColor.r,
+      nextColor.g,
+      nextColor.b,
+      nextColor.a
+    );
 
     if (showMagnifier) {
       drawMagnifier(point);
@@ -362,22 +386,47 @@ export default function ColorPicker() {
     }));
   }
 
-  // Important:
-  // The selected color changes only here, when user clicks/taps the image.
-  function handlePickColor(event) {
+  async function handlePickColor(event) {
     if (!hasImage) return;
+
+    event.preventDefault();
 
     const point = getCanvasPoint(event);
     const nextColor = readColorAtPoint(point);
 
     if (!point || !nextColor) return;
 
-    const nextHex = rgbToHex(nextColor.r, nextColor.g, nextColor.b);
+    const nextHex = setPickedColorFromRgba(
+      nextColor.r,
+      nextColor.g,
+      nextColor.b,
+      nextColor.a
+    );
 
-    updateCurrentColor(nextColor.r, nextColor.g, nextColor.b, nextColor.a);
+    setPreviewColorFromRgba(
+      nextColor.r,
+      nextColor.g,
+      nextColor.b,
+      nextColor.a
+    );
+
     setPickedPoint(point);
     addSavedColor(nextHex);
-    setSuccess(`${nextHex.toUpperCase()} picked from image.`);
+
+    try {
+      await copyToClipboard(nextHex);
+
+      setCopiedFormat("hex");
+      setError("");
+      setSuccess(`${nextHex} picked and copied to clipboard.`);
+
+      window.setTimeout(() => {
+        setCopiedFormat("");
+      }, 1600);
+    } catch {
+      setError("");
+      setSuccess(`${nextHex} picked. Copy failed, please copy manually.`);
+    }
   }
 
   function drawMagnifier(point) {
@@ -424,10 +473,7 @@ export default function ColorPicker() {
       top = clientY - MAGNIFIER_SIZE - 22;
     }
 
-    return {
-      left,
-      top,
-    };
+    return { left, top };
   }
 
   function addSavedColor(hexValue) {
@@ -439,12 +485,27 @@ export default function ColorPicker() {
     });
   }
 
-  function handlePaletteColorClick(hexValue) {
-    const nextRgb = hexToRgb(hexValue);
+  async function handlePaletteColorClick(hexValue) {
+    const nextHex = hexValue.toUpperCase();
+    const nextRgb = hexToRgb(nextHex);
 
-    updateCurrentColor(nextRgb.r, nextRgb.g, nextRgb.b, 255);
-    addSavedColor(hexValue);
-    setSuccess(`${hexValue.toUpperCase()} selected from palette.`);
+    setPickedColorFromRgba(nextRgb.r, nextRgb.g, nextRgb.b, 255);
+    setPreviewColorFromRgba(nextRgb.r, nextRgb.g, nextRgb.b, 255);
+    addSavedColor(nextHex);
+
+    try {
+      await copyToClipboard(nextHex);
+
+      setCopiedFormat("hex");
+      setError("");
+      setSuccess(`${nextHex} selected and copied to clipboard.`);
+
+      window.setTimeout(() => {
+        setCopiedFormat("");
+      }, 1600);
+    } catch {
+      setSuccess(`${nextHex} selected. Copy failed, please copy manually.`);
+    }
   }
 
   async function copyText(text, format) {
@@ -465,11 +526,11 @@ export default function ColorPicker() {
 
   async function copyAllFormats() {
     const text = [
-      `HEX: ${color.toUpperCase()}`,
-      `RGB: ${rgbText}`,
-      `RGBA: ${rgbaText}`,
-      `HSL: ${hslText}`,
-      `CMYK: ${cmykText}`,
+      `HEX: ${pickedColor.toUpperCase()}`,
+      `RGB: ${pickedRgbText}`,
+      `RGBA: ${pickedRgbaText}`,
+      `HSL: ${pickedHslText}`,
+      `CMYK: ${pickedCmykText}`,
     ].join("\n");
 
     await copyText(text, "all");
@@ -488,12 +549,22 @@ export default function ColorPicker() {
       const eyeDropper = new window.EyeDropper();
       const result = await eyeDropper.open();
       const nextRgb = hexToRgb(result.sRGBHex);
+      const nextHex = result.sRGBHex.toUpperCase();
 
-      updateCurrentColor(nextRgb.r, nextRgb.g, nextRgb.b, 255);
-      addSavedColor(result.sRGBHex);
-      setSuccess(`${result.sRGBHex.toUpperCase()} picked with browser eyedropper.`);
+      setPickedColorFromRgba(nextRgb.r, nextRgb.g, nextRgb.b, 255);
+      setPreviewColorFromRgba(nextRgb.r, nextRgb.g, nextRgb.b, 255);
+      addSavedColor(nextHex);
+
+      await copyToClipboard(nextHex);
+
+      setCopiedFormat("hex");
+      setSuccess(`${nextHex} picked and copied with browser eyedropper.`);
+
+      window.setTimeout(() => {
+        setCopiedFormat("");
+      }, 1600);
     } catch {
-      setError("EyeDropper was cancelled or could not pick a color.");
+      setError("EyeDropper was cancelled or could not pick/copy a color.");
     }
   }
 
@@ -512,8 +583,10 @@ export default function ColorPicker() {
     setImageData(null);
     setImageElement(null);
 
-    setColor(DEFAULT_COLOR.hex);
-    setRgb(DEFAULT_COLOR.rgb);
+    setPickedColor(DEFAULT_COLOR.hex);
+    setPickedRgb(DEFAULT_COLOR.rgb);
+    setPreviewColor(DEFAULT_COLOR.hex);
+    setPreviewRgb(DEFAULT_COLOR.rgb);
 
     setPaletteColors([]);
     setSavedColors([]);
@@ -571,9 +644,9 @@ export default function ColorPicker() {
         <h1 className="text-3xl font-bold mb-3">Color Picker</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Pick colors directly from images with precision. Upload, paste, or
-          drag and drop an image to get HEX, RGB, RGBA, HSL, and CMYK color
-          values instantly.
+          Pick colors directly from images with precision. Move over the image
+          to preview colors, then click to pick and instantly copy the HEX code
+          to your clipboard.
         </p>
       </section>
 
@@ -653,7 +726,7 @@ export default function ColorPicker() {
                       ref={canvasRef}
                       onPointerMove={handlePointerMove}
                       onPointerLeave={handlePointerLeave}
-                      onClick={handlePickColor}
+                      onPointerDown={handlePickColor}
                       className="max-w-full max-h-[520px] rounded-xl border border-[var(--border)] shadow-sm cursor-crosshair bg-white touch-none"
                     />
 
@@ -669,7 +742,7 @@ export default function ColorPicker() {
                             (pickedPoint.y / (canvasRef.current?.height || 1)) *
                             100
                           }% - 8px)`,
-                          backgroundColor: color,
+                          backgroundColor: pickedColor,
                         }}
                       />
                     )}
@@ -690,7 +763,10 @@ export default function ColorPicker() {
                     <p className="text-xs text-[var(--text-secondary)] mb-1">
                       Image
                     </p>
-                    <p className="font-semibold text-sm truncate" title={imageData.name}>
+                    <p
+                      className="font-semibold text-sm truncate"
+                      title={imageData.name}
+                    >
                       {imageData.name}
                     </p>
                     <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -704,10 +780,11 @@ export default function ColorPicker() {
                       How to use
                     </p>
                     <p className="font-semibold text-sm">
-                      Move over the image to zoom • Click to pick color
+                      Move over image to preview • Click to pick and copy
                     </p>
                     <p className="text-xs text-[var(--text-secondary)] mt-1">
-                      The selected color changes only when you click/tap.
+                      Hover preview changes while moving. Picked color changes
+                      only after click/tap.
                     </p>
                   </div>
                 </div>
@@ -718,7 +795,10 @@ export default function ColorPicker() {
             {hasImage && (
               <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-4">
-                  <SlidersHorizontal size={20} className="text-[var(--primary)]" />
+                  <SlidersHorizontal
+                    size={20}
+                    className="text-[var(--primary)]"
+                  />
                   <h3 className="font-semibold">Picker Settings</h3>
                 </div>
 
@@ -830,7 +910,34 @@ export default function ColorPicker() {
 
           {/* RIGHT COLUMN */}
           <div className="flex flex-col gap-5">
-            {/* COLOR PREVIEW */}
+            {/* HOVER PREVIEW */}
+            {hasImage && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Eye size={20} className="text-[var(--primary)]" />
+                  <h2 className="text-xl font-semibold">Hover Preview</h2>
+                </div>
+
+                <div
+                  className="rounded-2xl border border-[var(--border)] p-5 min-h-[135px] flex items-center justify-center text-center shadow-sm"
+                  style={{
+                    backgroundColor: previewColor,
+                    color: previewTextColor,
+                  }}
+                >
+                  <div>
+                    <p className="text-2xl font-bold font-mono">
+                      {previewColor.toUpperCase()}
+                    </p>
+                    <p className="text-sm mt-2 opacity-90">
+                      Move over image to preview. Click to copy.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PICKED COLOR */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Pipette size={20} className="text-[var(--primary)]" />
@@ -840,15 +947,15 @@ export default function ColorPicker() {
               <div
                 className="rounded-2xl border border-[var(--border)] p-6 min-h-[220px] flex items-center justify-center text-center shadow-sm"
                 style={{
-                  backgroundColor: color,
-                  color: readableTextColor,
+                  backgroundColor: pickedColor,
+                  color: pickedTextColor,
                 }}
               >
                 <div>
                   <p className="text-3xl font-bold font-mono">
-                    {color.toUpperCase()}
+                    {pickedColor.toUpperCase()}
                   </p>
-                  <p className="text-sm mt-2 opacity-90">{rgbText}</p>
+                  <p className="text-sm mt-2 opacity-90">{pickedRgbText}</p>
                   <p className="text-sm mt-1 opacity-90">
                     {contrastSuggestion.label}
                   </p>
@@ -866,37 +973,37 @@ export default function ColorPicker() {
               <div className="flex flex-col gap-3">
                 <ColorCodeRow
                   label="HEX"
-                  value={color.toUpperCase()}
+                  value={pickedColor.toUpperCase()}
                   copied={copiedFormat === "hex"}
-                  onCopy={() => copyText(color.toUpperCase(), "hex")}
+                  onCopy={() => copyText(pickedColor.toUpperCase(), "hex")}
                 />
 
                 <ColorCodeRow
                   label="RGB"
-                  value={rgbText}
+                  value={pickedRgbText}
                   copied={copiedFormat === "rgb"}
-                  onCopy={() => copyText(rgbText, "rgb")}
+                  onCopy={() => copyText(pickedRgbText, "rgb")}
                 />
 
                 <ColorCodeRow
                   label="RGBA"
-                  value={rgbaText}
+                  value={pickedRgbaText}
                   copied={copiedFormat === "rgba"}
-                  onCopy={() => copyText(rgbaText, "rgba")}
+                  onCopy={() => copyText(pickedRgbaText, "rgba")}
                 />
 
                 <ColorCodeRow
                   label="HSL"
-                  value={hslText}
+                  value={pickedHslText}
                   copied={copiedFormat === "hsl"}
-                  onCopy={() => copyText(hslText, "hsl")}
+                  onCopy={() => copyText(pickedHslText, "hsl")}
                 />
 
                 <ColorCodeRow
                   label="CMYK"
-                  value={cmykText}
+                  value={pickedCmykText}
                   copied={copiedFormat === "cmyk"}
-                  onCopy={() => copyText(cmykText, "cmyk")}
+                  onCopy={() => copyText(pickedCmykText, "cmyk")}
                 />
               </div>
 
@@ -912,20 +1019,24 @@ export default function ColorPicker() {
 
             {/* CHANNEL VALUES */}
             <div className="grid grid-cols-4 gap-3">
-              <ChannelCard label="R" value={rgb.r} className="text-red-600 bg-red-50" />
+              <ChannelCard
+                label="R"
+                value={pickedRgb.r}
+                className="text-red-600 bg-red-50"
+              />
               <ChannelCard
                 label="G"
-                value={rgb.g}
+                value={pickedRgb.g}
                 className="text-green-600 bg-green-50"
               />
               <ChannelCard
                 label="B"
-                value={rgb.b}
+                value={pickedRgb.b}
                 className="text-blue-600 bg-blue-50"
               />
               <ChannelCard
                 label="A"
-                value={rgb.a}
+                value={pickedRgb.a}
                 className="text-gray-700 bg-gray-50"
               />
             </div>
@@ -941,8 +1052,8 @@ export default function ColorPicker() {
                   </h3>
 
                   <p className="text-sm text-blue-800 mb-4">
-                    On supported browsers, you can pick a color from anywhere on
-                    your screen.
+                    On supported browsers, you can pick and copy a color from
+                    anywhere on your screen.
                   </p>
 
                   <button
@@ -967,7 +1078,7 @@ export default function ColorPicker() {
               <div
                 className="rounded-xl p-4 border border-[var(--border)]"
                 style={{
-                  backgroundColor: color,
+                  backgroundColor: pickedColor,
                   color: contrastSuggestion.color,
                 }}
               >
@@ -1051,7 +1162,9 @@ function ColorCodeRow({ label, value, copied, onCopy }) {
 
 function ChannelCard({ label, value, className }) {
   return (
-    <div className={`rounded-2xl border border-[var(--border)] p-4 text-center ${className}`}>
+    <div
+      className={`rounded-2xl border border-[var(--border)] p-4 text-center ${className}`}
+    >
       <p className="text-xs font-semibold opacity-80">{label}</p>
       <p className="text-xl font-bold">{value}</p>
     </div>
@@ -1122,7 +1235,10 @@ function extractPalette(ctx, width, height) {
   try {
     const colorMap = new Map();
     const sampleTarget = 7000;
-    const step = Math.max(1, Math.ceil(Math.sqrt((width * height) / sampleTarget)));
+    const step = Math.max(
+      1,
+      Math.ceil(Math.sqrt((width * height) / sampleTarget))
+    );
 
     for (let y = 0; y < height; y += step) {
       for (let x = 0; x < width; x += step) {
@@ -1168,6 +1284,7 @@ function rgbToHex(r, g, b) {
 
 function hexToRgb(hex) {
   const cleanHex = String(hex || "#000000").replace("#", "");
+
   const fullHex =
     cleanHex.length === 3
       ? cleanHex
@@ -1190,6 +1307,7 @@ function rgbToHsl(r, g, b) {
 
   const max = Math.max(nextR, nextG, nextB);
   const min = Math.min(nextR, nextG, nextB);
+
   let h = 0;
   let s = 0;
   const l = (max + min) / 2;
