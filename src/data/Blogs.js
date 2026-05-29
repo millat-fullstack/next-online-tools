@@ -1,5 +1,13 @@
 export const blogs = [
   {
+    "title": "How to Resize an Image for Facebook Post",
+    "slug": "how-to-resize-an-image-for-facebook-post",
+    "date": "2026-05-29",
+    "category": "Image Tools",
+    "excerpt": "Learn how to resize an image for a Facebook post using the best Facebook post image sizes, simple editing tips, and a free online image resizer.",
+    "image": "/images/resize-image-for-facebook-post.jpg"
+  },
+  {
     "title": "Best Free Online Passport Photo Maker for Visa, ID, and Documents",
     "slug": "BestFreeOnlinePassportPhotoMaker",
     "date": "2026-05-12",
@@ -24,7 +32,7 @@ export const blogs = [
     "image": "/images/google-sheet-link-extractor.jpg"
   },
   {
-    "title": "10 Best Free Online Image Compressor Tools to Reduce File Size",
+    "title": "10 Best Free Online Image Compressor Tools to Reduce/Compress File Size",
     "slug": "BestFreeImageCompressorTools",
     "date": "2026-05-10",
     "category": "Image Tools",
