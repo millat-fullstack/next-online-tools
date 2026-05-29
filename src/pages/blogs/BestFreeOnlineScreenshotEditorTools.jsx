@@ -96,10 +96,6 @@ export default function BestFreeOnlineScreenshotEditorTools() {
           name="keywords"
           content="free online screenshot editor, screenshot editor online, edit screenshot online, screenshot annotation tool, crop screenshot online, blur screenshot online"
         />
-        <link
-          rel="canonical"
-          href="https://nextonlinetools.com/blog/BestFreeOnlineScreenshotEditorTools"
-        />
 
         <script type="application/ld+json">
           {JSON.stringify(articleSchema)}

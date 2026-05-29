@@ -82,10 +82,6 @@ export default function BestFreeImageCompressorTools() {
           name="keywords"
           content="free image compressor, image compressor online, compress image online, reduce image size, JPG compressor, PNG compressor, WebP compressor"
         />
-        <link
-          rel="canonical"
-          href="https://nextonlinetools.com/blog/BestFreeImageCompressorTools"
-        />
 
         <script type="application/ld+json">
           {JSON.stringify(articleSchema)}

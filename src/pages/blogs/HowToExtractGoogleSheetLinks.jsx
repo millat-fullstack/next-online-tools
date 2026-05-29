@@ -82,10 +82,6 @@ export default function HowToExtractGoogleSheetLinks() {
           name="keywords"
           content="Google Sheet Link Extractor, extract links from Google Sheets, hidden hyperlinks Google Sheets, Google Sheets hyperlink extractor, extract URLs from Google Sheets"
         />
-        <link
-          rel="canonical"
-          href="https://nextonlinetools.com/blog/HowToExtractGoogleSheetLinks"
-        />
 
         <script type="application/ld+json">
           {JSON.stringify(articleSchema)}

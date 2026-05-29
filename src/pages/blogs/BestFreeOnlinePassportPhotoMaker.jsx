@@ -82,10 +82,7 @@ export default function BestFreeOnlinePassportPhotoMaker() {
           name="keywords"
           content="passport photo maker, free online passport photo maker, passport size photo maker, visa photo maker, ID photo maker, document photo maker"
         />
-        <link
-          rel="canonical"
-          href="https://nextonlinetools.com/blog/BestFreeOnlinePassportPhotoMaker"
-        />
+
 
         <script type="application/ld+json">
           {JSON.stringify(articleSchema)}
