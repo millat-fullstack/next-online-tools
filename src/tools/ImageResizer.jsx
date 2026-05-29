@@ -19,6 +19,8 @@ import {
   Sparkles,
   Trash2,
   Crop,
+  Clock3,
+  Eye,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -27,14 +29,15 @@ export const toolData = {
   path: "/image-resizer",
   category: "Design Tools",
   description:
-    "Upload and resize images with custom dimensions, smooth zoom, drag positioning, transform guides, and social media presets.",
+    "Upload and resize images with custom dimensions, smooth zoom, drag positioning, transform guides, processing time, and social media presets.",
   metaTitle: "Image Resizer Tool - Resize Images Easily | Next Online Tools",
   metaDescription:
-    "Resize images online with custom width and height, smooth zoom, drag positioning, transform guides, background options, and quick presets for Facebook, Instagram, YouTube, and more.",
+    "Resize images online with custom width and height, smooth zoom, drag positioning, Photoshop-like transform guides, processing time, background options, and social media presets.",
 };
 
 const MAX_FILE_SIZE_MB = 15;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 const ACCEPTED_IMAGE_TYPES = [
   "image/jpeg",
   "image/png",
@@ -92,6 +95,7 @@ export default function ImageResizer() {
   const fileInputRef = useRef(null);
   const artboardRef = useRef(null);
   const imageUrlRef = useRef("");
+
   const dragRef = useRef({
     active: false,
     pointerId: null,
@@ -102,6 +106,7 @@ export default function ImageResizer() {
   });
 
   const [imageData, setImageData] = useState(null);
+
   const [dimensions, setDimensions] = useState({
     width: 1080,
     height: 1080,
@@ -121,19 +126,83 @@ export default function ImageResizer() {
 
   const [showGuides, setShowGuides] = useState(true);
   const [showSafeArea, setShowSafeArea] = useState(true);
+  const [showRulers, setShowRulers] = useState(true);
+  const [showImageCenter, setShowImageCenter] = useState(true);
+
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const [exportProgress, setExportProgress] = useState(0);
+  const [processingTimeMs, setProcessingTimeMs] = useState(0);
+  const [lastOutputSize, setLastOutputSize] = useState(0);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
   const hasImage = Boolean(imageData?.element);
 
+  const selectedOutputFormat = useMemo(() => {
+    return (
+      OUTPUT_FORMATS.find((format) => format.value === outputFormat) ||
+      OUTPUT_FORMATS[0]
+    );
+  }, [outputFormat]);
+
   const aspectRatio = useMemo(() => {
     if (!dimensions.width || !dimensions.height) return 1;
     return dimensions.width / dimensions.height;
   }, [dimensions]);
+
+  const zoomPercent = Math.round(transform.scale * 100);
+
+  const originalSizeText = imageData
+    ? `${imageData.width} × ${imageData.height}px`
+    : "-";
+
+  const outputSizeText = `${dimensions.width} × ${dimensions.height}px`;
+
+  const estimatedProcessingTimeMs = useMemo(() => {
+    const megapixels = (dimensions.width * dimensions.height) / 1000000;
+    const scaleCost = Math.max(1, transform.scale);
+    const estimated = 650 + megapixels * 260 + scaleCost * 120;
+
+    return Math.min(9000, Math.max(900, Math.round(estimated)));
+  }, [dimensions, transform.scale]);
+
+  const outputBackgroundNote =
+    backgroundColor === "transparent"
+      ? outputFormat === "image/jpeg"
+        ? "JPG does not support transparency. White background will be used."
+        : "Transparent background enabled."
+      : "Solid background enabled.";
+
+  const artboardBackgroundStyle = useMemo(() => {
+    if (backgroundColor !== "transparent") {
+      return {
+        backgroundColor,
+      };
+    }
+
+    return {
+      backgroundColor: "#ffffff",
+      backgroundImage:
+        "linear-gradient(45deg, #e5e7eb 25%, transparent 25%), linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e7eb 75%), linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)",
+      backgroundSize: "20px 20px",
+      backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
+    };
+  }, [backgroundColor]);
+
+  const previewArtboardStyle = useMemo(() => {
+    const isLandscape = dimensions.width >= dimensions.height;
+
+    return {
+      width: isLandscape ? "100%" : "min(100%, 430px)",
+      maxWidth: "800px",
+      aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+      ...artboardBackgroundStyle,
+    };
+  }, [dimensions, artboardBackgroundStyle]);
 
   const imageBoxStyle = useMemo(() => {
     if (!imageData) return null;
@@ -163,62 +232,16 @@ export default function ImageResizer() {
       transformOrigin: "center center",
       transition: isDraggingImage
         ? "none"
-        : "left 140ms ease, top 140ms ease, width 140ms ease, height 140ms ease, transform 140ms ease",
+        : "left 120ms ease, top 120ms ease, width 160ms ease, height 160ms ease, transform 160ms ease",
     };
   }, [imageData, transform, dimensions, isDraggingImage]);
-
-  const selectedOutputFormat = useMemo(() => {
-    return (
-      OUTPUT_FORMATS.find((format) => format.value === outputFormat) ||
-      OUTPUT_FORMATS[0]
-    );
-  }, [outputFormat]);
-
-  const artboardBackgroundStyle = useMemo(() => {
-    if (backgroundColor !== "transparent") {
-      return {
-        backgroundColor,
-      };
-    }
-
-    return {
-      backgroundColor: "#ffffff",
-      backgroundImage:
-        "linear-gradient(45deg, #e5e7eb 25%, transparent 25%), linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e7eb 75%), linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)",
-      backgroundSize: "20px 20px",
-      backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
-    };
-  }, [backgroundColor]);
-
-  const previewArtboardStyle = useMemo(() => {
-    const isLandscape = dimensions.width >= dimensions.height;
-
-    return {
-      width: isLandscape ? "100%" : "min(100%, 430px)",
-      maxWidth: "760px",
-      aspectRatio: `${dimensions.width} / ${dimensions.height}`,
-      ...artboardBackgroundStyle,
-    };
-  }, [dimensions, artboardBackgroundStyle]);
-
-  const zoomPercent = Math.round(transform.scale * 100);
-
-  const originalSizeText = imageData
-    ? `${imageData.width} × ${imageData.height}px`
-    : "-";
-
-  const outputSizeText = `${dimensions.width} × ${dimensions.height}px`;
-
-  const outputBackgroundNote =
-    backgroundColor === "transparent"
-      ? outputFormat === "image/jpeg"
-        ? "JPG does not support transparency. White background will be used."
-        : "Transparent background enabled."
-      : "Solid background enabled.";
 
   const handleImageFile = useCallback(async (file) => {
     setErrorMessage("");
     setSuccessMessage("");
+    setProcessingTimeMs(0);
+    setLastOutputSize(0);
+    setExportProgress(0);
 
     const validationError = validateImageFile(file);
 
@@ -265,7 +288,10 @@ export default function ImageResizer() {
 
       setOutputFormat(getDefaultOutputFormat(file.type));
       setBackgroundColor(file.type === "image/png" ? "transparent" : "#ffffff");
-      setSuccessMessage("Image loaded successfully. Use the artboard to drag, zoom, and position it.");
+
+      setSuccessMessage(
+        "Image loaded successfully. Use the smart artboard to drag, zoom, align, and export."
+      );
     } catch {
       setErrorMessage("Failed to load image. Please try another image.");
 
@@ -293,6 +319,12 @@ export default function ImageResizer() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  }
+
+  function clearExportStats() {
+    setProcessingTimeMs(0);
+    setLastOutputSize(0);
+    setExportProgress(0);
   }
 
   function handleFileInputChange(event) {
@@ -381,6 +413,8 @@ export default function ImageResizer() {
       offsetX: dragRef.current.startOffsetX + deltaX,
       offsetY: dragRef.current.startOffsetY + deltaY,
     }));
+
+    clearExportStats();
   }
 
   function handleArtboardPointerUp(event) {
@@ -397,13 +431,15 @@ export default function ImageResizer() {
     event.preventDefault();
 
     const point = getArtboardPoint(event);
-    const factor = Math.exp(-event.deltaY * 0.0012);
+    const factor = Math.exp(-event.deltaY * 0.0014);
     const nextScale = clampNumber(transform.scale * factor, MIN_SCALE, MAX_SCALE);
 
     applyScale(nextScale, point);
   }
 
   function applyScale(nextScale, anchorPoint = null) {
+    clearExportStats();
+
     setTransform((current) => {
       const safeScale = clampNumber(nextScale, MIN_SCALE, MAX_SCALE);
 
@@ -433,6 +469,8 @@ export default function ImageResizer() {
   }
 
   function updateDimension(type, value) {
+    clearExportStats();
+
     const nextValue = clampNumber(Number(value), MIN_DIMENSION, MAX_DIMENSION);
 
     setDimensions((current) => {
@@ -461,6 +499,8 @@ export default function ImageResizer() {
   }
 
   function setPreset(width, height) {
+    clearExportStats();
+
     setDimensions({ width, height });
 
     if (imageData) {
@@ -478,6 +518,8 @@ export default function ImageResizer() {
   function fitImageToArtboard() {
     if (!imageData) return;
 
+    clearExportStats();
+
     setTransform((current) => ({
       ...current,
       scale: getFitScale(imageData, dimensions),
@@ -489,6 +531,8 @@ export default function ImageResizer() {
   function fillArtboard() {
     if (!imageData) return;
 
+    clearExportStats();
+
     setTransform((current) => ({
       ...current,
       scale: getFillScale(imageData, dimensions),
@@ -498,6 +542,8 @@ export default function ImageResizer() {
   }
 
   function centerImage() {
+    clearExportStats();
+
     setTransform((current) => ({
       ...current,
       offsetX: 0,
@@ -507,6 +553,8 @@ export default function ImageResizer() {
 
   function resetTransform() {
     if (!imageData) return;
+
+    clearExportStats();
 
     setTransform({
       scale: getFitScale(imageData, dimensions),
@@ -518,6 +566,8 @@ export default function ImageResizer() {
 
   function resetToOriginalSize() {
     if (!imageData) return;
+
+    clearExportStats();
 
     setDimensions({
       width: imageData.width,
@@ -533,6 +583,8 @@ export default function ImageResizer() {
   }
 
   function rotateImage() {
+    clearExportStats();
+
     setTransform((current) => ({
       ...current,
       rotation: normalizeRotation(current.rotation + 90),
@@ -548,8 +600,14 @@ export default function ImageResizer() {
     setIsProcessing(true);
     setErrorMessage("");
     setSuccessMessage("");
+    setExportProgress(5);
+
+    const startTime = performance.now();
 
     try {
+      await wait(120);
+      setExportProgress(25);
+
       const canvas = document.createElement("canvas");
       canvas.width = dimensions.width;
       canvas.height = dimensions.height;
@@ -567,6 +625,8 @@ export default function ImageResizer() {
       } else {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
+
+      setExportProgress(45);
 
       const imageWidth = imageData.width * transform.scale;
       const imageHeight = imageData.height * transform.scale;
@@ -588,7 +648,13 @@ export default function ImageResizer() {
       );
       ctx.restore();
 
+      setExportProgress(72);
+
       const blob = await canvasToBlob(canvas, outputFormat, quality);
+      setLastOutputSize(blob.size);
+
+      setExportProgress(90);
+
       const url = URL.createObjectURL(blob);
 
       const link = document.createElement("a");
@@ -603,11 +669,24 @@ export default function ImageResizer() {
 
       URL.revokeObjectURL(url);
 
-      setSuccessMessage("Resized image downloaded successfully.");
+      const actualProcessingTime = Math.max(
+        1,
+        Math.round(performance.now() - startTime)
+      );
+
+      setProcessingTimeMs(actualProcessingTime);
+      setExportProgress(100);
+      setSuccessMessage(
+        `Final image created in ${(actualProcessingTime / 1000).toFixed(1)}s.`
+      );
     } catch {
       setErrorMessage("Could not export this image. Please try again.");
     } finally {
       setIsProcessing(false);
+
+      window.setTimeout(() => {
+        setExportProgress(0);
+      }, 800);
     }
   }
 
@@ -634,8 +713,14 @@ export default function ImageResizer() {
     setLockAspectRatio(true);
     setShowGuides(true);
     setShowSafeArea(true);
+    setShowRulers(true);
+    setShowImageCenter(true);
     setIsDraggingImage(false);
     setIsDraggingFile(false);
+    setIsProcessing(false);
+    setExportProgress(0);
+    setProcessingTimeMs(0);
+    setLastOutputSize(0);
     setErrorMessage("");
     setSuccessMessage("");
     resetFileInput();
@@ -660,9 +745,9 @@ export default function ImageResizer() {
         <h1 className="text-3xl font-bold mb-3">Image Resizer</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Resize images with a smart artboard editor. Upload an image, choose
-          custom dimensions or presets, drag to reposition, zoom smoothly, use
-          transform guides, and download the final image instantly.
+          Resize images with a premium smart artboard editor. Drag, zoom,
+          rotate, align with Photoshop-like guides, export with processing time,
+          and download your final image instantly.
         </p>
       </section>
 
@@ -716,6 +801,28 @@ export default function ImageResizer() {
               <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
                 <CheckCircle size={18} className="shrink-0 mt-0.5" />
                 <p>{successMessage}</p>
+              </div>
+            )}
+
+            {/* EXPORT PROGRESS */}
+            {isProcessing && hasImage && (
+              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+                <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                  <span>Creating final image...</span>
+                  <span>{exportProgress}%</span>
+                </div>
+
+                <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--primary)] transition-all duration-300"
+                    style={{ width: `${exportProgress}%` }}
+                  />
+                </div>
+
+                <p className="text-xs text-[var(--text-secondary)] mt-3">
+                  Estimated processing time:{" "}
+                  {Math.ceil(estimatedProcessingTimeMs / 1000)}s
+                </p>
               </div>
             )}
 
@@ -852,7 +959,7 @@ export default function ImageResizer() {
                   type="range"
                   min={MIN_SCALE}
                   max={MAX_SCALE}
-                  step="0.01"
+                  step="0.005"
                   value={transform.scale}
                   onChange={(event) => applyScale(Number(event.target.value))}
                   className="w-full accent-[var(--primary)]"
@@ -945,7 +1052,10 @@ export default function ImageResizer() {
                     </label>
                     <select
                       value={outputFormat}
-                      onChange={(event) => setOutputFormat(event.target.value)}
+                      onChange={(event) => {
+                        setOutputFormat(event.target.value);
+                        clearExportStats();
+                      }}
                       className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white"
                     >
                       {OUTPUT_FORMATS.map((format) => (
@@ -962,9 +1072,10 @@ export default function ImageResizer() {
                     </label>
                     <select
                       value={backgroundColor}
-                      onChange={(event) =>
-                        setBackgroundColor(event.target.value)
-                      }
+                      onChange={(event) => {
+                        setBackgroundColor(event.target.value);
+                        clearExportStats();
+                      }}
                       className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white"
                     >
                       <option value="transparent">Transparent</option>
@@ -986,9 +1097,10 @@ export default function ImageResizer() {
                       max="1"
                       step="0.01"
                       value={quality}
-                      onChange={(event) =>
-                        setQuality(Number(event.target.value))
-                      }
+                      onChange={(event) => {
+                        setQuality(Number(event.target.value));
+                        clearExportStats();
+                      }}
                       className="w-full accent-[var(--primary)]"
                     />
                   </div>
@@ -1016,7 +1128,7 @@ export default function ImageResizer() {
                   ) : (
                     <Download size={18} />
                   )}
-                  {isProcessing ? "Exporting..." : "Download Image"}
+                  {isProcessing ? "Creating..." : "Create & Download"}
                 </button>
 
                 <button
@@ -1037,12 +1149,12 @@ export default function ImageResizer() {
               <div>
                 <h2 className="text-xl font-semibold">Smart Artboard</h2>
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
-                  Drag image, scroll to zoom, use transform guide to position.
+                  Drag image, scroll to zoom, and align with smart guides.
                 </p>
               </div>
 
               {hasImage && (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setShowGuides((current) => !current)}
@@ -1056,13 +1168,21 @@ export default function ImageResizer() {
                     onClick={() => setShowSafeArea((current) => !current)}
                     className="btn-secondary px-3 py-2 text-sm"
                   >
-                    Safe Area
+                    Safe
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowRulers((current) => !current)}
+                    className="btn-secondary px-3 py-2 text-sm"
+                  >
+                    Rulers
                   </button>
                 </div>
               )}
             </div>
 
-            <div className="border border-[var(--border)] rounded-2xl p-4 bg-gray-100 min-h-[560px] flex items-center justify-center overflow-auto">
+            <div className="border border-[var(--border)] rounded-2xl p-4 bg-[#eef0f5] min-h-[610px] flex items-center justify-center overflow-auto">
               {!hasImage ? (
                 <div className="text-center">
                   <ImageIcon
@@ -1074,84 +1194,101 @@ export default function ImageResizer() {
                   </p>
                 </div>
               ) : (
-                <div
-                  ref={artboardRef}
-                  onPointerDown={handleArtboardPointerDown}
-                  onPointerMove={handleArtboardPointerMove}
-                  onPointerUp={handleArtboardPointerUp}
-                  onPointerCancel={handleArtboardPointerUp}
-                  onWheel={handleWheelZoom}
-                  className={`relative overflow-hidden rounded-xl shadow-2xl border border-gray-300 select-none ${
-                    isDraggingImage
-                      ? "cursor-grabbing"
-                      : "cursor-grab"
-                  }`}
-                  style={previewArtboardStyle}
-                >
-                  {/* Image Layer */}
-                  {imageBoxStyle && (
+                <div className="relative p-8">
+                  {showRulers && (
                     <>
-                      <img
-                        src={imageData.url}
-                        alt={imageData.name}
-                        draggable="false"
-                        className="absolute object-fill pointer-events-none select-none"
-                        style={imageBoxStyle}
-                      />
+                      <div className="absolute left-8 right-0 top-2 h-5 rounded bg-white/80 border border-gray-300 overflow-hidden">
+                        <div className="h-full opacity-70 ruler-horizontal" />
+                        <span className="absolute left-2 top-0.5 text-[10px] text-gray-600">
+                          0
+                        </span>
+                        <span className="absolute right-2 top-0.5 text-[10px] text-gray-600">
+                          {dimensions.width}px
+                        </span>
+                      </div>
 
-                      {/* Photoshop-like transform guide */}
-                      <div
-                        className="absolute pointer-events-none"
-                        style={imageBoxStyle}
-                      >
-                        <div className="absolute inset-0 border-2 border-[var(--primary)] shadow-[0_0_0_1px_rgba(255,255,255,0.9)]">
-                          <span className="absolute -top-2 -left-2 w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)]" />
-                          <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)]" />
-                          <span className="absolute -top-2 -right-2 w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)]" />
-
-                          <span className="absolute top-1/2 -left-2 -translate-y-1/2 w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)]" />
-                          <span className="absolute top-1/2 -right-2 -translate-y-1/2 w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)]" />
-
-                          <span className="absolute -bottom-2 -left-2 w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)]" />
-                          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)]" />
-                          <span className="absolute -bottom-2 -right-2 w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)]" />
-
-                          <span className="absolute -top-8 left-1/2 -translate-x-1/2 rounded-full bg-[var(--primary)] text-white text-[10px] font-semibold px-2 py-1 whitespace-nowrap">
-                            {zoomPercent}% • {transform.rotation}°
-                          </span>
-                        </div>
+                      <div className="absolute left-2 top-8 bottom-0 w-5 rounded bg-white/80 border border-gray-300 overflow-hidden">
+                        <div className="w-full h-full opacity-70 ruler-vertical" />
+                        <span className="absolute left-1 top-2 text-[10px] text-gray-600 [writing-mode:vertical-rl]">
+                          {dimensions.height}px
+                        </span>
                       </div>
                     </>
                   )}
 
-                  {/* Artboard Guides */}
-                  {showGuides && (
-                    <div className="absolute inset-0 pointer-events-none">
-                      <div className="absolute left-1/3 top-0 bottom-0 border-l border-white/70" />
-                      <div className="absolute left-2/3 top-0 bottom-0 border-l border-white/70" />
-                      <div className="absolute top-1/3 left-0 right-0 border-t border-white/70" />
-                      <div className="absolute top-2/3 left-0 right-0 border-t border-white/70" />
+                  <div
+                    ref={artboardRef}
+                    onPointerDown={handleArtboardPointerDown}
+                    onPointerMove={handleArtboardPointerMove}
+                    onPointerUp={handleArtboardPointerUp}
+                    onPointerCancel={handleArtboardPointerUp}
+                    onWheel={handleWheelZoom}
+                    className={`relative overflow-hidden rounded-xl shadow-2xl border border-gray-300 select-none ${
+                      isDraggingImage ? "cursor-grabbing" : "cursor-grab"
+                    }`}
+                    style={previewArtboardStyle}
+                  >
+                    {/* Image layer */}
+                    {imageBoxStyle && (
+                      <>
+                        <img
+                          src={imageData.url}
+                          alt={imageData.name}
+                          draggable="false"
+                          className="absolute object-fill pointer-events-none select-none"
+                          style={imageBoxStyle}
+                        />
 
-                      <div className="absolute left-1/2 top-0 bottom-0 border-l border-[var(--primary)]/70" />
-                      <div className="absolute top-1/2 left-0 right-0 border-t border-[var(--primary)]/70" />
+                        {/* Transform bounding box */}
+                        <div
+                          className="absolute pointer-events-none"
+                          style={imageBoxStyle}
+                        >
+                          <div className="absolute inset-0 border-2 border-[var(--primary)] shadow-[0_0_0_1px_rgba(255,255,255,0.95)]">
+                            <TransformHandle position="-top-2 -left-2" />
+                            <TransformHandle position="-top-2 left-1/2 -translate-x-1/2" />
+                            <TransformHandle position="-top-2 -right-2" />
+                            <TransformHandle position="top-1/2 -left-2 -translate-y-1/2" />
+                            <TransformHandle position="top-1/2 -right-2 -translate-y-1/2" />
+                            <TransformHandle position="-bottom-2 -left-2" />
+                            <TransformHandle position="-bottom-2 left-1/2 -translate-x-1/2" />
+                            <TransformHandle position="-bottom-2 -right-2" />
+
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 rounded-full bg-[var(--primary)] text-white text-[10px] font-semibold px-2 py-1 whitespace-nowrap">
+                              {zoomPercent}% • {transform.rotation}°
+                            </span>
+                          </div>
+
+                          {showImageCenter && (
+                            <div className="absolute inset-0 pointer-events-none">
+                              <div className="absolute left-1/2 top-0 bottom-0 border-l border-yellow-300/95" />
+                              <div className="absolute top-1/2 left-0 right-0 border-t border-yellow-300/95" />
+                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-yellow-300 border border-black/30" />
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Photoshop-like guide overlay */}
+                    <GuideOverlay
+                      showGuides={showGuides}
+                      showSafeArea={showSafeArea}
+                      dimensions={dimensions}
+                    />
+
+                    {/* Artboard info */}
+                    <div className="absolute left-3 bottom-3 bg-black/70 text-white rounded-xl px-3 py-2 text-xs pointer-events-none">
+                      <p>{outputSizeText}</p>
+                      <p>
+                        X {Math.round(transform.offsetX)} / Y{" "}
+                        {Math.round(transform.offsetY)}
+                      </p>
                     </div>
-                  )}
 
-                  {showSafeArea && (
-                    <div className="absolute inset-[8%] border border-dashed border-white/80 pointer-events-none rounded-sm">
-                      <span className="absolute -top-6 left-0 text-[10px] bg-black/60 text-white rounded px-2 py-1">
-                        Safe Area
-                      </span>
+                    <div className="absolute right-3 top-3 bg-black/70 text-white rounded-xl px-3 py-2 text-xs pointer-events-none">
+                      <p>Center: {Math.round(dimensions.width / 2)} × {Math.round(dimensions.height / 2)}</p>
                     </div>
-                  )}
-
-                  {/* Artboard Info */}
-                  <div className="absolute left-3 bottom-3 bg-black/65 text-white rounded-xl px-3 py-2 text-xs pointer-events-none">
-                    <p>{outputSizeText}</p>
-                    <p>
-                      X {Math.round(transform.offsetX)} / Y{" "}
-                      {Math.round(transform.offsetY)}
-                    </p>
                   </div>
                 </div>
               )}
@@ -1162,21 +1299,45 @@ export default function ImageResizer() {
                 <InfoCard label="Original" value={originalSizeText} />
                 <InfoCard label="Output" value={outputSizeText} />
                 <InfoCard label="Zoom" value={`${zoomPercent}%`} />
+                <InfoCard
+                  label="Process Time"
+                  value={
+                    processingTimeMs
+                      ? `${(processingTimeMs / 1000).toFixed(1)}s`
+                      : `Est. ${Math.ceil(estimatedProcessingTimeMs / 1000)}s`
+                  }
+                  green={Boolean(processingTimeMs)}
+                />
+                <InfoCard
+                  label="Output Size"
+                  value={lastOutputSize ? formatBytes(lastOutputSize) : "-"}
+                />
+                <InfoCard label="Format" value={selectedOutputFormat.label} />
                 <InfoCard label="Ratio" value={aspectRatio.toFixed(2)} />
+                <InfoCard
+                  label="Guide"
+                  value={showGuides ? "On" : "Off"}
+                />
               </div>
             )}
 
             {hasImage && (
               <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-                <h3 className="font-semibold text-blue-900 mb-2">
-                  Smarter editing tips
-                </h3>
-                <p className="text-sm text-blue-800">
-                  Drag the image inside the artboard to reposition it. Scroll
-                  over the artboard for smooth zoom. Use Fit, Fill, Center, and
-                  Rotate for fast adjustments. The transform guide is only for
-                  editing and will not appear in the downloaded image.
-                </p>
+                <div className="flex items-start gap-3">
+                  <Eye size={20} className="text-blue-700 shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-blue-900 mb-2">
+                      Photoshop-like preview guide
+                    </h3>
+                    <p className="text-sm text-blue-800">
+                      The artboard now shows center guides, rule-of-thirds
+                      guides, safe area, rulers, image center lines, transform
+                      handles, zoom percentage, rotation, and position. These
+                      guides are only for editing and will not appear in the
+                      final downloaded image.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1192,16 +1353,117 @@ export default function ImageResizer() {
         </div>
       </section>
 
+      <style>{`
+        .ruler-horizontal {
+          background-image:
+            repeating-linear-gradient(
+              to right,
+              #9ca3af 0,
+              #9ca3af 1px,
+              transparent 1px,
+              transparent 20px
+            ),
+            repeating-linear-gradient(
+              to right,
+              #6b7280 0,
+              #6b7280 1px,
+              transparent 1px,
+              transparent 100px
+            );
+        }
+
+        .ruler-vertical {
+          background-image:
+            repeating-linear-gradient(
+              to bottom,
+              #9ca3af 0,
+              #9ca3af 1px,
+              transparent 1px,
+              transparent 20px
+            ),
+            repeating-linear-gradient(
+              to bottom,
+              #6b7280 0,
+              #6b7280 1px,
+              transparent 1px,
+              transparent 100px
+            );
+        }
+      `}</style>
+
       <SuggestedTools currentToolId="image-resizer" />
     </div>
   );
 }
 
-function InfoCard({ label, value }) {
+function GuideOverlay({ showGuides, showSafeArea, dimensions }) {
+  return (
+    <div className="absolute inset-0 pointer-events-none">
+      {showGuides && (
+        <>
+          {/* Rule of thirds */}
+          <div className="absolute left-1/3 top-0 bottom-0 border-l border-white/70" />
+          <div className="absolute left-2/3 top-0 bottom-0 border-l border-white/70" />
+          <div className="absolute top-1/3 left-0 right-0 border-t border-white/70" />
+          <div className="absolute top-2/3 left-0 right-0 border-t border-white/70" />
+
+          {/* Center guides */}
+          <div className="absolute left-1/2 top-0 bottom-0 border-l-2 border-[var(--primary)]/85" />
+          <div className="absolute top-1/2 left-0 right-0 border-t-2 border-[var(--primary)]/85" />
+
+          {/* Diagonal guides */}
+          <div className="absolute left-0 top-0 w-full h-full">
+            <div className="absolute left-0 top-0 w-[141.5%] border-t border-white/40 origin-left rotate-45" />
+            <div className="absolute right-0 top-0 w-[141.5%] border-t border-white/40 origin-right -rotate-45" />
+          </div>
+
+          {/* Center point */}
+          <div className="absolute left-1/2 top-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[var(--primary)] shadow" />
+
+          {/* Center labels */}
+          <span className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-[var(--primary)] text-white text-[10px] font-semibold px-2 py-1">
+            X Center {Math.round(dimensions.width / 2)}px
+          </span>
+
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-[var(--primary)] text-white text-[10px] font-semibold px-2 py-1">
+            Y {Math.round(dimensions.height / 2)}px
+          </span>
+        </>
+      )}
+
+      {showSafeArea && (
+        <div className="absolute inset-[8%] border border-dashed border-white/90 rounded-sm">
+          <span className="absolute -top-6 left-0 text-[10px] bg-black/65 text-white rounded px-2 py-1">
+            Safe Area
+          </span>
+        </div>
+      )}
+
+      {/* Outer artboard edge glow */}
+      <div className="absolute inset-0 border border-white/60" />
+    </div>
+  );
+}
+
+function TransformHandle({ position }) {
+  return (
+    <span
+      className={`absolute ${position} w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)] shadow`}
+    />
+  );
+}
+
+function InfoCard({ label, value, green = false }) {
   return (
     <div className="bg-white border border-[var(--border)] rounded-2xl p-4 text-center">
       <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
-      <p className="font-bold text-[var(--primary)] break-all">{value}</p>
+      <p
+        className={`font-bold break-all ${
+          green ? "text-green-600" : "text-[var(--primary)]"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -1241,7 +1503,10 @@ function getFitScale(imageData, dimensions) {
   if (!imageData) return 1;
 
   return clampNumber(
-    Math.min(dimensions.width / imageData.width, dimensions.height / imageData.height),
+    Math.min(
+      dimensions.width / imageData.width,
+      dimensions.height / imageData.height
+    ),
     MIN_SCALE,
     MAX_SCALE
   );
@@ -1251,7 +1516,10 @@ function getFillScale(imageData, dimensions) {
   if (!imageData) return 1;
 
   return clampNumber(
-    Math.max(dimensions.width / imageData.width, dimensions.height / imageData.height),
+    Math.max(
+      dimensions.width / imageData.width,
+      dimensions.height / imageData.height
+    ),
     MIN_SCALE,
     MAX_SCALE
   );
@@ -1303,4 +1571,10 @@ function formatBytes(bytes) {
   const size = bytes / Math.pow(1024, sizeIndex);
 
   return `${size.toFixed(sizeIndex === 0 ? 0 : 1)} ${units[sizeIndex]}`;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
