@@ -41,9 +41,11 @@ function buildBlogsData() {
     const blogData = parseBlogData(content, filePath);
 
     if (blogData) {
+      const pageFile = file.replace(/\.jsx$/, "");
       if (!blogData.slug) {
-        blogData.slug = file.replace(/\.jsx$/, "");
+        blogData.slug = pageFile;
       }
+      blogData.pageFile = pageFile;
       blogs.push(blogData);
     }
   }
