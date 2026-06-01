@@ -3,8 +3,15 @@ import { useParams } from "react-router-dom";
 import { blogs } from "../data/Blogs";
 
 const blogPages = import.meta.glob("./blogs/*.jsx");
+const blogPageMap = Object.entries(blogPages).reduce((map, [filePath, loader]) => {
+  const fileName = filePath.split("/").pop()?.replace(/\.jsx$/, "");
+  if (fileName) {
+    map[fileName] = loader;
+  }
+  return map;
+}, {});
 
-// Error Boundary for lazy-loaded components
+// Error Boundary for blog page rendering
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -29,23 +36,15 @@ class ErrorBoundary extends React.Component {
 
 export default function BlogSingle() {
   const { slug } = useParams();
-  const pagePath = `./blogs/${slug}.jsx`;
-  let loader = blogPages[pagePath];
+  const blog = blogs.find((item) => item.slug === slug);
+  const loader = blog ? blogPageMap[blog.pageFile] : null;
 
-  if (!loader) {
-    const blog = blogs.find((item) => item.slug === slug);
-    if (blog?.pageFile) {
-      loader = blogPages[`./blogs/${blog.pageFile}.jsx`];
-    }
-  }
-
-  if (!loader) {
+  if (!blog || !loader) {
     return <div>Blog not found</div>;
   }
 
-  // Wrap loader to ensure React.lazy gets the correct function
-  const BlogComponent = React.lazy(() => 
-    loader().then(module => ({ default: module.default || module }))
+  const BlogComponent = React.lazy(() =>
+    loader().then((module) => ({ default: module.default || module }))
   );
 
   return (

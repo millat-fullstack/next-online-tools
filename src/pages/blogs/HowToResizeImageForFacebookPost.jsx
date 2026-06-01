@@ -1,4 +1,3 @@
-```jsx
 import { Helmet } from "react-helmet-async";
 import { Share2 } from "lucide-react";
 
@@ -558,4 +557,3 @@ export default function HowToResizeImageForFacebookPost() {
     </>
   );
 }
-```
