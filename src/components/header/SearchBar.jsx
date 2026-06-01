@@ -44,7 +44,7 @@ export default function SearchBar() {
       />
 
       {showSuggestions && query.trim() && (
-        <div className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
+        <div className="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg pointer-events-none">
           {suggestions.length > 0 ? (
             suggestions.map((result) => (
               <button
@@ -54,7 +54,7 @@ export default function SearchBar() {
                   e.preventDefault();
                   handleSuggestionClick(result);
                 }}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50"
+                className="w-full text-left px-4 py-3 hover:bg-slate-50 pointer-events-auto"
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-medium text-sm text-slate-900">{result.title}</span>
@@ -66,7 +66,7 @@ export default function SearchBar() {
               </button>
             ))
           ) : (
-            <div className="px-4 py-3 text-slate-500">No suggestions found.</div>
+            <div className="px-4 py-3 text-slate-500 pointer-events-auto">No suggestions found.</div>
           )}
 
           <button
@@ -76,7 +76,7 @@ export default function SearchBar() {
               navigate(`/search?q=${encodeURIComponent(query.trim())}`);
               setShowSuggestions(false);
             }}
-            className="w-full px-4 py-3 text-left text-sm font-medium text-[var(--primary)] hover:bg-slate-50"
+            className="w-full px-4 py-3 text-left text-sm font-medium text-[var(--primary)] hover:bg-slate-50 pointer-events-auto"
           >
             Search all results for “{query.trim()}”
           </button>
