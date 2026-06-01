@@ -20,11 +20,15 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Sparkles,
   Minus,
   ListOrdered,
   BoxSelect,
   Clock3,
+  SlidersHorizontal,
+  Settings2,
+  X,
+  Sparkles,
+  Eye,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -41,7 +45,7 @@ export const toolData = {
 
 const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const MAX_CANVAS_LONG_SIDE = 2200;
+const MAX_CANVAS_LONG_SIDE = 2400;
 const MAX_HISTORY = 60;
 
 const DEFAULT_STYLE = {
@@ -70,7 +74,59 @@ const TOOL_OPTIONS = [
   { id: "spotlight", label: "Spotlight", icon: BoxSelect },
 ];
 
-const EMOJI_OPTIONS = ["✅", "❌", "⚠️", "🔥", "👀", "👉", "👈", "👍", "😍", "😮", "💡", "🎯"];
+const STYLE_PRESETS = [
+  {
+    label: "Red Markup",
+    strokeColor: "#ef4444",
+    fillColor: "rgba(239,68,68,0.14)",
+    textBackground: "#ef4444",
+  },
+  {
+    label: "Yellow Highlight",
+    strokeColor: "#f59e0b",
+    fillColor: "rgba(250,204,21,0.35)",
+    textBackground: "#f59e0b",
+  },
+  {
+    label: "Blue Pro",
+    strokeColor: "#2563eb",
+    fillColor: "rgba(37,99,235,0.14)",
+    textBackground: "#2563eb",
+  },
+  {
+    label: "Green Success",
+    strokeColor: "#16a34a",
+    fillColor: "rgba(22,163,74,0.14)",
+    textBackground: "#16a34a",
+  },
+  {
+    label: "Dark Callout",
+    strokeColor: "#111827",
+    fillColor: "rgba(17,24,39,0.16)",
+    textBackground: "#111827",
+  },
+];
+
+const EMOJI_OPTIONS = [
+  "✅",
+  "❌",
+  "⚠️",
+  "🔥",
+  "👀",
+  "👉",
+  "👈",
+  "👍",
+  "😍",
+  "😮",
+  "💡",
+  "🎯",
+  "📌",
+  "⭐",
+  "🚀",
+  "💰",
+  "📦",
+  "🛒",
+];
 
 const OUTPUT_FORMATS = [
   { value: "image/png", label: "PNG", extension: "png" },
@@ -82,6 +138,7 @@ export default function ScreenshotEditor() {
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
   const screenshotUrlRef = useRef("");
+
   const pointerRef = useRef({
     mode: null,
     pointerId: null,
@@ -96,6 +153,8 @@ export default function ScreenshotEditor() {
   const [selectedId, setSelectedId] = useState(null);
 
   const [activeTool, setActiveTool] = useState("select");
+  const [activePanel, setActivePanel] = useState("");
+
   const [style, setStyle] = useState(DEFAULT_STYLE);
   const [textValue, setTextValue] = useState("Add note");
   const [selectedEmoji, setSelectedEmoji] = useState("✅");
@@ -128,7 +187,10 @@ export default function ScreenshotEditor() {
   }, [annotations, selectedId]);
 
   const selectedOutputFormat = useMemo(() => {
-    return OUTPUT_FORMATS.find((item) => item.value === outputFormat) || OUTPUT_FORMATS[0];
+    return (
+      OUTPUT_FORMATS.find((item) => item.value === outputFormat) ||
+      OUTPUT_FORMATS[0]
+    );
   }, [outputFormat]);
 
   const estimatedProcessingTimeMs = useMemo(() => {
@@ -141,12 +203,21 @@ export default function ScreenshotEditor() {
     return Math.min(12000, Math.max(700, Math.round(estimated)));
   }, [screenshot, annotations.length]);
 
+  const canvasDisplayWidth = useMemo(() => {
+    if (!screenshot) return 0;
+
+    const baseWidth = Math.max(360, Math.min(screenshot.width, 1100));
+
+    return baseWidth * editorZoom;
+  }, [screenshot, editorZoom]);
+
   const handleImageFile = useCallback(async (file) => {
     setErrorMessage("");
     setSuccessMessage("");
     setProcessingTimeMs(0);
     setLastOutputSize(0);
     setExportProgress(0);
+    setActivePanel("");
 
     const validationError = validateImageFile(file);
 
@@ -198,7 +269,9 @@ export default function ScreenshotEditor() {
       setNextStepNumber(1);
       setEditorZoom(1);
 
-      setSuccessMessage("Screenshot loaded. Add arrows, text, shapes, blur, emoji, or highlights.");
+      setSuccessMessage(
+        "Screenshot loaded. Use the compact top toolbar to add arrows, text, shapes, blur, emojis, or highlights."
+      );
     } catch {
       setErrorMessage("Could not load this screenshot. Please try another image.");
 
@@ -258,7 +331,14 @@ export default function ScreenshotEditor() {
       showSafeArea,
       includeEditorGuides: true,
     });
-  }, [screenshot, annotations, draftAnnotation, selectedId, showGuides, showSafeArea]);
+  }, [
+    screenshot,
+    annotations,
+    draftAnnotation,
+    selectedId,
+    showGuides,
+    showSafeArea,
+  ]);
 
   function resetFileInput() {
     if (fileInputRef.current) {
@@ -307,7 +387,9 @@ export default function ScreenshotEditor() {
   function commitAnnotations(nextAnnotations) {
     clearExportStats();
 
-    setHistoryPast((current) => [...current, cloneAnnotations(annotations)].slice(-MAX_HISTORY));
+    setHistoryPast((current) =>
+      [...current, cloneAnnotations(annotations)].slice(-MAX_HISTORY)
+    );
     setHistoryFuture([]);
     setAnnotations(nextAnnotations);
   }
@@ -318,7 +400,9 @@ export default function ScreenshotEditor() {
     const previous = historyPast[historyPast.length - 1];
     const remaining = historyPast.slice(0, -1);
 
-    setHistoryFuture((current) => [cloneAnnotations(annotations), ...current].slice(0, MAX_HISTORY));
+    setHistoryFuture((current) =>
+      [cloneAnnotations(annotations), ...current].slice(0, MAX_HISTORY)
+    );
     setHistoryPast(remaining);
     setAnnotations(previous);
     setSelectedId(null);
@@ -331,7 +415,9 @@ export default function ScreenshotEditor() {
     const next = historyFuture[0];
     const remaining = historyFuture.slice(1);
 
-    setHistoryPast((current) => [...current, cloneAnnotations(annotations)].slice(-MAX_HISTORY));
+    setHistoryPast((current) =>
+      [...current, cloneAnnotations(annotations)].slice(-MAX_HISTORY)
+    );
     setHistoryFuture(remaining);
     setAnnotations(next);
     setSelectedId(null);
@@ -399,6 +485,7 @@ export default function ScreenshotEditor() {
 
     if (activeTool === "text") {
       const textAnnotation = createTextAnnotation(point);
+
       commitAnnotations([...annotations, textAnnotation]);
       setSelectedId(textAnnotation.id);
       setActiveTool("select");
@@ -407,6 +494,7 @@ export default function ScreenshotEditor() {
 
     if (activeTool === "emoji") {
       const emojiAnnotation = createEmojiAnnotation(point);
+
       commitAnnotations([...annotations, emojiAnnotation]);
       setSelectedId(emojiAnnotation.id);
       setActiveTool("select");
@@ -415,6 +503,7 @@ export default function ScreenshotEditor() {
 
     if (activeTool === "step") {
       const stepAnnotation = createStepAnnotation(point);
+
       commitAnnotations([...annotations, stepAnnotation]);
       setSelectedId(stepAnnotation.id);
       setNextStepNumber((current) => current + 1);
@@ -613,9 +702,20 @@ export default function ScreenshotEditor() {
   }
 
   function updateStyle(key, value) {
+    clearExportStats();
+
     setStyle((current) => ({
       ...current,
       [key]: value,
+    }));
+  }
+
+  function applyStylePreset(preset) {
+    setStyle((current) => ({
+      ...current,
+      strokeColor: preset.strokeColor,
+      fillColor: preset.fillColor,
+      textBackground: preset.textBackground,
     }));
   }
 
@@ -660,7 +760,9 @@ export default function ScreenshotEditor() {
       const link = document.createElement("a");
 
       link.href = url;
-      link.download = `edited-${getFileBaseName(screenshot.name)}.${selectedOutputFormat.extension}`;
+      link.download = `edited-${getFileBaseName(screenshot.name)}.${
+        selectedOutputFormat.extension
+      }`;
 
       document.body.appendChild(link);
       link.click();
@@ -668,12 +770,17 @@ export default function ScreenshotEditor() {
 
       URL.revokeObjectURL(url);
 
-      const actualProcessingTime = Math.max(1, Math.round(performance.now() - startTime));
+      const actualProcessingTime = Math.max(
+        1,
+        Math.round(performance.now() - startTime)
+      );
 
       setProcessingTimeMs(actualProcessingTime);
       setLastOutputSize(blob.size);
       setExportProgress(100);
-      setSuccessMessage(`Screenshot exported in ${(actualProcessingTime / 1000).toFixed(1)}s.`);
+      setSuccessMessage(
+        `Screenshot exported in ${(actualProcessingTime / 1000).toFixed(1)}s.`
+      );
     } catch {
       setErrorMessage("Could not export the screenshot. Please try again.");
     } finally {
@@ -696,6 +803,7 @@ export default function ScreenshotEditor() {
     setDraftAnnotation(null);
     setSelectedId(null);
     setActiveTool("select");
+    setActivePanel("");
     setStyle(DEFAULT_STYLE);
     setTextValue("Add note");
     setSelectedEmoji("✅");
@@ -736,41 +844,444 @@ export default function ScreenshotEditor() {
         <h1 className="text-3xl font-bold mb-3">Screenshot Editor</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Paste, upload, or drag any screenshot and edit it with arrows, text,
-          shapes, highlights, blur, emoji, and step numbers. Export the final
-          screenshot with processing time and output size.
+          Paste, upload, or drag any screenshot and edit it with a compact
+          top toolbar. Add arrows, text, shapes, highlights, blur, emojis,
+          and step numbers without blocking the artboard.
         </p>
       </section>
 
-      <section className="card p-6 sm:p-8">
-        <div className="grid xl:grid-cols-[0.85fr_1.45fr_0.8fr] gap-6">
-          {/* LEFT PANEL */}
-          <div className="flex flex-col gap-5">
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
+      <section className="card p-4 sm:p-5">
+        {!hasScreenshot && (
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={openFilePicker}
+            className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition mb-5 ${
+              isDraggingFile
+                ? "border-[var(--primary)] bg-[#f4edff]"
+                : "border-[var(--border)] hover:bg-[#f8f4ff]"
+            }`}
+          >
+            {isLoadingImage ? (
+              <Loader2 size={40} className="mx-auto mb-4 text-[var(--primary)] animate-spin" />
+            ) : (
+              <Upload size={40} className="mx-auto mb-4 text-[var(--primary)]" />
+            )}
+
+            <h2 className="text-xl font-semibold mb-2">
+              Upload, drop, or paste screenshot
+            </h2>
+
+            <p className="text-sm text-[var(--text-secondary)]">
+              JPG, PNG, WEBP, GIF, BMP. You can also use{" "}
+              <strong>Ctrl + V</strong>. Max {MAX_FILE_SIZE_MB} MB.
+            </p>
+          </div>
+        )}
+
+        {/* COMPACT TOP TOOLBAR */}
+        <div className="sticky top-3 z-30 rounded-2xl border border-[var(--border)] bg-white/95 backdrop-blur shadow-sm p-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
               onClick={openFilePicker}
-              className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition ${
-                isDraggingFile
-                  ? "border-[var(--primary)] bg-[#f4edff]"
+              className="btn-secondary inline-flex items-center justify-center gap-2 px-3 py-2 text-sm"
+              title="Upload new screenshot"
+            >
+              <Upload size={16} />
+              Upload
+            </button>
+
+            <div className="w-px h-8 bg-[var(--border)] mx-1" />
+
+            {TOOL_OPTIONS.map((tool) => {
+              const Icon = tool.icon;
+
+              return (
+                <button
+                  key={tool.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTool(tool.id);
+
+                    if (tool.id === "text") setActivePanel("text");
+                    if (tool.id === "emoji") setActivePanel("emoji");
+                  }}
+                  className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center transition ${
+                    activeTool === tool.id
+                      ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                      : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                  }`}
+                  title={tool.label}
+                >
+                  <Icon size={18} />
+                </button>
+              );
+            })}
+
+            <div className="w-px h-8 bg-[var(--border)] mx-1" />
+
+            <button
+              type="button"
+              onClick={undo}
+              disabled={!historyPast.length}
+              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
+                !historyPast.length
+                  ? "opacity-40 cursor-not-allowed"
+                  : "hover:bg-[#f8f4ff]"
+              }`}
+              title="Undo"
+            >
+              <Undo2 size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={redo}
+              disabled={!historyFuture.length}
+              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
+                !historyFuture.length
+                  ? "opacity-40 cursor-not-allowed"
+                  : "hover:bg-[#f8f4ff]"
+              }`}
+              title="Redo"
+            >
+              <Redo2 size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={deleteSelected}
+              disabled={!selectedId}
+              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
+                !selectedId
+                  ? "opacity-40 cursor-not-allowed"
+                  : "hover:bg-red-50 hover:text-red-600"
+              }`}
+              title="Delete selected"
+            >
+              <Trash2 size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={clearAllAnnotations}
+              disabled={!annotations.length}
+              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
+                !annotations.length
+                  ? "opacity-40 cursor-not-allowed"
+                  : "hover:bg-red-50 hover:text-red-600"
+              }`}
+              title="Clear annotations"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-px h-8 bg-[var(--border)] mx-1" />
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel(activePanel === "style" ? "" : "style")
+              }
+              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
+                activePanel === "style"
+                  ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
                   : "border-[var(--border)] hover:bg-[#f8f4ff]"
               }`}
             >
-              {isLoadingImage ? (
-                <Loader2 size={34} className="mx-auto mb-4 text-[var(--primary)] animate-spin" />
+              <Palette size={17} />
+              Style
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel(activePanel === "text" ? "" : "text")
+              }
+              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
+                activePanel === "text"
+                  ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
+              }`}
+            >
+              <Type size={17} />
+              Text
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel(activePanel === "emoji" ? "" : "emoji")
+              }
+              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
+                activePanel === "emoji"
+                  ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
+              }`}
+            >
+              <Smile size={17} />
+              Emoji
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel(activePanel === "export" ? "" : "export")
+              }
+              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
+                activePanel === "export"
+                  ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
+              }`}
+            >
+              <Settings2 size={17} />
+              Export
+            </button>
+
+            <div className="flex-1" />
+
+            <button
+              type="button"
+              onClick={exportScreenshot}
+              disabled={!hasScreenshot || isExporting}
+              className={`btn-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-sm ${
+                !hasScreenshot || isExporting
+                  ? "opacity-50 cursor-not-allowed"
+                  : ""
+              }`}
+            >
+              {isExporting ? (
+                <Loader2 size={17} className="animate-spin" />
               ) : (
-                <Upload size={34} className="mx-auto mb-4 text-[var(--primary)]" />
+                <Download size={17} />
+              )}
+              {isExporting ? "Exporting..." : "Download"}
+            </button>
+          </div>
+
+          {/* DROPDOWN PANELS */}
+          {activePanel && (
+            <div className="mt-3 border border-[var(--border)] rounded-2xl bg-[#fafafa] p-4">
+              {activePanel === "style" && (
+                <div className="grid lg:grid-cols-[1fr_1.2fr] gap-4">
+                  <div>
+                    <p className="text-sm font-semibold mb-3">Style Presets</p>
+                    <div className="flex flex-wrap gap-2">
+                      {STYLE_PRESETS.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => applyStylePreset(preset)}
+                          className="px-3 py-2 rounded-xl border border-[var(--border)] bg-white hover:bg-[#f4edff] text-sm"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-4 gap-3">
+                    <ColorInput
+                      label="Stroke"
+                      value={style.strokeColor}
+                      onChange={(value) => updateStyle("strokeColor", value)}
+                    />
+
+                    <ColorInput
+                      label="Fill"
+                      value={style.fillColor}
+                      onChange={(value) => updateStyle("fillColor", value)}
+                    />
+
+                    <ColorInput
+                      label="Text"
+                      value={style.textColor}
+                      onChange={(value) => updateStyle("textColor", value)}
+                    />
+
+                    <ColorInput
+                      label="Text BG"
+                      value={style.textBackground}
+                      onChange={(value) => updateStyle("textBackground", value)}
+                    />
+                  </div>
+
+                  <div className="lg:col-span-2 grid md:grid-cols-4 gap-4">
+                    <RangeInput
+                      label={`Stroke: ${style.strokeWidth}px`}
+                      min={1}
+                      max={28}
+                      step={1}
+                      value={style.strokeWidth}
+                      onChange={(value) =>
+                        updateStyle("strokeWidth", Number(value))
+                      }
+                    />
+
+                    <RangeInput
+                      label={`Font: ${style.fontSize}px`}
+                      min={14}
+                      max={120}
+                      step={1}
+                      value={style.fontSize}
+                      onChange={(value) =>
+                        updateStyle("fontSize", Number(value))
+                      }
+                    />
+
+                    <RangeInput
+                      label={`Opacity: ${Math.round(style.opacity * 100)}%`}
+                      min={0.15}
+                      max={1}
+                      step={0.01}
+                      value={style.opacity}
+                      onChange={(value) =>
+                        updateStyle("opacity", Number(value))
+                      }
+                    />
+
+                    <RangeInput
+                      label={`Blur: ${style.blurStrength}px`}
+                      min={2}
+                      max={28}
+                      step={1}
+                      value={style.blurStrength}
+                      onChange={(value) =>
+                        updateStyle("blurStrength", Number(value))
+                      }
+                    />
+                  </div>
+                </div>
               )}
 
-              <h2 className="text-lg font-semibold mb-2">Upload, drop, or paste screenshot</h2>
+              {activePanel === "text" && (
+                <div className="grid md:grid-cols-[1fr_auto] gap-3 items-end">
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">
+                      Text content
+                    </label>
+                    <input
+                      type="text"
+                      value={textValue}
+                      onChange={(event) => setTextValue(event.target.value)}
+                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white"
+                      placeholder="Enter text"
+                    />
+                  </div>
 
-              <p className="text-sm text-[var(--text-secondary)]">
-                JPG, PNG, WEBP, GIF, BMP. You can also use <strong>Ctrl + V</strong>.
-                Max {MAX_FILE_SIZE_MB} MB.
-              </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTool("text")}
+                    className="btn-primary inline-flex items-center justify-center gap-2"
+                  >
+                    <Type size={17} />
+                    Click Canvas to Add Text
+                  </button>
+                </div>
+              )}
+
+              {activePanel === "emoji" && (
+                <div>
+                  <p className="text-sm font-semibold mb-3">
+                    Choose emoji, then click the screenshot to place it.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {EMOJI_OPTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          setSelectedEmoji(emoji);
+                          setActiveTool("emoji");
+                        }}
+                        className={`text-2xl rounded-xl border p-3 transition ${
+                          selectedEmoji === emoji
+                            ? "border-[var(--primary)] bg-[#f8f4ff]"
+                            : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activePanel === "export" && (
+                <div className="grid md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">
+                      Format
+                    </label>
+                    <select
+                      value={outputFormat}
+                      onChange={(event) => {
+                        setOutputFormat(event.target.value);
+                        clearExportStats();
+                      }}
+                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                    >
+                      {OUTPUT_FORMATS.map((format) => (
+                        <option key={format.value} value={format.value}>
+                          {format.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(outputFormat === "image/jpeg" ||
+                    outputFormat === "image/webp") && (
+                    <RangeInput
+                      label={`Quality: ${Math.round(quality * 100)}%`}
+                      min={0.6}
+                      max={1}
+                      step={0.01}
+                      value={quality}
+                      onChange={(value) => {
+                        setQuality(Number(value));
+                        clearExportStats();
+                      }}
+                    />
+                  )}
+
+                  <RangeInput
+                    label={`Editor Zoom: ${Math.round(editorZoom * 100)}%`}
+                    min={0.35}
+                    max={2}
+                    step={0.01}
+                    value={editorZoom}
+                    onChange={(value) => setEditorZoom(Number(value))}
+                  />
+
+                  <div className="flex gap-2 items-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowGuides((current) => !current)}
+                      className="btn-secondary flex-1 inline-flex items-center justify-center gap-2"
+                    >
+                      <Eye size={16} />
+                      Guides
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowSafeArea((current) => !current)}
+                      className="btn-secondary flex-1 inline-flex items-center justify-center gap-2"
+                    >
+                      Safe
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+        </div>
 
+        {/* FEEDBACK */}
+        {(errorMessage || successMessage || isExporting) && (
+          <div className="grid md:grid-cols-2 gap-3 mb-4">
             {errorMessage && (
               <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
                 <AlertCircle size={18} className="shrink-0 mt-0.5" />
@@ -786,7 +1297,7 @@ export default function ScreenshotEditor() {
             )}
 
             {isExporting && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 md:col-span-2">
                 <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
                   <span>Creating final screenshot...</span>
                   <span>{exportProgress}%</span>
@@ -800,372 +1311,92 @@ export default function ScreenshotEditor() {
                 </div>
 
                 <p className="text-xs text-[var(--text-secondary)] mt-3">
-                  Estimated processing time: {estimatedProcessingTimeMs ? Math.ceil(estimatedProcessingTimeMs / 1000) : 1}s
-                </p>
-              </div>
-            )}
-
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Annotation Tools</h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {TOOL_OPTIONS.map((tool) => {
-                  const Icon = tool.icon;
-
-                  return (
-                    <button
-                      key={tool.id}
-                      type="button"
-                      onClick={() => setActiveTool(tool.id)}
-                      className={`rounded-2xl border p-3 text-left transition ${
-                        activeTool === tool.id
-                          ? "border-[var(--primary)] bg-[#f8f4ff] text-[var(--primary)]"
-                          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                      }`}
-                    >
-                      <Icon size={18} className="mb-2" />
-                      <span className="text-sm font-semibold">{tool.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <RotateCcw size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Quick Actions</h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={undo}
-                  disabled={!historyPast.length}
-                  className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                    !historyPast.length ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <Undo2 size={16} />
-                  Undo
-                </button>
-
-                <button
-                  type="button"
-                  onClick={redo}
-                  disabled={!historyFuture.length}
-                  className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                    !historyFuture.length ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <Redo2 size={16} />
-                  Redo
-                </button>
-
-                <button
-                  type="button"
-                  onClick={deleteSelected}
-                  disabled={!selectedId}
-                  className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                    !selectedId ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <Trash2 size={16} />
-                  Delete
-                </button>
-
-                <button
-                  type="button"
-                  onClick={clearAllAnnotations}
-                  disabled={!annotations.length}
-                  className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                    !annotations.length ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <Trash2 size={16} />
-                  Clear
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* CENTER PANEL */}
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold">Smart Screenshot Artboard</h2>
-                <p className="text-xs text-[var(--text-secondary)] mt-1">
-                  Click and drag to create marks. Select tool lets you move existing annotations.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowGuides((current) => !current)}
-                  className="btn-secondary px-3 py-2 text-sm"
-                >
-                  Guides
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowSafeArea((current) => !current)}
-                  className="btn-secondary px-3 py-2 text-sm"
-                >
-                  Safe Area
-                </button>
-
-                <button
-                  type="button"
-                  onClick={resetTool}
-                  className="btn-secondary px-3 py-2 text-sm inline-flex items-center gap-1"
-                >
-                  <RotateCcw size={15} />
-                  Reset
-                </button>
-              </div>
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl bg-[#eef0f5] min-h-[620px] overflow-auto p-6 flex items-center justify-center">
-              {!hasScreenshot ? (
-                <div className="text-center">
-                  <ImageIcon size={64} className="mx-auto mb-4 text-gray-300" />
-                  <p className="text-[var(--text-secondary)]">
-                    Upload, drop, or paste a screenshot to start editing.
-                  </p>
-                </div>
-              ) : (
-                <canvas
-                  ref={canvasRef}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerCancel={handlePointerUp}
-                  className="rounded-xl shadow-2xl border border-gray-300 bg-white touch-none"
-                  style={{
-                    width: `${Math.max(320, Math.min(screenshot.width, 950)) * editorZoom}px`,
-                    maxWidth: "none",
-                    cursor: activeTool === "select" ? "default" : "crosshair",
-                  }}
-                />
-              )}
-            </div>
-
-            {hasScreenshot && (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <InfoCard label="Screenshot" value={`${screenshot.width} × ${screenshot.height}`} />
-                <InfoCard label="Objects" value={annotations.length} />
-                <InfoCard label="Zoom" value={`${Math.round(editorZoom * 100)}%`} />
-                <InfoCard
-                  label="Process Time"
-                  value={
-                    processingTimeMs
-                      ? `${(processingTimeMs / 1000).toFixed(1)}s`
-                      : `Est. ${Math.ceil(estimatedProcessingTimeMs / 1000)}s`
-                  }
-                  green={Boolean(processingTimeMs)}
-                />
-                <InfoCard label="Output Size" value={lastOutputSize ? formatBytes(lastOutputSize) : "-"} />
-              </div>
-            )}
-
-            {hasScreenshot && (
-              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-                <p className="text-sm text-blue-800">
-                  Guides, safe area, selection boxes, and handles are editor-only.
-                  They will not appear in your downloaded screenshot.
+                  Estimated processing time:{" "}
+                  {estimatedProcessingTimeMs
+                    ? Math.ceil(estimatedProcessingTimeMs / 1000)
+                    : 1}
+                  s
                 </p>
               </div>
             )}
           </div>
+        )}
 
-          {/* RIGHT PANEL */}
-          <div className="flex flex-col gap-5">
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Palette size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Style Settings</h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <ColorInput
-                  label="Stroke"
-                  value={style.strokeColor}
-                  onChange={(value) => updateStyle("strokeColor", value)}
-                />
-
-                <ColorInput
-                  label="Fill"
-                  value={style.fillColor}
-                  onChange={(value) => updateStyle("fillColor", value)}
-                />
-
-                <ColorInput
-                  label="Text"
-                  value={style.textColor}
-                  onChange={(value) => updateStyle("textColor", value)}
-                />
-
-                <ColorInput
-                  label="Text BG"
-                  value={style.textBackground}
-                  onChange={(value) => updateStyle("textBackground", value)}
-                />
-              </div>
-
-              <RangeInput
-                label={`Stroke Size: ${style.strokeWidth}px`}
-                min={1}
-                max={28}
-                step={1}
-                value={style.strokeWidth}
-                onChange={(value) => updateStyle("strokeWidth", Number(value))}
-              />
-
-              <RangeInput
-                label={`Font Size: ${style.fontSize}px`}
-                min={14}
-                max={120}
-                step={1}
-                value={style.fontSize}
-                onChange={(value) => updateStyle("fontSize", Number(value))}
-              />
-
-              <RangeInput
-                label={`Opacity: ${Math.round(style.opacity * 100)}%`}
-                min={0.15}
-                max={1}
-                step={0.01}
-                value={style.opacity}
-                onChange={(value) => updateStyle("opacity", Number(value))}
-              />
-
-              <RangeInput
-                label={`Blur Strength: ${style.blurStrength}px`}
-                min={2}
-                max={28}
-                step={1}
-                value={style.blurStrength}
-                onChange={(value) => updateStyle("blurStrength", Number(value))}
-              />
+        {/* ARTBOARD */}
+        <div
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          className={`border border-[var(--border)] rounded-2xl bg-[#eef0f5] min-h-[680px] overflow-auto p-4 sm:p-6 flex items-center justify-center ${
+            isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
+          }`}
+        >
+          {!hasScreenshot ? (
+            <div className="text-center">
+              <ImageIcon size={64} className="mx-auto mb-4 text-gray-300" />
+              <p className="text-[var(--text-secondary)]">
+                Upload, drop, or paste a screenshot to start editing.
+              </p>
             </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Type size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Text & Emoji</h3>
-              </div>
-
-              <label className="text-sm font-semibold mb-2 block">Text</label>
-              <input
-                type="text"
-                value={textValue}
-                onChange={(event) => setTextValue(event.target.value)}
-                className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)]"
-                placeholder="Enter text"
-              />
-
-              <div className="mt-4">
-                <p className="text-sm font-semibold mb-2">Emoji</p>
-                <div className="grid grid-cols-6 gap-2">
-                  {EMOJI_OPTIONS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => setSelectedEmoji(emoji)}
-                      className={`text-xl rounded-xl border p-2 transition ${
-                        selectedEmoji === emoji
-                          ? "border-[var(--primary)] bg-[#f8f4ff]"
-                          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                      }`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock3 size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Export Settings</h3>
-              </div>
-
-              <label className="text-sm font-semibold mb-2 block">Format</label>
-              <select
-                value={outputFormat}
-                onChange={(event) => {
-                  setOutputFormat(event.target.value);
-                  clearExportStats();
-                }}
-                className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
-              >
-                {OUTPUT_FORMATS.map((format) => (
-                  <option key={format.value} value={format.value}>
-                    {format.label}
-                  </option>
-                ))}
-              </select>
-
-              {(outputFormat === "image/jpeg" || outputFormat === "image/webp") && (
-                <RangeInput
-                  label={`Quality: ${Math.round(quality * 100)}%`}
-                  min={0.6}
-                  max={1}
-                  step={0.01}
-                  value={quality}
-                  onChange={(value) => {
-                    setQuality(Number(value));
-                    clearExportStats();
-                  }}
-                />
-              )}
-
-              <RangeInput
-                label={`Editor Zoom: ${Math.round(editorZoom * 100)}%`}
-                min={0.35}
-                max={2}
-                step={0.01}
-                value={editorZoom}
-                onChange={(value) => setEditorZoom(Number(value))}
-              />
-
-              <button
-                type="button"
-                onClick={exportScreenshot}
-                disabled={!hasScreenshot || isExporting}
-                className={`btn-primary w-full mt-4 inline-flex items-center justify-center gap-2 ${
-                  !hasScreenshot || isExporting ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-                {isExporting ? "Exporting..." : "Download Edited Screenshot"}
-              </button>
-            </div>
-
-            {selectedAnnotation && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
-                <h3 className="font-semibold mb-2">Selected Object</h3>
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Type: <strong>{selectedAnnotation.type}</strong>
-                </p>
-                <button
-                  type="button"
-                  onClick={deleteSelected}
-                  className="btn-secondary w-full mt-4 inline-flex items-center justify-center gap-2"
-                >
-                  <Trash2 size={16} />
-                  Delete Selected
-                </button>
-              </div>
-            )}
-          </div>
+          ) : (
+            <canvas
+              ref={canvasRef}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              className="rounded-xl shadow-2xl border border-gray-300 bg-white touch-none"
+              style={{
+                width: `${canvasDisplayWidth}px`,
+                maxWidth: "none",
+                cursor: activeTool === "select" ? "default" : "crosshair",
+              }}
+            />
+          )}
         </div>
+
+        {/* BOTTOM STATS */}
+        {hasScreenshot && (
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-4">
+            <InfoCard
+              label="Screenshot"
+              value={`${screenshot.width} × ${screenshot.height}`}
+            />
+            <InfoCard label="Objects" value={annotations.length} />
+            <InfoCard label="Tool" value={activeTool} />
+            <InfoCard label="Zoom" value={`${Math.round(editorZoom * 100)}%`} />
+            <InfoCard
+              label="Process Time"
+              value={
+                processingTimeMs
+                  ? `${(processingTimeMs / 1000).toFixed(1)}s`
+                  : `Est. ${Math.ceil(estimatedProcessingTimeMs / 1000)}s`
+              }
+              green={Boolean(processingTimeMs)}
+            />
+            <InfoCard
+              label="Output Size"
+              value={lastOutputSize ? formatBytes(lastOutputSize) : "-"}
+            />
+          </div>
+        )}
+
+        {selectedAnnotation && (
+          <div className="mt-4 bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Selected object: <strong>{selectedAnnotation.type}</strong>
+            </p>
+
+            <button
+              type="button"
+              onClick={deleteSelected}
+              className="btn-secondary inline-flex items-center justify-center gap-2"
+            >
+              <Trash2 size={16} />
+              Delete Selected
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="card p-6 sm:p-8">
@@ -1179,8 +1410,9 @@ export default function ScreenshotEditor() {
             directly from your browser.
           </p>
           <p>
-            Your screenshot is processed locally in the browser. No paid API is
-            required.
+            The compact top toolbar keeps the screenshot artboard large and easy
+            to edit, while dropdown panels keep advanced settings available
+            without taking too much space.
           </p>
         </div>
       </section>
@@ -1502,11 +1734,6 @@ function drawSelectionGuide(ctx, item) {
   ctx.restore();
 }
 
-function createColorInputValue(value) {
-  if (String(value).startsWith("#")) return value;
-  return "#ef4444";
-}
-
 function ColorInput({ label, value, onChange }) {
   return (
     <label className="block">
@@ -1525,7 +1752,7 @@ function ColorInput({ label, value, onChange }) {
 
 function RangeInput({ label, min, max, step, value, onChange }) {
   return (
-    <div className="mt-4">
+    <div>
       <label className="text-sm font-semibold mb-2 block">{label}</label>
       <input
         type="range"
@@ -1544,7 +1771,11 @@ function InfoCard({ label, value, green = false }) {
   return (
     <div className="bg-white border border-[var(--border)] rounded-2xl p-4 text-center">
       <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
-      <p className={`font-bold break-all ${green ? "text-green-600" : "text-[var(--primary)]"}`}>
+      <p
+        className={`font-bold break-all ${
+          green ? "text-green-600" : "text-[var(--primary)]"
+        }`}
+      >
         {value}
       </p>
     </div>
@@ -1601,7 +1832,11 @@ function normalizeBox(item) {
 }
 
 function normalizeAnnotation(item) {
-  if (["rectangle", "circle", "highlight", "blur", "spotlight"].includes(item.type)) {
+  if (
+    ["rectangle", "circle", "highlight", "blur", "spotlight"].includes(
+      item.type
+    )
+  ) {
     return {
       ...item,
       ...normalizeBox(item),
@@ -1614,7 +1849,11 @@ function normalizeAnnotation(item) {
 function isValidAnnotation(item) {
   if (!item) return false;
 
-  if (["rectangle", "circle", "highlight", "blur", "spotlight"].includes(item.type)) {
+  if (
+    ["rectangle", "circle", "highlight", "blur", "spotlight"].includes(
+      item.type
+    )
+  ) {
     return Math.abs(item.w) > 8 && Math.abs(item.h) > 8;
   }
 
@@ -1630,7 +1869,11 @@ function isValidAnnotation(item) {
 }
 
 function moveAnnotation(item, dx, dy) {
-  if (["rectangle", "circle", "highlight", "blur", "spotlight"].includes(item.type)) {
+  if (
+    ["rectangle", "circle", "highlight", "blur", "spotlight"].includes(
+      item.type
+    )
+  ) {
     return { ...item, x: item.x + dx, y: item.y + dy };
   }
 
@@ -1647,7 +1890,10 @@ function moveAnnotation(item, dx, dy) {
   if (item.type === "freehand") {
     return {
       ...item,
-      points: item.points.map((point) => ({ x: point.x + dx, y: point.y + dy })),
+      points: item.points.map((point) => ({
+        x: point.x + dx,
+        y: point.y + dy,
+      })),
     };
   }
 
@@ -1678,7 +1924,11 @@ function isPointInsideAnnotation(point, item) {
 }
 
 function getAnnotationBox(item) {
-  if (["rectangle", "circle", "highlight", "blur", "spotlight"].includes(item.type)) {
+  if (
+    ["rectangle", "circle", "highlight", "blur", "spotlight"].includes(
+      item.type
+    )
+  ) {
     return normalizeBox(item);
   }
 
@@ -1768,6 +2018,11 @@ function canvasToBlob(canvas, mimeType, quality) {
 
 function getFileBaseName(fileName) {
   return String(fileName || "screenshot").replace(/\.[^/.]+$/, "");
+}
+
+function createColorInputValue(value) {
+  if (String(value).startsWith("#")) return value;
+  return "#ef4444";
 }
 
 function formatBytes(bytes) {

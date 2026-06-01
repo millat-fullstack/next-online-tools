@@ -101,17 +101,48 @@ async function prerender() {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
 
+    // Capture console messages for debugging
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        console.error(`Browser console error: ${msg.text()}`);
+      }
+    });
+
+    // Capture page errors
+    page.on("error", (err) => {
+      console.error(`Page error: ${err}`);
+    });
+
     for (const route of prerenderRoutes) {
       const url = `http://localhost:${port}${route}`;
       console.log(`Rendering ${url}`);
 
+      const isBlogRoute = route.startsWith("/blog/");
+      const loadTimeout = isBlogRoute ? 90000 : 60000;
+      const waitTimeout = isBlogRoute ? 60000 : 30000;
+
       try {
-        await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
-        await page.waitForSelector("#root > *", { timeout: 30000 });
-        await page.waitForFunction(
-          () => !document.body.innerText.includes("Loading..."),
-          { timeout: 30000 }
-        );
+        await page.goto(url, { waitUntil: "networkidle2", timeout: loadTimeout });
+        await page.waitForSelector("#root > *", { timeout: waitTimeout });
+        
+        // For blog routes, wait for actual blog content or give up after timeout
+        if (isBlogRoute) {
+          try {
+            // Wait for either H1 (blog title) or specific blog class
+            await page.waitForFunction(
+              () => {
+                const hasH1 = document.querySelector("h1");
+                const hasCard = document.querySelector("[class*='card']");
+                const hasContent = document.body.innerText.length > 2000;
+                const noLoading = !document.body.innerText.includes("Loading...");
+                return (hasH1 || hasCard) && hasContent && noLoading;
+              },
+              { timeout: waitTimeout }
+            );
+          } catch (waitError) {
+            console.warn(`Blog content wait timeout for ${route}. Will save partial content.`);
+          }
+        }
       } catch (error) {
         console.warn(`Warning: route ${route} did not finish cleanly, saving page anyway.`, error.message);
       }
