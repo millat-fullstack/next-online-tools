@@ -95,14 +95,14 @@ export default function BestFreeImageCompressorTools() {
       <section className="card p-6 sm:p-8 mb-6">
         <div className="relative w-full h-72 overflow-hidden rounded-xl">
           <img
-            src="/images/free-image-compressor-tools.jpg"
+            src="/images/free-image-compressor-tools.png"
             alt="Free image compressor tools"
             className="w-full h-full object-cover"
           />
         </div>
 
         <h1 className="text-4xl font-bold mt-4">
-          10 Best Free Online Image Compressor Tools to Reduce File Size
+          Best Free Online Image Compressor Tools to Reduce File Size
         </h1>
 
         <p className="text-sm text-[var(--text-secondary)]">
