@@ -1,4 +1,3 @@
-```jsx
 import { Helmet } from "react-helmet-async";
 import { Share2 } from "lucide-react";
 
@@ -299,8 +298,8 @@ export default function OnlineToolsVsDownloadableSoftware() {
             className="text-[var(--primary)] font-medium underline"
           >
             Google Safe Browsing
-          </a>{" "}
-          and{" "}
+          </a>
+          {" "}and{" "}
           <a
             href="https://www.cisa.gov/resources-tools/training/keep-your-devices-operating-system-and-applications-date"
             target="_blank"
@@ -416,4 +415,3 @@ export default function OnlineToolsVsDownloadableSoftware() {
     </>
   );
 }
-```
