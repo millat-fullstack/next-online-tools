@@ -108,6 +108,10 @@ async function prerender() {
       try {
         await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
         await page.waitForSelector("#root > *", { timeout: 30000 });
+        await page.waitForFunction(
+          () => !document.body.innerText.includes("Loading..."),
+          { timeout: 30000 }
+        );
       } catch (error) {
         console.warn(`Warning: route ${route} did not finish cleanly, saving page anyway.`, error.message);
       }
