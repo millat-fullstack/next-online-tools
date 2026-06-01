@@ -18,6 +18,9 @@ import {
   Palette,
   Clock3,
   Copy,
+  Settings2,
+  Images,
+  Eye,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -49,6 +52,59 @@ const OUTPUT_FORMATS = [
   { value: "image/png", label: "PNG", extension: "png" },
   { value: "image/jpeg", label: "JPG", extension: "jpg" },
   { value: "image/webp", label: "WEBP", extension: "webp" },
+];
+
+const DESIGN_PRESETS = [
+  {
+    id: "clean-white",
+    label: "Clean White",
+    backgroundColor: "#ffffff",
+    gap: 18,
+    cornerRadius: 24,
+    borderWidth: 0,
+    borderColor: "#ffffff",
+    useShadow: false,
+  },
+  {
+    id: "premium-soft",
+    label: "Premium Soft",
+    backgroundColor: "#f4edff",
+    gap: 24,
+    cornerRadius: 34,
+    borderWidth: 0,
+    borderColor: "#ffffff",
+    useShadow: true,
+  },
+  {
+    id: "minimal-black",
+    label: "Minimal Black",
+    backgroundColor: "#111827",
+    gap: 16,
+    cornerRadius: 18,
+    borderWidth: 0,
+    borderColor: "#111827",
+    useShadow: false,
+  },
+  {
+    id: "social-card",
+    label: "Social Card",
+    backgroundColor: "#f8fafc",
+    gap: 20,
+    cornerRadius: 28,
+    borderWidth: 6,
+    borderColor: "#ffffff",
+    useShadow: true,
+  },
+  {
+    id: "polaroid",
+    label: "Polaroid Feel",
+    backgroundColor: "#f3f4f6",
+    gap: 34,
+    cornerRadius: 8,
+    borderWidth: 14,
+    borderColor: "#ffffff",
+    useShadow: true,
+  },
 ];
 
 const COLLAGE_TEMPLATES = [
@@ -171,6 +227,7 @@ export default function PhotoCollageMaker() {
   const [photos, setPhotos] = useState([]);
   const [templateId, setTemplateId] = useState("four-grid");
   const [placements, setPlacements] = useState([]);
+  const [activePanel, setActivePanel] = useState("");
 
   const [dimensions, setDimensions] = useState({
     width: 1080,
@@ -232,8 +289,9 @@ export default function PhotoCollageMaker() {
   }, [dimensions, filledFrames]);
 
   const previewWidth = useMemo(() => {
-    const baseWidth = dimensions.width >= dimensions.height ? 920 : 520;
-    return Math.min(baseWidth, dimensions.width);
+    const isLandscape = dimensions.width >= dimensions.height;
+    const maxWidth = isLandscape ? 1040 : 620;
+    return Math.min(maxWidth, dimensions.width);
   }, [dimensions]);
 
   const hasPhotos = photos.length > 0;
@@ -458,6 +516,16 @@ export default function PhotoCollageMaker() {
       height: preset.height,
     });
 
+    clearExportStats();
+  }
+
+  function applyDesignPreset(preset) {
+    setBackgroundColor(preset.backgroundColor);
+    setGap(preset.gap);
+    setCornerRadius(preset.cornerRadius);
+    setBorderWidth(preset.borderWidth);
+    setBorderColor(preset.borderColor);
+    setUseShadow(preset.useShadow);
     clearExportStats();
   }
 
@@ -757,6 +825,7 @@ export default function PhotoCollageMaker() {
     setPhotos([]);
     setTemplateId("four-grid");
     setPlacements([]);
+    setActivePanel("");
     setDimensions({ width: 1080, height: 1080 });
     setBackgroundColor("#ffffff");
     setGap(18);
@@ -798,45 +867,573 @@ export default function PhotoCollageMaker() {
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
           Create beautiful photo collages online. Choose a template, upload
-          photos, adjust spacing, background, border, and download your final
-          collage with processing time and output size.
+          photos, apply a design preset, adjust the layout, and download your
+          final collage with processing time and output size.
         </p>
       </section>
 
-      <section className="card p-6 sm:p-8">
-        <div className="grid xl:grid-cols-[0.9fr_1.35fr_0.9fr] gap-6">
-          {/* LEFT PANEL */}
-          <div className="flex flex-col gap-5">
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
+      <section className="card p-4 sm:p-5">
+        {!hasPhotos && (
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={openFilePicker}
+            className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition mb-5 ${
+              isDraggingFile
+                ? "border-[var(--primary)] bg-[#f4edff]"
+                : "border-[var(--border)] hover:bg-[#f8f4ff]"
+            }`}
+          >
+            {isProcessingFiles ? (
+              <Loader2
+                size={40}
+                className="mx-auto mb-4 text-[var(--primary)] animate-spin"
+              />
+            ) : (
+              <Upload size={40} className="mx-auto mb-4 text-[var(--primary)]" />
+            )}
+
+            <h2 className="text-xl font-semibold mb-2">
+              Upload, drop, or paste photos
+            </h2>
+
+            <p className="text-sm text-[var(--text-secondary)]">
+              Add up to {MAX_FILES} photos. You can also paste images with{" "}
+              <strong>Ctrl + V</strong>. Max {MAX_FILE_SIZE_MB} MB each.
+            </p>
+          </div>
+        )}
+
+        {/* COMPACT TOP TOOLBAR */}
+        <div className="sticky top-3 z-30 rounded-2xl border border-[var(--border)] bg-white/95 backdrop-blur shadow-sm p-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
               onClick={openFilePicker}
-              className={`border-2 border-dashed rounded-2xl p-7 text-center cursor-pointer transition ${
-                isDraggingFile
-                  ? "border-[var(--primary)] bg-[#f4edff]"
+              className="btn-secondary inline-flex items-center justify-center gap-2 px-3 py-2 text-sm"
+            >
+              <Upload size={16} />
+              Upload Photos
+            </button>
+
+            <div className="min-w-[190px]">
+              <select
+                value={templateId}
+                onChange={(event) => setTemplateId(event.target.value)}
+                className="h-10 w-full border border-[var(--border)] rounded-xl px-3 bg-white outline-none focus:border-[var(--primary)] text-sm font-semibold"
+                title="Choose template"
+              >
+                {COLLAGE_TEMPLATES.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.label} - {template.required} photos
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel(activePanel === "templates" ? "" : "templates")
+              }
+              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
+                activePanel === "templates"
+                  ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
                   : "border-[var(--border)] hover:bg-[#f8f4ff]"
               }`}
             >
-              {isProcessingFiles ? (
-                <Loader2
-                  size={36}
-                  className="mx-auto mb-4 text-[var(--primary)] animate-spin"
-                />
+              <LayoutGrid size={17} />
+              Templates
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel(activePanel === "design" ? "" : "design")
+              }
+              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
+                activePanel === "design"
+                  ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
+              }`}
+            >
+              <Sparkles size={17} />
+              Design
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel(activePanel === "photos" ? "" : "photos")
+              }
+              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
+                activePanel === "photos"
+                  ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
+              }`}
+            >
+              <Images size={17} />
+              Photos
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel(activePanel === "frame" ? "" : "frame")
+              }
+              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
+                activePanel === "frame"
+                  ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
+              }`}
+            >
+              <Move size={17} />
+              Frame
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActivePanel(activePanel === "export" ? "" : "export")
+              }
+              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
+                activePanel === "export"
+                  ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
+              }`}
+            >
+              <Settings2 size={17} />
+              Export
+            </button>
+
+            <div className="w-px h-8 bg-[var(--border)] mx-1" />
+
+            <button
+              type="button"
+              onClick={shufflePhotos}
+              disabled={!photos.length}
+              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
+                !photos.length
+                  ? "opacity-40 cursor-not-allowed"
+                  : "hover:bg-[#f8f4ff]"
+              }`}
+              title="Shuffle photos"
+            >
+              <Shuffle size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={resetSelectedPhotoPosition}
+              disabled={!selectedPhoto}
+              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
+                !selectedPhoto
+                  ? "opacity-40 cursor-not-allowed"
+                  : "hover:bg-[#f8f4ff]"
+              }`}
+              title="Reset selected photo position"
+            >
+              <RotateCcw size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={clearAllPhotos}
+              disabled={!photos.length}
+              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
+                !photos.length
+                  ? "opacity-40 cursor-not-allowed"
+                  : "hover:bg-red-50 hover:text-red-600"
+              }`}
+              title="Clear all photos"
+            >
+              <Trash2 size={18} />
+            </button>
+
+            <div className="flex-1" />
+
+            <button
+              type="button"
+              onClick={exportCollage}
+              disabled={!filledFrames || isExporting}
+              className={`btn-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-sm ${
+                !filledFrames || isExporting
+                  ? "opacity-50 cursor-not-allowed"
+                  : ""
+              }`}
+            >
+              {isExporting ? (
+                <Loader2 size={17} className="animate-spin" />
               ) : (
-                <Upload size={36} className="mx-auto mb-4 text-[var(--primary)]" />
+                <Download size={17} />
+              )}
+              {isExporting ? "Creating..." : "Create & Download"}
+            </button>
+          </div>
+
+          {/* DROPDOWN PANELS */}
+          {activePanel && (
+            <div className="mt-3 border border-[var(--border)] rounded-2xl bg-[#fafafa] p-4">
+              {activePanel === "templates" && (
+                <div>
+                  <p className="text-sm font-semibold mb-3">
+                    Choose a collage template
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {COLLAGE_TEMPLATES.map((template) => (
+                      <TemplateCard
+                        key={template.id}
+                        template={template}
+                        active={templateId === template.id}
+                        onClick={() => setTemplateId(template.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
               )}
 
-              <h2 className="text-lg font-semibold mb-2">
-                Upload, drop, or paste photos
-              </h2>
+              {activePanel === "design" && (
+                <div className="grid lg:grid-cols-[1fr_1.2fr] gap-5">
+                  <div>
+                    <p className="text-sm font-semibold mb-3">
+                      Design presets
+                    </p>
 
-              <p className="text-sm text-[var(--text-secondary)]">
-                Add up to {MAX_FILES} photos. You can also paste images with{" "}
-                <strong>Ctrl + V</strong>. Max {MAX_FILE_SIZE_MB} MB each.
-              </p>
+                    <div className="flex flex-wrap gap-2">
+                      {DESIGN_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => applyDesignPreset(preset)}
+                          className="px-3 py-2 rounded-xl border border-[var(--border)] bg-white hover:bg-[#f4edff] hover:text-[var(--primary)] text-sm font-semibold"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <ColorInput
+                      label="Background"
+                      value={backgroundColor}
+                      onChange={(value) => {
+                        setBackgroundColor(value);
+                        clearExportStats();
+                      }}
+                    />
+
+                    <ColorInput
+                      label="Border"
+                      value={borderColor}
+                      onChange={(value) => {
+                        setBorderColor(value);
+                        clearExportStats();
+                      }}
+                    />
+
+                    <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
+                      <span className="font-semibold text-sm">Soft Shadow</span>
+                      <input
+                        type="checkbox"
+                        checked={useShadow}
+                        onChange={(event) => {
+                          setUseShadow(event.target.checked);
+                          clearExportStats();
+                        }}
+                        className="w-4 h-4 accent-[var(--primary)]"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="lg:col-span-2 grid md:grid-cols-3 gap-4">
+                    <RangeInput
+                      label={`Spacing: ${gap}px`}
+                      min={0}
+                      max={80}
+                      step={1}
+                      value={gap}
+                      onChange={(value) => {
+                        setGap(Number(value));
+                        clearExportStats();
+                      }}
+                    />
+
+                    <RangeInput
+                      label={`Corner Radius: ${cornerRadius}px`}
+                      min={0}
+                      max={120}
+                      step={1}
+                      value={cornerRadius}
+                      onChange={(value) => {
+                        setCornerRadius(Number(value));
+                        clearExportStats();
+                      }}
+                    />
+
+                    <RangeInput
+                      label={`Border: ${borderWidth}px`}
+                      min={0}
+                      max={24}
+                      step={1}
+                      value={borderWidth}
+                      onChange={(value) => {
+                        setBorderWidth(Number(value));
+                        clearExportStats();
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activePanel === "photos" && (
+                <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        Uploaded photos
+                      </p>
+                      <p className="text-xs text-[var(--text-secondary)] mt-1">
+                        Select a frame first, then click a photo to place it.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={openFilePicker}
+                      className="btn-secondary inline-flex items-center justify-center gap-2"
+                    >
+                      <Upload size={16} />
+                      Add More
+                    </button>
+                  </div>
+
+                  {!photos.length ? (
+                    <div className="text-center py-8 bg-white border border-dashed border-[var(--border)] rounded-xl">
+                      <ImageIcon size={36} className="mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm text-[var(--text-secondary)]">
+                        No photos uploaded yet.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex gap-3 overflow-x-auto pb-2">
+                      {photos.map((photo) => (
+                        <PhotoThumb
+                          key={photo.id}
+                          photo={photo}
+                          onUse={() => usePhotoInSelectedFrame(photo.id)}
+                          onRemove={() => removePhoto(photo.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activePanel === "frame" && (
+                <div className="grid md:grid-cols-[1fr_1.2fr] gap-5">
+                  <div>
+                    <p className="text-sm font-semibold mb-2">
+                      Selected frame
+                    </p>
+
+                    <div className="bg-white border border-[var(--border)] rounded-xl p-4">
+                      <p className="font-semibold">
+                        Frame {selectedFrameIndex + 1} of{" "}
+                        {selectedTemplate.frames.length}
+                      </p>
+
+                      {selectedPhoto ? (
+                        <p className="text-sm text-[var(--text-secondary)] mt-1 truncate">
+                          {selectedPhoto.name}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-[var(--text-secondary)] mt-1">
+                          Empty frame. Choose a photo from the Photos panel.
+                        </p>
+                      )}
+                    </div>
+
+                    {selectedPhoto && (
+                      <button
+                        type="button"
+                        onClick={() => removePhotoFromFrame(selectedFrameIndex)}
+                        className="btn-secondary mt-3 inline-flex items-center justify-center gap-2 hover:text-red-600"
+                      >
+                        <Trash2 size={16} />
+                        Remove from Frame
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    {selectedPhoto ? (
+                      <>
+                        <RangeInput
+                          label={`Zoom: ${Math.round(
+                            (selectedPlacement?.zoom || 1) * 100
+                          )}%`}
+                          min={0.3}
+                          max={4}
+                          step={0.01}
+                          value={selectedPlacement?.zoom || 1}
+                          onChange={(value) =>
+                            updatePlacement(selectedFrameIndex, {
+                              zoom: Number(value),
+                            })
+                          }
+                        />
+
+                        <div className="grid grid-cols-2 gap-3 mt-4">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updatePlacement(selectedFrameIndex, {
+                                zoom: clampNumber(
+                                  (selectedPlacement?.zoom || 1) * 0.9,
+                                  0.3,
+                                  4
+                                ),
+                              })
+                            }
+                            className="btn-secondary inline-flex items-center justify-center gap-2"
+                          >
+                            <ZoomOut size={16} />
+                            Zoom Out
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updatePlacement(selectedFrameIndex, {
+                                zoom: clampNumber(
+                                  (selectedPlacement?.zoom || 1) * 1.1,
+                                  0.3,
+                                  4
+                                ),
+                              })
+                            }
+                            className="btn-secondary inline-flex items-center justify-center gap-2"
+                          >
+                            <ZoomIn size={16} />
+                            Zoom In
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-8 bg-white border border-dashed border-[var(--border)] rounded-xl">
+                        <ImageIcon size={34} className="mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm text-[var(--text-secondary)]">
+                          This frame is empty.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activePanel === "export" && (
+                <div className="grid lg:grid-cols-[1fr_1.2fr] gap-5">
+                  <div>
+                    <p className="text-sm font-semibold mb-3">
+                      Output size
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">
+                          Width
+                        </label>
+                        <input
+                          type="number"
+                          value={dimensions.width}
+                          min="100"
+                          max="5000"
+                          onChange={(event) =>
+                            updateDimension("width", event.target.value)
+                          }
+                          className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">
+                          Height
+                        </label>
+                        <input
+                          type="number"
+                          value={dimensions.height}
+                          min="100"
+                          max="5000"
+                          onChange={(event) =>
+                            updateDimension("height", event.target.value)
+                          }
+                          className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {OUTPUT_PRESETS.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => applyOutputPreset(preset)}
+                          className="text-xs px-3 py-2 rounded-xl bg-white hover:bg-[#f4edff] hover:text-[var(--primary)] transition border border-[var(--border)]"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-semibold mb-2 block">
+                        Format
+                      </label>
+                      <select
+                        value={outputFormat}
+                        onChange={(event) => {
+                          setOutputFormat(event.target.value);
+                          clearExportStats();
+                        }}
+                        className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                      >
+                        {OUTPUT_FORMATS.map((format) => (
+                          <option key={format.value} value={format.value}>
+                            {format.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {(outputFormat === "image/jpeg" ||
+                      outputFormat === "image/webp") && (
+                      <RangeInput
+                        label={`Quality: ${Math.round(quality * 100)}%`}
+                        min={0.6}
+                        max={1}
+                        step={0.01}
+                        value={quality}
+                        onChange={(value) => {
+                          setQuality(Number(value));
+                          clearExportStats();
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+        </div>
 
+        {/* FEEDBACK */}
+        {(errorMessage || successMessage || isExporting) && (
+          <div className="grid md:grid-cols-2 gap-3 mb-4">
             {errorMessage && (
               <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
                 <AlertCircle size={18} className="shrink-0 mt-0.5" />
@@ -852,7 +1449,7 @@ export default function PhotoCollageMaker() {
             )}
 
             {isExporting && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 md:col-span-2">
                 <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
                   <span>Creating collage...</span>
                   <span>{exportProgress}%</span>
@@ -871,418 +1468,87 @@ export default function PhotoCollageMaker() {
                 </p>
               </div>
             )}
-
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Templates</h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {COLLAGE_TEMPLATES.map((template) => (
-                  <TemplateCard
-                    key={template.id}
-                    template={template}
-                    active={templateId === template.id}
-                    onClick={() => setTemplateId(template.id)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Copy size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Output Size</h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div>
-                  <label className="text-sm font-semibold mb-2 block">Width</label>
-                  <input
-                    type="number"
-                    value={dimensions.width}
-                    min="100"
-                    max="5000"
-                    onChange={(event) => updateDimension("width", event.target.value)}
-                    className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold mb-2 block">Height</label>
-                  <input
-                    type="number"
-                    value={dimensions.height}
-                    min="100"
-                    max="5000"
-                    onChange={(event) => updateDimension("height", event.target.value)}
-                    className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {OUTPUT_PRESETS.map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => applyOutputPreset(preset)}
-                    className="text-xs px-3 py-2 rounded-xl bg-gray-50 hover:bg-[#f4edff] hover:text-[var(--primary)] transition border border-[var(--border)]"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
+        )}
 
-          {/* CENTER PANEL */}
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold">Collage Preview</h2>
-                <p className="text-xs text-[var(--text-secondary)] mt-1">
-                  Click a frame to select. Drag inside a frame to reposition.
-                  Scroll over a frame to zoom.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={shufflePhotos}
-                  disabled={!photos.length}
-                  className={`btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm ${
-                    !photos.length ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <Shuffle size={16} />
-                  Shuffle
-                </button>
-
-                <button
-                  type="button"
-                  onClick={resetSelectedPhotoPosition}
-                  disabled={!selectedPhoto}
-                  className={`btn-secondary inline-flex items-center gap-2 px-3 py-2 text-sm ${
-                    !selectedPhoto ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <RotateCcw size={16} />
-                  Reset Photo
-                </button>
-              </div>
-            </div>
-
-            <div
-              className="border border-[var(--border)] rounded-2xl bg-[#eef0f5] min-h-[620px] overflow-auto p-4 flex items-center justify-center"
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-            >
-              <canvas
-                ref={canvasRef}
-                onPointerDown={handleCanvasPointerDown}
-                onPointerMove={handleCanvasPointerMove}
-                onPointerUp={handleCanvasPointerUp}
-                onPointerCancel={handleCanvasPointerUp}
-                onWheel={handleCanvasWheel}
-                className="rounded-2xl shadow-2xl bg-white touch-none"
-                style={{
-                  width: `${previewWidth}px`,
-                  maxWidth: "none",
-                  cursor: selectedPhoto ? "grab" : "default",
-                }}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <InfoCard label="Template" value={selectedTemplate.label} />
-              <InfoCard
-                label="Frames"
-                value={`${filledFrames}/${selectedTemplate.frames.length}`}
-              />
-              <InfoCard
-                label="Process Time"
-                value={
-                  processingTimeMs
-                    ? `${(processingTimeMs / 1000).toFixed(1)}s`
-                    : `Est. ${Math.ceil(estimatedProcessingTimeMs / 1000)}s`
-                }
-                green={Boolean(processingTimeMs)}
-              />
-              <InfoCard
-                label="Output Size"
-                value={lastOutputSize ? formatBytes(lastOutputSize) : "-"}
-              />
-              <InfoCard label="Canvas" value={`${dimensions.width}×${dimensions.height}`} />
-            </div>
-
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-              <p className="text-sm text-blue-800">
-                Your photos are processed locally in your browser. They are not
-                uploaded to a server. Choose a template, fill the frames, adjust
-                the look, and download your final collage.
+        {/* ARTBOARD */}
+        <div
+          className={`border border-[var(--border)] rounded-2xl bg-[#eef0f5] min-h-[690px] overflow-auto p-4 sm:p-6 flex items-center justify-center ${
+            isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
+          }`}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+        >
+          {!hasPhotos ? (
+            <div className="text-center">
+              <ImageIcon size={64} className="mx-auto mb-4 text-gray-300" />
+              <p className="text-[var(--text-secondary)]">
+                Upload, drop, or paste photos to create your collage.
               </p>
             </div>
-          </div>
-
-          {/* RIGHT PANEL */}
-          <div className="flex flex-col gap-5">
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <SlidersHorizontal size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Collage Style</h3>
-              </div>
-
-              <ColorInput
-                label="Background"
-                value={backgroundColor}
-                onChange={(value) => {
-                  setBackgroundColor(value);
-                  clearExportStats();
-                }}
-              />
-
-              <ColorInput
-                label="Border Color"
-                value={borderColor}
-                onChange={(value) => {
-                  setBorderColor(value);
-                  clearExportStats();
-                }}
-              />
-
-              <RangeInput
-                label={`Spacing: ${gap}px`}
-                min={0}
-                max={80}
-                step={1}
-                value={gap}
-                onChange={(value) => {
-                  setGap(Number(value));
-                  clearExportStats();
-                }}
-              />
-
-              <RangeInput
-                label={`Corner Radius: ${cornerRadius}px`}
-                min={0}
-                max={120}
-                step={1}
-                value={cornerRadius}
-                onChange={(value) => {
-                  setCornerRadius(Number(value));
-                  clearExportStats();
-                }}
-              />
-
-              <RangeInput
-                label={`Border: ${borderWidth}px`}
-                min={0}
-                max={24}
-                step={1}
-                value={borderWidth}
-                onChange={(value) => {
-                  setBorderWidth(Number(value));
-                  clearExportStats();
-                }}
-              />
-
-              <label className="flex items-center justify-between gap-3 mt-4 bg-gray-50 border border-[var(--border)] rounded-xl p-4 cursor-pointer">
-                <span className="font-semibold text-sm">Soft Shadow</span>
-                <input
-                  type="checkbox"
-                  checked={useShadow}
-                  onChange={(event) => {
-                    setUseShadow(event.target.checked);
-                    clearExportStats();
-                  }}
-                  className="w-4 h-4 accent-[var(--primary)]"
-                />
-              </label>
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Move size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Selected Frame</h3>
-              </div>
-
-              <p className="text-sm text-[var(--text-secondary)] mb-4">
-                Frame {selectedFrameIndex + 1} of {selectedTemplate.frames.length}
-              </p>
-
-              {selectedPhoto ? (
-                <>
-                  <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-3 mb-4">
-                    <p className="font-semibold text-sm truncate" title={selectedPhoto.name}>
-                      {selectedPhoto.name}
-                    </p>
-                    <p className="text-xs text-[var(--text-secondary)] mt-1">
-                      {selectedPhoto.width} × {selectedPhoto.height}px
-                    </p>
-                  </div>
-
-                  <RangeInput
-                    label={`Zoom: ${Math.round((selectedPlacement?.zoom || 1) * 100)}%`}
-                    min={0.3}
-                    max={4}
-                    step={0.01}
-                    value={selectedPlacement?.zoom || 1}
-                    onChange={(value) =>
-                      updatePlacement(selectedFrameIndex, {
-                        zoom: Number(value),
-                      })
-                    }
-                  />
-
-                  <div className="grid grid-cols-2 gap-3 mt-4">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updatePlacement(selectedFrameIndex, {
-                          zoom: (selectedPlacement?.zoom || 1) * 0.9,
-                        })
-                      }
-                      className="btn-secondary inline-flex items-center justify-center gap-2"
-                    >
-                      <ZoomOut size={16} />
-                      Zoom Out
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updatePlacement(selectedFrameIndex, {
-                          zoom: (selectedPlacement?.zoom || 1) * 1.1,
-                        })
-                      }
-                      className="btn-secondary inline-flex items-center justify-center gap-2"
-                    >
-                      <ZoomIn size={16} />
-                      Zoom In
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => removePhotoFromFrame(selectedFrameIndex)}
-                    className="btn-secondary w-full mt-3 inline-flex items-center justify-center gap-2 hover:text-red-600"
-                  >
-                    <Trash2 size={16} />
-                    Remove from Frame
-                  </button>
-                </>
-              ) : (
-                <div className="text-center py-6 bg-gray-50 border border-dashed border-[var(--border)] rounded-xl">
-                  <ImageIcon size={34} className="mx-auto mb-2 text-gray-300" />
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    Select a photo below to place it in this frame.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <ImageIcon size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Uploaded Photos</h3>
-              </div>
-
-              {!photos.length ? (
-                <p className="text-sm text-[var(--text-secondary)]">
-                  No photos added yet.
-                </p>
-              ) : (
-                <div className="grid grid-cols-3 gap-3 max-h-[360px] overflow-auto pr-1">
-                  {photos.map((photo) => (
-                    <PhotoThumb
-                      key={photo.id}
-                      photo={photo}
-                      onUse={() => usePhotoInSelectedFrame(photo.id)}
-                      onRemove={() => removePhoto(photo.id)}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {photos.length > 0 && (
-                <button
-                  type="button"
-                  onClick={clearAllPhotos}
-                  className="btn-secondary w-full mt-4 inline-flex items-center justify-center gap-2 hover:text-red-600"
-                >
-                  <Trash2 size={16} />
-                  Clear Photos
-                </button>
-              )}
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock3 size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Export</h3>
-              </div>
-
-              <label className="text-sm font-semibold mb-2 block">Format</label>
-              <select
-                value={outputFormat}
-                onChange={(event) => {
-                  setOutputFormat(event.target.value);
-                  clearExportStats();
-                }}
-                className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
-              >
-                {OUTPUT_FORMATS.map((format) => (
-                  <option key={format.value} value={format.value}>
-                    {format.label}
-                  </option>
-                ))}
-              </select>
-
-              {(outputFormat === "image/jpeg" || outputFormat === "image/webp") && (
-                <RangeInput
-                  label={`Quality: ${Math.round(quality * 100)}%`}
-                  min={0.6}
-                  max={1}
-                  step={0.01}
-                  value={quality}
-                  onChange={(value) => {
-                    setQuality(Number(value));
-                    clearExportStats();
-                  }}
-                />
-              )}
-
-              <button
-                type="button"
-                onClick={exportCollage}
-                disabled={!filledFrames || isExporting}
-                className={`btn-primary w-full mt-4 inline-flex items-center justify-center gap-2 ${
-                  !filledFrames || isExporting ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                {isExporting ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Download size={18} />
-                )}
-                {isExporting ? "Creating..." : "Create & Download"}
-              </button>
-
-              <button
-                type="button"
-                onClick={resetTool}
-                className="btn-secondary w-full mt-3 inline-flex items-center justify-center gap-2"
-              >
-                <RotateCcw size={16} />
-                Reset Tool
-              </button>
-            </div>
-          </div>
+          ) : (
+            <canvas
+              ref={canvasRef}
+              onPointerDown={handleCanvasPointerDown}
+              onPointerMove={handleCanvasPointerMove}
+              onPointerUp={handleCanvasPointerUp}
+              onPointerCancel={handleCanvasPointerUp}
+              onWheel={handleCanvasWheel}
+              className="rounded-2xl shadow-2xl bg-white touch-none"
+              style={{
+                width: `${previewWidth}px`,
+                maxWidth: "none",
+                cursor: selectedPhoto ? "grab" : "default",
+              }}
+            />
+          )}
         </div>
+
+        {/* BOTTOM STATUS */}
+        {hasPhotos && (
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-4">
+            <InfoCard label="Template" value={selectedTemplate.label} />
+            <InfoCard
+              label="Frames"
+              value={`${filledFrames}/${selectedTemplate.frames.length}`}
+            />
+            <InfoCard
+              label="Selected"
+              value={`Frame ${selectedFrameIndex + 1}`}
+            />
+            <InfoCard
+              label="Process Time"
+              value={
+                processingTimeMs
+                  ? `${(processingTimeMs / 1000).toFixed(1)}s`
+                  : `Est. ${Math.ceil(estimatedProcessingTimeMs / 1000)}s`
+              }
+              green={Boolean(processingTimeMs)}
+            />
+            <InfoCard
+              label="Output Size"
+              value={lastOutputSize ? formatBytes(lastOutputSize) : "-"}
+            />
+            <InfoCard
+              label="Canvas"
+              value={`${dimensions.width}×${dimensions.height}`}
+            />
+          </div>
+        )}
+
+        {hasPhotos && (
+          <div className="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-5">
+            <div className="flex items-start gap-3">
+              <Eye size={20} className="text-blue-700 shrink-0 mt-0.5" />
+              <p className="text-sm text-blue-800">
+                Click any frame to select it. Drag inside a frame to reposition
+                the photo. Scroll over a frame to zoom. Use the compact toolbar
+                above so the collage preview stays large and comfortable.
+              </p>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="card p-6 sm:p-8">
@@ -1293,8 +1559,8 @@ export default function PhotoCollageMaker() {
             This Photo Collage Maker helps you create beautiful image collages
             for Instagram, Facebook, YouTube thumbnails, Pinterest pins, family
             memories, ecommerce products, and marketing posts. Choose a
-            template, upload photos, adjust the style, and download the final
-            collage instantly.
+            template, upload photos, apply a design preset, and download the
+            final collage instantly.
           </p>
 
           <p>
@@ -1345,7 +1611,7 @@ function TemplateCard({ template, active, onClick }) {
 
 function PhotoThumb({ photo, onUse, onRemove }) {
   return (
-    <div className="relative group rounded-xl overflow-hidden border border-[var(--border)] bg-gray-50">
+    <div className="relative group rounded-xl overflow-hidden border border-[var(--border)] bg-gray-50 w-24 shrink-0">
       <button type="button" onClick={onUse} className="block w-full">
         <img
           src={photo.url}
@@ -1384,7 +1650,7 @@ function InfoCard({ label, value, green = false }) {
 
 function ColorInput({ label, value, onChange }) {
   return (
-    <label className="block mb-4">
+    <label className="block">
       <span className="text-sm font-semibold mb-2 block">{label}</span>
       <input
         type="color"
@@ -1398,7 +1664,7 @@ function ColorInput({ label, value, onChange }) {
 
 function RangeInput({ label, min, max, step, value, onChange }) {
   return (
-    <div className="mt-4">
+    <div>
       <label className="text-sm font-semibold mb-2 block">{label}</label>
       <input
         type="range"
@@ -1553,8 +1819,8 @@ function getFramePixelBox({ frame, dimensions, gap }) {
   return {
     x: frame.x * dimensions.width + halfGap,
     y: frame.y * dimensions.height + halfGap,
-    w: frame.w * dimensions.width - gap,
-    h: frame.h * dimensions.height - gap,
+    w: Math.max(1, frame.w * dimensions.width - gap),
+    h: Math.max(1, frame.h * dimensions.height - gap),
   };
 }
 
