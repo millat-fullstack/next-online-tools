@@ -6,9 +6,9 @@ import {
   Linkedin,
   Mail,
   MessageCircle,
+  MessageSquare,
   Share2,
-  Twitter,
-  Whatsapp
+  Twitter
 } from "lucide-react";
 
 export default function SharePost({ title = "Next Online Tools Blog Post" }) {
@@ -95,7 +95,7 @@ export default function SharePost({ title = "Next Online Tools Blog Post" }) {
     },
     {
       label: "WhatsApp",
-      icon: Whatsapp,
+      icon: MessageSquare,
       href: `https://api.whatsapp.com/send?text=${encodedText}%20${encodedUrl}`
     },
     {
