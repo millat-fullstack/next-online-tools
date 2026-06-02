@@ -126,7 +126,7 @@ export default function SharePost({ title = "Next Online Tools Blog Post" }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-2 w-[260px] min-w-[240px] rounded-3xl border border-[var(--border)] bg-white p-3 shadow-xl dark:bg-[#08111f] dark:border-neutral-800">
+        <div className="absolute right-0 bottom-full z-20 mb-2 w-[260px] min-w-[240px] rounded-3xl border border-[var(--border)] bg-white p-3 shadow-xl dark:bg-[#08111f] dark:border-neutral-800">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold">Share this post</p>
