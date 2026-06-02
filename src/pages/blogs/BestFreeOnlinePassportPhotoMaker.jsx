@@ -1,5 +1,5 @@
 import { Helmet } from "react-helmet-async";
-import { Share2 } from "lucide-react";
+import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "Best Free Online Passport Photo Maker for Visa, ID, and Documents",
@@ -311,10 +311,7 @@ export default function BestFreeOnlinePassportPhotoMaker() {
 
         {/* Social Share */}
         <section className="flex gap-4 mt-8">
-          <button className="btn-secondary">
-            <Share2 size={18} className="mr-2" />
-            Share this post
-          </button>
+          <SharePost title="Best Free Online Passport Photo Maker for Visa, ID, and Documents" />
         </section>
       </section>
     </>

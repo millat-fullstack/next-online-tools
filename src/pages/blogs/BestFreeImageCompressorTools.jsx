@@ -1,5 +1,5 @@
 import { Helmet } from "react-helmet-async";
-import { Share2 } from "lucide-react";
+import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "10 Best Free Online Image Compressor Tools to Reduce/Compress File Size",
@@ -262,10 +262,7 @@ export default function BestFreeImageCompressorTools() {
 
         {/* Social Share */}
         <section className="flex gap-4 mt-8">
-          <button className="btn-secondary">
-            <Share2 size={18} className="mr-2" />
-            Share this post
-          </button>
+          <SharePost title="10 Best Free Online Image Compressor Tools to Reduce/Compress File Size" />
         </section>
       </section>
     </>

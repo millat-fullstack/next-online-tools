@@ -1,5 +1,5 @@
 import { Helmet } from "react-helmet-async";
-import { Share2 } from "lucide-react";
+import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "Essential Online Image Tools to Optimize, Resize, and Convert Images Easily",
@@ -138,10 +138,7 @@ export default function ImageToolsGuide() {
 
         {/* Social Share */}
         <section className="flex gap-4 mt-8">
-          <button className="btn-secondary">
-            <Share2 size={18} className="mr-2" />
-            Share this post
-          </button>
+          <SharePost title="Essential Online Image Tools to Optimize, Resize, and Convert Images Easily" />
         </section>
       </section>
     </>

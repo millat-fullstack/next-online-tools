@@ -1,5 +1,5 @@
 import { Helmet } from "react-helmet-async";
-import { Share2 } from "lucide-react";
+import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "How to Compress Images or Reduce Image Files Without Losing Quality",
@@ -694,10 +694,7 @@ export default function HowToCompressImagesWithoutLosingQuality() {
 
         {/* Social Share */}
         <section className="flex gap-4 mt-8">
-          <button className="btn-secondary">
-            <Share2 size={18} className="mr-2" />
-            Share this post
-          </button>
+          <SharePost title="How to Compress Images or Reduce Image Files Without Losing Quality" />
         </section>
       </section>
     </>
