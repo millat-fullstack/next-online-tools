@@ -1,5 +1,14 @@
 export const blogs = [
   {
+    "title": "Best Free Online Tools for Everyday Digital Tasks",
+    "slug": "best-free-online-tools-for-everyday-digital-tasks",
+    "date": "2026-06-02",
+    "category": "Productivity Tools",
+    "excerpt": "Discover the best free online tools for everyday digital tasks, including image editing, PDF conversion, text formatting, color tools, and quick productivity work.",
+    "image": "/images/best-free-online-tools-everyday-digital-tasks.jpg",
+    "pageFile": "BestFreeOnlineToolsForDigitalTasks"
+  },
+  {
     "title": "How to Compress Images or Reduce Image Files Without Losing Quality",
     "slug": "how-to-compress-images-without-losing-quality",
     "date": "2026-05-29",
