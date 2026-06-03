@@ -1,5 +1,23 @@
 export const blogs = [
   {
+    "title": "How to Count Words and Characters Online Easily",
+    "slug": "HowToCountWordsAndCharactersOnlineEasily",
+    "date": "2026-06-03",
+    "category": "Text Tools",
+    "excerpt": "Learn how to count words, characters, sentences, and paragraphs online quickly using a simple word counter tool.",
+    "image": "/images/word-character-counter.png",
+    "pageFile": "HowToCountWordsAndCharactersOnlineEasily"
+  },
+  {
+    "title": "Social Media Image Size Guide",
+    "slug": "SocialMediaImageSizeGuide",
+    "date": "2026-06-03",
+    "category": "Image Tools",
+    "excerpt": "A simple social media image size guide for Facebook, Instagram, LinkedIn, Pinterest, TikTok, YouTube, and X.",
+    "image": "/images/social-media-image-size-guide.png",
+    "pageFile": "SocialMediaImageSizeGuide"
+  },
+  {
     "title": "Best Free Online Tools for Everyday Digital Tasks",
     "slug": "best-free-online-tools-for-everyday-digital-tasks",
     "date": "2026-06-02",
