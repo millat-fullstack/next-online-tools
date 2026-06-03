@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import * as Icons from "lucide-react";
 import { blogs } from "../data/Blogs";
@@ -15,9 +15,37 @@ export default function Blog() {
     return [...new Set(blogs.map((blog) => blog.category).filter(Boolean))];
   }, []);
 
+  const location = useLocation();
   const latestBlogs = useMemo(() => {
     return [...blogs];
   }, []);
+
+  const pageSize = 9;
+  const pageNumber = useMemo(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const page = Number.parseInt(queryParams.get("page"), 10);
+
+    if (Number.isNaN(page) || page < 1) {
+      return 1;
+    }
+
+    return page;
+  }, [location.search]);
+
+  const pageCount = Math.max(1, Math.ceil(latestBlogs.length / pageSize));
+  const currentPage = Math.min(pageNumber, pageCount);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedBlogs = latestBlogs.slice(startIndex, startIndex + pageSize);
+  const pageStart = startIndex + 1;
+  const pageEnd = Math.min(latestBlogs.length, startIndex + pageSize);
+
+  const canonicalUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (currentPage > 1) {
+      params.set("page", currentPage);
+    }
+    return `${BLOG_URL}${params.toString() ? `?${params.toString()}` : ""}`;
+  }, [currentPage]);
 
   const seoTitle =
     "Online Tools Blog | Free Web Tools Guides, SEO, Image, PDF & Productivity Tips";
@@ -188,6 +216,7 @@ export default function Blog() {
         <title>{seoTitle}</title>
 
         <meta name="description" content={seoDescription} />
+        <link rel="canonical" href={canonicalUrl} />
         <meta name="robots" content="index, follow, max-image-preview:large" />
         <meta name="googlebot" content="index, follow, max-image-preview:large" />
         <meta name="bingbot" content="index, follow, max-image-preview:large" />
@@ -196,7 +225,7 @@ export default function Blog() {
         <meta property="og:site_name" content="Next Online Tools" />
         <meta property="og:title" content={seoTitle} />
         <meta property="og:description" content={seoDescription} />
-        <meta property="og:url" content={BLOG_URL} />
+        <meta property="og:url" content={canonicalUrl} />
         <meta property="og:image" content={DEFAULT_OG_IMAGE} />
         <meta property="og:image:alt" content="Next Online Tools Blog" />
         <meta property="og:locale" content="en_US" />
@@ -242,13 +271,13 @@ export default function Blog() {
             </div>
 
             <p>
-              {latestBlogs.length} article
-              {latestBlogs.length !== 1 ? "s" : ""} found
+              Showing {pageStart}-{pageEnd} of {latestBlogs.length} article
+              {latestBlogs.length !== 1 ? "s" : ""}
             </p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {latestBlogs.map((blog) => (
+            {paginatedBlogs.map((blog) => (
               <Link
                 key={blog.slug}
                 to={`/blog/${blog.slug}`}
@@ -277,6 +306,34 @@ export default function Blog() {
                 </div>
               </Link>
             ))}
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Page {currentPage} of {pageCount}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {currentPage > 1 && (
+                <Link
+                  to={`/blog${currentPage - 1 === 1 ? "" : `?page=${currentPage - 1}`}`}
+                  className="btn-secondary inline-flex items-center gap-2"
+                >
+                  <Icons.ChevronLeft size={16} />
+                  Previous
+                </Link>
+              )}
+
+              {currentPage < pageCount && (
+                <Link
+                  to={`/blog?page=${currentPage + 1}`}
+                  className="btn-primary inline-flex items-center gap-2"
+                >
+                  Next
+                  <Icons.ChevronRight size={16} />
+                </Link>
+              )}
+            </div>
           </div>
         </section>
 

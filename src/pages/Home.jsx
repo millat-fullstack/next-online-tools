@@ -4,6 +4,7 @@ import * as Icons from "lucide-react";
 import tools from "../data/tools.json";
 import { blogs } from "../data/Blogs";
 import { Helmet } from "react-helmet-async";
+import Button from "../components/ui/Button";
 
 const SITE_URL = "https://nextonlinetools.com";
 
@@ -281,13 +282,13 @@ export default function Home() {
         </p>
 
         <div className="home-hero-actions">
-          <Link to="/tools" className="home-primary-btn">
+          <Button to="/tools" className="home-primary-btn">
             Browse All Tools
-          </Link>
+          </Button>
 
-          <Link to="/blog" className="home-secondary-btn">
+          <Button to="/blog" variant="secondary" className="home-secondary-btn">
             Helpful Blogs
-          </Link>
+          </Button>
         </div>
       </section>
 
