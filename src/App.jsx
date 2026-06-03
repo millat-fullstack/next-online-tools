@@ -20,20 +20,29 @@ export default function App() {
         {/* Home and Main Pages */}
         <Route path="/" element={<Home />} />
         <Route path="/tools" element={<Tools />} />
+        <Route path="/tools/" element={<Tools />} />
         <Route path="/search" element={<SearchResults />} />
+        <Route path="/search/" element={<SearchResults />} />
 
         {/* Blog Pages */}
         <Route path="/blog" element={<Blog />} />
+        <Route path="/blog/" element={<Blog />} />
         <Route path="/blog/:slug" element={<BlogSingle />} />
+        <Route path="/blog/:slug/" element={<BlogSingle />} />
 
         {/* Other Pages */}
         <Route path="/about" element={<About />} />
+        <Route path="/about/" element={<About />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/contact/" element={<Contact />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/privacy-policy/" element={<PrivacyPolicy />} />
         <Route path="/terms-of-service" element={<TermsOfService />} />
+        <Route path="/terms-of-service/" element={<TermsOfService />} />
 
         {/* Tool Pages */}
         <Route path="/tool/:slug" element={<ToolPage />} />
+        <Route path="/tool/:slug/" element={<ToolPage />} />
       </Route>
     </Routes>
   );
