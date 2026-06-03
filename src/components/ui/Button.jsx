@@ -1,4 +1,24 @@
-import { Link } from "react-router-dom";
+import SmartLink from "./SmartLink";
+
+function normalizePath(path) {
+  if (!path) return path;
+
+  if (
+    path.startsWith("http") ||
+    path.startsWith("#") ||
+    path.startsWith("mailto:") ||
+    path.startsWith("tel:")
+  ) {
+    return path;
+  }
+
+  const [beforeHash, hash] = path.split("#");
+  const [pathname, search] = beforeHash.split("?");
+
+  const cleanPath = pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
+
+  return `${cleanPath}${search ? `?${search}` : ""}${hash ? `#${hash}` : ""}`;
+}
 
 export default function Button({
   children,
@@ -7,23 +27,36 @@ export default function Button({
   variant = "primary",
   className = "",
   onClick,
+  disabled = false,
+  ...props
 }) {
-  const baseClass =
-    variant === "secondary" ? "btn-secondary" : "btn-primary";
+  const baseClass = variant === "secondary" ? "btn-secondary" : "btn-primary";
+
+  const finalClassName = `${baseClass} ${className} ${
+    disabled ? "opacity-60 pointer-events-none cursor-not-allowed" : ""
+  }`;
 
   if (to) {
     return (
-      <Link to={to} onClick={onClick} className={`${baseClass} ${className}`}>
+      <SmartLink
+        to={normalizePath(to)}
+        onClick={disabled ? undefined : onClick}
+        className={finalClassName}
+        aria-disabled={disabled}
+        {...props}
+      >
         {children}
-      </Link>
+      </SmartLink>
     );
   }
 
   return (
     <button
       type={type}
-      onClick={onClick}
-      className={`${baseClass} ${className}`}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={finalClassName}
+      {...props}
     >
       {children}
     </button>

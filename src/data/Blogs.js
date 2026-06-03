@@ -1,5 +1,14 @@
 export const blogs = [
   {
+    "title": "How to Convert JPG to PDF Online for Free",
+    "slug": "HowToConvertJpgToPdfOnlineForFree",
+    "date": "2026-06-03",
+    "category": "PDF Tools",
+    "excerpt": "Learn how to convert JPG images to PDF online for free using a simple browser-based JPG to PDF converter.",
+    "image": "/images/jpg-to-pdf-online.png",
+    "pageFile": "HowToConvertJpgToPdfOnlineForFree"
+  },
+  {
     "title": "How to Count Words and Characters Online Easily",
     "slug": "HowToCountWordsAndCharactersOnlineEasily",
     "date": "2026-06-03",
@@ -7,6 +16,24 @@ export const blogs = [
     "excerpt": "Learn how to count words, characters, sentences, and paragraphs online quickly using a simple word counter tool.",
     "image": "/images/word-character-counter.png",
     "pageFile": "HowToCountWordsAndCharactersOnlineEasily"
+  },
+  {
+    "title": "How to Crop an Image Online for Social Media",
+    "slug": "HowToCropAnImageOnlineForSocialMedia",
+    "date": "2026-06-03",
+    "category": "Image Tools",
+    "excerpt": "Learn how to crop an image online for Facebook, Instagram, LinkedIn, Pinterest, YouTube, TikTok, and other social media platforms.",
+    "image": "/images/crop-image-social-media.png",
+    "pageFile": "HowToCropAnImageOnlineForSocialMedia"
+  },
+  {
+    "title": "How to Remove Background from an Image Online",
+    "slug": "HowToRemoveBackgroundFromAnImageOnline",
+    "date": "2026-06-03",
+    "category": "Image Tools",
+    "excerpt": "Learn how to remove the background from an image online quickly for product photos, profile pictures, social media posts, and designs.",
+    "image": "/images/remove-background-online.png",
+    "pageFile": "HowToRemoveBackgroundFromAnImageOnline"
   },
   {
     "title": "Social Media Image Size Guide",

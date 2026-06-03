@@ -1372,3 +1372,37 @@ a.home-blog-card {
     font-size: 27px;
   }
 }
+
+/* ============================= */
+/* FIX DOUBLE CLICK ISSUE */
+/* Stop clickable items from moving on first hover */
+/* ============================= */
+
+.card-hover:hover,
+.tool-card:hover,
+.home-tool-card:hover,
+.home-blog-card:hover,
+.home-benefit-card:hover,
+.category-chip:hover,
+.home-category-chip:hover {
+  transform: none !important;
+}
+
+/* Stop arrow/icon shifting inside cards */
+.tool-card:hover .tool-card-bottom > div,
+.home-tool-card:hover .home-tool-card-bottom > div {
+  transform: none !important;
+}
+
+/* Make card overlay layers non-clickable */
+.tool-card::before,
+.home-tool-card::before {
+  pointer-events: none !important;
+}
+
+/* Better normal click/tap behavior */
+button,
+a {
+  cursor: pointer;
+  touch-action: manipulation;
+}

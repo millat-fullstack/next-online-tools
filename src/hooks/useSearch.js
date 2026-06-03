@@ -5,12 +5,16 @@ export function useSearch() {
 
   const handleSearch = (value) => {
     setQuery(value);
-    console.log("Searching for:", value);
+  };
+
+  const clearSearch = () => {
+    setQuery("");
   };
 
   return {
     query,
     setQuery,
     handleSearch,
+    clearSearch,
   };
 }

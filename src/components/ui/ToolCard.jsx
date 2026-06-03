@@ -1,11 +1,15 @@
-import { Link } from "react-router-dom";
 import * as Icons from "lucide-react";
+import SmartLink from "../ui/SmartLink";
 
 export default function ToolCard({ tool, compact = false }) {
   const IconComponent = Icons[tool.icon] || Icons.Wrench;
 
   return (
-    <Link to={`/tool/${tool.id}/`} className="block h-full">
+    <SmartLink
+      to={`/tool/${tool.id}`}
+      className="block h-full"
+      aria-label={`Open ${tool.name}`}
+    >
       <div className="card card-hover p-5 h-full">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
           <IconComponent
@@ -23,12 +27,8 @@ export default function ToolCard({ tool, compact = false }) {
           {tool.description || "Free and easy online tool for daily use."}
         </p>
 
-        {!compact && (
-          <span className="badge mt-5 inline-block">
-            {tool.category}
-          </span>
-        )}
+        {!compact && <span className="badge mt-5 inline-block">{tool.category}</span>}
       </div>
-    </Link>
+    </SmartLink>
   );
 }

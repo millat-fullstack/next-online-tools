@@ -1,10 +1,11 @@
-import { Link, useNavigate } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { useMemo } from "react";
 import * as Icons from "lucide-react";
 import tools from "../data/tools.json";
 import { blogs } from "../data/Blogs";
 import { Helmet } from "react-helmet-async";
 import Button from "../components/ui/Button";
+import SmartLink from "../components/ui/SmartLink";
 
 const SITE_URL = "https://nextonlinetools.com";
 
@@ -20,11 +21,11 @@ function HomeToolIcon({ icon }) {
 
 function ToolCard({ tool, compact = false }) {
   return (
-    <Link
-      to={`/tool/${tool.id}/`}
-      className="home-tool-card"
-      aria-label={`Open ${tool.name}`}
-    >
+<SmartLink
+  to={`/tool/${tool.id}`}
+  className="home-tool-card"
+  aria-label={`Open ${tool.name}`}
+>
       <div className="home-tool-card-top">
         <HomeToolIcon icon={tool.icon} />
 
@@ -50,14 +51,11 @@ function ToolCard({ tool, compact = false }) {
           </div>
         </div>
       )}
-    </Link>
+</SmartLink>
   );
 }
 
 export default function Home() {
-  const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-
   const pageTitle = "Next Online Tools: Free PDF, Image, Text & Web Tools";
   const pageDescription =
     "Use free online tools for PDF, image, text, color, converters, calculators, SEO, and everyday digital tasks. Fast, simple, and privacy-friendly tools from Next Online Tools.";
@@ -142,14 +140,6 @@ export default function Home() {
     },
   ];
 
-  function handleSearch(e) {
-    e.preventDefault();
-
-    if (!search.trim()) return;
-
-    navigate(`/search/?q=${encodeURIComponent(search.trim())}`);
-  }
-
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -165,7 +155,7 @@ export default function Home() {
           "@type": "SearchAction",
           target: {
             "@type": "EntryPoint",
-            urlTemplate: `${SITE_URL}/search/?q={search_term_string}`,
+            urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
           },
           "query-input": "required name=search_term_string",
         },
@@ -205,11 +195,11 @@ export default function Home() {
         "@type": "ItemList",
         "@id": `${SITE_URL}/#popular-tools`,
         name: "Popular Free Online Tools",
-          itemListElement: popularTools.map((tool, index) => ({
+        itemListElement: popularTools.map((tool, index) => ({
           "@type": "ListItem",
           position: index + 1,
           name: tool.name,
-          url: `${SITE_URL}/tool/${tool.id}/`,
+          url: `${SITE_URL}/tool/${tool.id}`,
         })),
       },
       {
@@ -266,7 +256,6 @@ export default function Home() {
         </script>
       </Helmet>
 
-      {/* HERO */}
       <section className="home-hero">
         <div className="home-hero-badge">
           <Icons.Sparkles size={16} />
@@ -282,17 +271,16 @@ export default function Home() {
         </p>
 
         <div className="home-hero-actions">
-          <Button to="/tools/" className="home-primary-btn">
+          <Button to="/tools" className="home-primary-btn">
             Browse All Tools
           </Button>
 
-          <Button to="/blog/" variant="secondary" className="home-secondary-btn">
+          <Button to="/blog" variant="secondary" className="home-secondary-btn">
             Helpful Blogs
           </Button>
         </div>
       </section>
 
-      {/* POPULAR TOOLS */}
       <section className="home-section">
         <div className="home-section-head home-section-head-row">
           <div>
@@ -301,7 +289,7 @@ export default function Home() {
             <p>Most useful tools to complete common online tasks quickly.</p>
           </div>
 
-          <Link to="/tools/" className="home-secondary-btn home-view-btn">
+          <Link to="/tools" className="home-secondary-btn home-view-btn">
             View All Tools
           </Link>
         </div>
@@ -313,7 +301,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CATEGORY CONTENT */}
       <section className="home-section">
         <div className="home-section-head">
           <div>
@@ -330,7 +317,7 @@ export default function Home() {
           {categoryHighlights.slice(0, 6).map((category) => (
             <Link
               key={category.name}
-              to={`/tools/?category=${encodeURIComponent(category.name)}`}
+              to={`/tools?category=${encodeURIComponent(category.name)}`}
               className="home-tool-card"
             >
               <div className="home-tool-card-top">
@@ -351,7 +338,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FEATURED TOOLS */}
       <section className="home-section">
         <div className="home-section-head">
           <div>
@@ -371,7 +357,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* BENEFITS */}
       <section className="home-benefits">
         <div className="home-benefits-content">
           <div className="home-hero-badge">
@@ -408,7 +393,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* BLOGS */}
       <section className="home-blog-section">
         <div className="home-section-head home-section-head-row">
           <div>
@@ -420,7 +404,7 @@ export default function Home() {
             </p>
           </div>
 
-          <Link to="/blog/" className="home-secondary-btn home-view-btn">
+          <Link to="/blog" className="home-secondary-btn home-view-btn">
             View All Blogs
           </Link>
         </div>
@@ -429,7 +413,7 @@ export default function Home() {
           {blogs.slice(0, 3).map((blog, index) => (
             <Link
               key={blog.id || blog.slug || index}
-              to={`/blog/${blog.slug}/`}
+              to={`/blog/${blog.slug}`}
               className="home-blog-card"
             >
               <div className="home-blog-card-top">
@@ -450,7 +434,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FAQ - using existing card/grid classes from index.css */}
       <section className="home-section">
         <div className="home-section-head">
           <div>

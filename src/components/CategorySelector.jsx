@@ -1,4 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import SmartLink from "./ui/SmartLink";
 
 export default function CategorySelector({ categories = [] }) {
   const location = useLocation();
@@ -7,17 +8,17 @@ export default function CategorySelector({ categories = [] }) {
 
   return (
     <div className="category-selector">
-      <Link
-        to="/tools/"
+      <SmartLink
+        to="/tools"
         className={!selectedCategory ? "category-chip active" : "category-chip"}
       >
         All Tools
-      </Link>
+      </SmartLink>
 
       {categories.map((category) => (
-        <Link
+        <SmartLink
           key={category}
-          to={`/tools/?category=${encodeURIComponent(category)}`}
+          to={`/tools?category=${encodeURIComponent(category)}`}
           className={
             selectedCategory === category
               ? "category-chip active"
@@ -25,7 +26,7 @@ export default function CategorySelector({ categories = [] }) {
           }
         >
           {category}
-        </Link>
+        </SmartLink>
       ))}
     </div>
   );

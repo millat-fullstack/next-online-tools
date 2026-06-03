@@ -1,55 +1,53 @@
-import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
-import {
-  Home,
-  Wrench,
-  BookOpen,
-  Info,
-  Mail,
-} from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { Home, Wrench, BookOpen, Info, Mail } from "lucide-react";
 
+import SmartLink from "../ui/SmartLink";
 import LatestTools from "./LatestTools";
 import TrendingTools from "./TrendingTools";
 import SocialLinks from "./SocialLinks";
 
+function normalizePath(path) {
+  if (!path || path === "/") return "/";
+  return String(path).replace(/\/+$/, "");
+}
+
 export default function Sidebar() {
+  const location = useLocation();
+
   const navItems = [
     { name: "Explore", path: "/", icon: Home },
-    { name: "All Tools", path: "/tools/", icon: Wrench },
-    { name: "Blog", path: "/blog/", icon: BookOpen },
-    { name: "About", path: "/about/", icon: Info },
-    { name: "Contact", path: "/contact/", icon: Mail },
+    { name: "All Tools", path: "/tools", icon: Wrench },
+    { name: "Blog", path: "/blog", icon: BookOpen },
+    { name: "About", path: "/about", icon: Info },
+    { name: "Contact", path: "/contact", icon: Mail },
   ];
-
-  const navigate = useNavigate();
-  const location = useLocation();
 
   return (
     <div className="h-full flex flex-col p-5 overflow-y-auto">
-      <a href="/" onClick={(e)=>{e.preventDefault(); navigate('/');}} className="mb-8 flex items-center justify-center">
-        {/* Logo Section */}
+      <SmartLink
+        to="/"
+        className="mb-8 flex items-center justify-center"
+        aria-label="Next Online Tools Home"
+      >
         <img
-          src="/logo.png" 
+          src="/logo.png"
           alt="Next Online Tools"
-          className="w-18 h-10" 
+          className="w-18 h-10"
         />
-      </a>
+      </SmartLink>
 
       <nav className="flex flex-col gap-2 mb-8">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const normalize = (p) => String(p || "").replace(/\/$/, "") || "/";
-          const isActive = normalize(location.pathname) === normalize(item.path);
+
+          const isActive =
+            normalizePath(location.pathname) === normalizePath(item.path);
 
           return (
-            <a
+            <SmartLink
               key={item.path}
-              href={item.path}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                navigate(item.path);
-              }}
-              onClick={(e) => e.preventDefault()}
-              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium ${
+              to={item.path}
+              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition ${
                 isActive
                   ? "bg-[#f0e7ff] text-[var(--primary)]"
                   : "text-[var(--text-secondary)] hover:bg-[#f7f1ff]"
@@ -57,7 +55,7 @@ export default function Sidebar() {
             >
               <Icon size={18} strokeWidth={2} />
               {item.name}
-            </a>
+            </SmartLink>
           );
         })}
       </nav>

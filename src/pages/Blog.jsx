@@ -1,8 +1,9 @@
 import { useMemo } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import * as Icons from "lucide-react";
 import { blogs } from "../data/Blogs";
+import SmartLink from "../components/ui/SmartLink";
 
 const SITE_URL = "https://nextonlinetools.com";
 const BLOG_URL = `${SITE_URL}/blog`;
@@ -11,16 +12,14 @@ const CONTACT_URL = `${SITE_URL}/contact`;
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export default function Blog() {
-  const categories = useMemo(() => {
-    return [...new Set(blogs.map((blog) => blog.category).filter(Boolean))];
-  }, []);
-
   const location = useLocation();
+
   const latestBlogs = useMemo(() => {
     return [...blogs];
   }, []);
 
   const pageSize = 9;
+
   const pageNumber = useMemo(() => {
     const queryParams = new URLSearchParams(location.search);
     const page = Number.parseInt(queryParams.get("page"), 10);
@@ -41,9 +40,11 @@ export default function Blog() {
 
   const canonicalUrl = useMemo(() => {
     const params = new URLSearchParams();
+
     if (currentPage > 1) {
       params.set("page", currentPage);
     }
+
     return `${BLOG_URL}${params.toString() ? `?${params.toString()}` : ""}`;
   }, [currentPage]);
 
@@ -259,7 +260,6 @@ export default function Blog() {
             Learn how to use free online tools better for images, PDF, text,
             SEO, converters, productivity, and everyday digital work.
           </p>
-
         </section>
 
         {/* BLOGS */}
@@ -278,7 +278,7 @@ export default function Blog() {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {paginatedBlogs.map((blog) => (
-              <Link
+              <SmartLink
                 key={blog.slug}
                 to={`/blog/${blog.slug}`}
                 className="tool-card"
@@ -300,11 +300,11 @@ export default function Blog() {
                 <div className="tool-card-bottom">
                   <span>{blog.category || "Guide"}</span>
 
-                  <div>
+                  <div aria-hidden="true">
                     <Icons.ArrowRight size={17} />
                   </div>
                 </div>
-              </Link>
+              </SmartLink>
             ))}
           </div>
 
@@ -315,23 +315,25 @@ export default function Blog() {
 
             <div className="flex flex-wrap items-center gap-2">
               {currentPage > 1 && (
-                <Link
-                  to={`/blog${currentPage - 1 === 1 ? "" : `?page=${currentPage - 1}`}`}
+                <SmartLink
+                  to={`/blog${
+                    currentPage - 1 === 1 ? "" : `?page=${currentPage - 1}`
+                  }`}
                   className="btn-secondary inline-flex items-center gap-2"
                 >
                   <Icons.ChevronLeft size={16} />
                   Previous
-                </Link>
+                </SmartLink>
               )}
 
               {currentPage < pageCount && (
-                <Link
+                <SmartLink
                   to={`/blog?page=${currentPage + 1}`}
                   className="btn-primary inline-flex items-center gap-2"
                 >
                   Next
                   <Icons.ChevronRight size={16} />
-                </Link>
+                </SmartLink>
               )}
             </div>
           </div>
@@ -374,9 +376,7 @@ export default function Blog() {
             </div>
 
             <div className="card p-6">
-              <h3 className="font-bold text-lg mb-2">
-                Are the tools free?
-              </h3>
+              <h3 className="font-bold text-lg mb-2">Are the tools free?</h3>
 
               <p className="text-sm text-[var(--text-secondary)] leading-6">
                 Next Online Tools focuses on simple, free, browser-based tools
