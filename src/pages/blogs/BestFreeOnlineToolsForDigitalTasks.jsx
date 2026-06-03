@@ -1,4 +1,3 @@
-```jsx
 import { Helmet } from "react-helmet-async";
 import SharePost from "../../components/ui/SharePost";
 
@@ -311,4 +310,3 @@ export default function BestFreeOnlineToolsForEverydayDigitalTasks() {
     </>
   );
 }
-```

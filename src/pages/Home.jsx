@@ -280,28 +280,6 @@ export default function Home() {
           calculators, SEO, productivity, and more — all in one simple place.
         </p>
 
-        <form
-          className="home-search-card"
-          role="search"
-          aria-label="Search free online tools"
-          onSubmit={handleSearch}
-        >
-          <div className="home-search-box">
-            <Icons.Search size={20} aria-hidden="true" />
-
-            <input
-              id="home-tool-search"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tools like image compressor, PDF converter..."
-              aria-label="Search tools"
-            />
-
-            <button type="submit">Search</button>
-          </div>
-        </form>
-
         <div className="home-hero-actions">
           <Link to="/tools" className="home-primary-btn">
             Browse All Tools

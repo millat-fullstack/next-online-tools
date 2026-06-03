@@ -487,37 +487,6 @@ export default function About() {
           </div>
         </section>
 
-        {/* VALUES */}
-        <section className="tools-list-section">
-          <div className="tools-section-head">
-            <div>
-              <span>What We Focus On</span>
-              <h2>Designed around speed, clarity, and usefulness</h2>
-            </div>
-
-            <p>Every tool should feel easy from the first click.</p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
-            {focusCards.map((card) => (
-              <div className="tool-card" key={card.title}>
-                <div className="tool-card-top">
-                  <div className="tools-icon">{card.icon}</div>
-                </div>
-
-                <h3>{card.title}</h3>
-
-                <p>{card.description}</p>
-
-                <div className="tool-card-bottom">
-                  <span>{card.label}</span>
-                  <div>{card.icon}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
         {/* NEWSLETTER */}
         <section className="tools-list-section">
           <div className="card p-6 sm:p-8 text-center">
