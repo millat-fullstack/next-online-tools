@@ -14,10 +14,10 @@ import SocialLinks from "./SocialLinks";
 export default function Sidebar() {
   const navItems = [
     { name: "Explore", path: "/", icon: Home },
-    { name: "All Tools", path: "/tools", icon: Wrench },
-    { name: "Blog", path: "/blog", icon: BookOpen },
-    { name: "About", path: "/about", icon: Info },
-    { name: "Contact", path: "/contact", icon: Mail },
+    { name: "All Tools", path: "/tools/", icon: Wrench },
+    { name: "Blog", path: "/blog/", icon: BookOpen },
+    { name: "About", path: "/about/", icon: Info },
+    { name: "Contact", path: "/contact/", icon: Mail },
   ];
 
   const navigate = useNavigate();
@@ -37,7 +37,8 @@ export default function Sidebar() {
       <nav className="flex flex-col gap-2 mb-8">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path;
+          const normalize = (p) => String(p || "").replace(/\/$/, "") || "/";
+          const isActive = normalize(location.pathname) === normalize(item.path);
 
           return (
             <a

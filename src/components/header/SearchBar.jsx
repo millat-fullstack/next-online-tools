@@ -19,13 +19,19 @@ export default function SearchBar() {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return;
 
-    navigate(`/search?q=${encodeURIComponent(trimmedQuery)}`);
+    navigate(`/search/?q=${encodeURIComponent(trimmedQuery)}`);
     setQuery("");
     setShowSuggestions(false);
   }
 
   function handleSuggestionClick(result) {
-    navigate(result.url);
+    // ensure search and tool/blog URLs use trailing-slash pattern when possible
+    if (result.url && result.url.startsWith('/search?q=')) {
+      const q = result.url.split('?q=')[1] || '';
+      navigate(`/search/?q=${q}`);
+    } else {
+      navigate(result.url);
+    }
     setQuery("");
     setShowSuggestions(false);
   }
@@ -50,10 +56,10 @@ export default function SearchBar() {
               <button
                 key={`${result.type}-${result.id}`}
                 type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSuggestionClick(result);
-                }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSuggestionClick(result);
+                  }}
                 className="w-full text-left px-4 py-3 hover:bg-slate-50 pointer-events-auto"
               >
                 <div className="flex items-center justify-between gap-3">
@@ -71,9 +77,9 @@ export default function SearchBar() {
 
           <button
             type="button"
-            onMouseDown={(e) => {
+              onMouseDown={(e) => {
               e.preventDefault();
-              navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+              navigate(`/search/?q=${encodeURIComponent(query.trim())}`);
               setShowSuggestions(false);
             }}
             className="w-full px-4 py-3 text-left text-sm font-medium text-[var(--primary)] hover:bg-slate-50 pointer-events-auto"

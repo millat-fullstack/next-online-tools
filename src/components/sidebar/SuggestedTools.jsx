@@ -20,7 +20,7 @@ export default function SuggestedTools({ currentToolId }) {
             return (
               <Link
                 key={tool.id}
-                to={`/tool/${tool.id}`}
+                to={`/tool/${tool.id}/`}
                 className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#f7f1ff]"
               >
                 <div className="w-9 h-9 rounded-xl bg-[#f4edff] flex items-center justify-center shrink-0">

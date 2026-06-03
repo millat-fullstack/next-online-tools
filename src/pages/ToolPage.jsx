@@ -36,7 +36,7 @@ export default function ToolPage() {
         <p className="text-[var(--text-secondary)] mb-4">
           We couldn’t find that tool. Try selecting another tool from the tools page.
         </p>
-        <Link to="/tools" className="btn-primary">
+        <Link to="/tools/" className="btn-primary">
           Back to Tools
         </Link>
       </div>

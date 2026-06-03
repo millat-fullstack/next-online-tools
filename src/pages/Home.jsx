@@ -21,7 +21,7 @@ function HomeToolIcon({ icon }) {
 function ToolCard({ tool, compact = false }) {
   return (
     <Link
-      to={`/tool/${tool.id}`}
+      to={`/tool/${tool.id}/`}
       className="home-tool-card"
       aria-label={`Open ${tool.name}`}
     >
@@ -147,7 +147,7 @@ export default function Home() {
 
     if (!search.trim()) return;
 
-    navigate(`/search?q=${encodeURIComponent(search.trim())}`);
+    navigate(`/search/?q=${encodeURIComponent(search.trim())}`);
   }
 
   const structuredData = {
@@ -165,7 +165,7 @@ export default function Home() {
           "@type": "SearchAction",
           target: {
             "@type": "EntryPoint",
-            urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
+            urlTemplate: `${SITE_URL}/search/?q={search_term_string}`,
           },
           "query-input": "required name=search_term_string",
         },
@@ -205,11 +205,11 @@ export default function Home() {
         "@type": "ItemList",
         "@id": `${SITE_URL}/#popular-tools`,
         name: "Popular Free Online Tools",
-        itemListElement: popularTools.map((tool, index) => ({
+          itemListElement: popularTools.map((tool, index) => ({
           "@type": "ListItem",
           position: index + 1,
           name: tool.name,
-          url: `${SITE_URL}/tool/${tool.id}`,
+          url: `${SITE_URL}/tool/${tool.id}/`,
         })),
       },
       {
@@ -282,11 +282,11 @@ export default function Home() {
         </p>
 
         <div className="home-hero-actions">
-          <Button to="/tools" className="home-primary-btn">
+          <Button to="/tools/" className="home-primary-btn">
             Browse All Tools
           </Button>
 
-          <Button to="/blog" variant="secondary" className="home-secondary-btn">
+          <Button to="/blog/" variant="secondary" className="home-secondary-btn">
             Helpful Blogs
           </Button>
         </div>
@@ -301,7 +301,7 @@ export default function Home() {
             <p>Most useful tools to complete common online tasks quickly.</p>
           </div>
 
-          <Link to="/tools" className="home-secondary-btn home-view-btn">
+          <Link to="/tools/" className="home-secondary-btn home-view-btn">
             View All Tools
           </Link>
         </div>
@@ -330,7 +330,7 @@ export default function Home() {
           {categoryHighlights.slice(0, 6).map((category) => (
             <Link
               key={category.name}
-              to={`/tools?category=${encodeURIComponent(category.name)}`}
+              to={`/tools/?category=${encodeURIComponent(category.name)}`}
               className="home-tool-card"
             >
               <div className="home-tool-card-top">
@@ -420,7 +420,7 @@ export default function Home() {
             </p>
           </div>
 
-          <Link to="/blog" className="home-secondary-btn home-view-btn">
+          <Link to="/blog/" className="home-secondary-btn home-view-btn">
             View All Blogs
           </Link>
         </div>
@@ -429,7 +429,7 @@ export default function Home() {
           {blogs.slice(0, 3).map((blog, index) => (
             <Link
               key={blog.id || blog.slug || index}
-              to={`/blog/${blog.slug}`}
+              to={`/blog/${blog.slug}/`}
               className="home-blog-card"
             >
               <div className="home-blog-card-top">

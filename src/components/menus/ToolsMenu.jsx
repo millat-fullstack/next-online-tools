@@ -11,7 +11,7 @@ export default function ToolsMenu() {
 
       <div className="flex flex-col gap-2">
         <Link
-          to="/tools"
+          to="/tools/"
           className="flex items-center justify-between p-3 rounded-xl hover:bg-[#f7f1ff] text-sm font-medium"
         >
           <span>All Tools</span>
@@ -21,7 +21,7 @@ export default function ToolsMenu() {
         {categories.map((category) => (
           <Link
             key={category}
-            to={`/tools?category=${encodeURIComponent(category)}`}
+            to={`/tools/?category=${encodeURIComponent(category)}`}
             className="flex items-center justify-between p-3 rounded-xl hover:bg-[#f7f1ff] text-sm font-medium"
           >
             <span>{category}</span>

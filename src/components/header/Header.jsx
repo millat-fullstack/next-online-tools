@@ -22,11 +22,11 @@ export default function Header() {
 
           {/* Header Buttons */}
           <div className="flex items-center gap-3">
-            <Button to="/tools" variant="secondary" className="hidden sm:inline-flex">
+            <Button to="/tools/" variant="secondary" className="hidden sm:inline-flex">
               All Tools
             </Button>
 
-            <Button to="/contact">
+            <Button to="/contact/">
               Contact
             </Button>
           </div>

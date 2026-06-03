@@ -63,7 +63,7 @@ export default function SearchResults() {
                 {blogs.map((blog) => (
                   <Link
                     key={blog.slug}
-                    to={`/blog/${blog.slug}`}
+                    to={`/blog/${blog.slug}/`}
                     className="block rounded-3xl border border-slate-200 p-4 transition hover:border-[var(--primary)] hover:bg-slate-50"
                   >
                     <h3 className="text-xl font-semibold">{blog.title}</h3>
@@ -82,7 +82,7 @@ export default function SearchResults() {
             converter.
           </p>
 
-          <Link to="/tools" className="btn-primary">
+          <Link to="/tools/" className="btn-primary">
             Browse All Tools
           </Link>
         </section>

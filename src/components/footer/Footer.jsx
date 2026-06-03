@@ -15,27 +15,27 @@ export default function Footer() {
           <div>
             <h3 className="font-semibold mb-3">Tools</h3>
             <div className="flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
-              <Link to="/tools" className="hover:text-[var(--primary)]">All Tools</Link>
-              <Link to="/tools?category=Text%20Tools" className="hover:text-[var(--primary)]">Text Tools</Link>
-              <Link to="/tools?category=Image%20Tools" className="hover:text-[var(--primary)]">Image Tools</Link>
-              <Link to="/tools?category=Design%20Tools" className="hover:text-[var(--primary)]">Design Tools</Link>
+              <Link to="/tools/" className="hover:text-[var(--primary)]">All Tools</Link>
+              <Link to="/tools/?category=Text%20Tools" className="hover:text-[var(--primary)]">Text Tools</Link>
+              <Link to="/tools/?category=Image%20Tools" className="hover:text-[var(--primary)]">Image Tools</Link>
+              <Link to="/tools/?category=Design%20Tools" className="hover:text-[var(--primary)]">Design Tools</Link>
             </div>
           </div>
 
           <div>
             <h3 className="font-semibold mb-3">Company</h3>
             <div className="flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
-              <Link to="/about" className="hover:text-[var(--primary)]">About</Link>
-              <Link to="/blog" className="hover:text-[var(--primary)]">Blog</Link>
-              <Link to="/contact" className="hover:text-[var(--primary)]">Contact</Link>
+              <Link to="/about/" className="hover:text-[var(--primary)]">About</Link>
+              <Link to="/blog/" className="hover:text-[var(--primary)]">Blog</Link>
+              <Link to="/contact/" className="hover:text-[var(--primary)]">Contact</Link>
             </div>
           </div>
 
           <div>
             <h3 className="font-semibold mb-3">Legal</h3>
             <div className="flex flex-col gap-2 text-sm text-[var(--text-secondary)]">
-              <Link to="/privacy-policy" className="hover:text-[var(--primary)]">Privacy Policy</Link>
-              <Link to="/terms-of-service" className="hover:text-[var(--primary)]">Terms of Service</Link>
+              <Link to="/privacy-policy/" className="hover:text-[var(--primary)]">Privacy Policy</Link>
+              <Link to="/terms-of-service/" className="hover:text-[var(--primary)]">Terms of Service</Link>
             </div>
           </div>
         </div>

@@ -8,7 +8,7 @@ export default function CategorySelector({ categories = [] }) {
   return (
     <div className="category-selector">
       <Link
-        to="/tools"
+        to="/tools/"
         className={!selectedCategory ? "category-chip active" : "category-chip"}
       >
         All Tools
@@ -17,7 +17,7 @@ export default function CategorySelector({ categories = [] }) {
       {categories.map((category) => (
         <Link
           key={category}
-          to={`/tools?category=${encodeURIComponent(category)}`}
+          to={`/tools/?category=${encodeURIComponent(category)}`}
           className={
             selectedCategory === category
               ? "category-chip active"

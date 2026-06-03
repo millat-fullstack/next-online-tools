@@ -299,7 +299,7 @@ export default function Tools() {
               {filteredTools.map((tool, index) => (
                 <Link
                   key={tool.id || index}
-                  to={`/tool/${tool.id}`}
+                  to={`/tool/${tool.id}/`}
                   className="tool-card"
                   aria-label={`Open ${tool.name}`}
                 >

@@ -14,8 +14,8 @@ export default function LatestTools() {
         return (
           <a
             key={tool.id}
-            href={`/tool/${tool.id}`}
-            onPointerDown={(e) => { e.preventDefault(); navigate(`/tool/${tool.id}`); }}
+            href={`/tool/${tool.id}/`}
+            onPointerDown={(e) => { e.preventDefault(); navigate(`/tool/${tool.id}/`); }}
             onClick={(e) => e.preventDefault()}
             className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#f7f1ff]"
           >

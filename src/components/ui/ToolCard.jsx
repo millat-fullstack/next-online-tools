@@ -5,7 +5,7 @@ export default function ToolCard({ tool, compact = false }) {
   const IconComponent = Icons[tool.icon] || Icons.Wrench;
 
   return (
-    <Link to={`/tool/${tool.id}`} className="block h-full">
+    <Link to={`/tool/${tool.id}/`} className="block h-full">
       <div className="card card-hover p-5 h-full">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
           <IconComponent
