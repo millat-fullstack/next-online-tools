@@ -229,7 +229,7 @@ export default function HowToResizeImageForFacebookPost() {
 
       {/* Blog Header */}
       <section className="card p-6 sm:p-8 mb-6">
-        <div className="relative w-full h-72 overflow-hidden rounded-xl">
+        <div className="relative w-full h-96 overflow-hidden rounded-xl">
           <img
             src="/images/resize-image-for-facebook-post.jpg"
             alt="How to resize an image for Facebook post using a free online image resizer"

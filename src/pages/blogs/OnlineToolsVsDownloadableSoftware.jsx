@@ -202,7 +202,7 @@ export default function OnlineToolsVsDownloadableSoftware() {
 
       {/* Blog Header */}
       <section className="card p-6 sm:p-8 mb-6">
-        <div className="relative w-full h-72 overflow-hidden rounded-xl">
+        <div className="relative w-full h-96 overflow-hidden rounded-xl">
           <img
             src="/images/online-tools-vs-downloadable-software.jpg"
             alt="Online tools vs downloadable software comparison"

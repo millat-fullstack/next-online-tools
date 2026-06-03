@@ -23,7 +23,7 @@ export default function BestFreeOnlineTools() {
 
       {/* Blog Header */}
       <section className="card p-6 sm:p-8 mb-6">
-        <div className="relative w-full h-72 overflow-hidden rounded-xl">
+        <div className="relative w-full h-96 overflow-hidden rounded-xl">
           <img
             src="/images/free-online-tools.jpg" // Ensure to add an image for this blog
             alt="Best Free Online Tools"

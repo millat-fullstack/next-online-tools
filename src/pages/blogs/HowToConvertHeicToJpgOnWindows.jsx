@@ -229,7 +229,7 @@ export default function HowToConvertHeicToJpgOnWindows() {
 
       {/* Blog Header */}
       <section className="card p-6 sm:p-8 mb-6">
-        <div className="relative w-full h-72 overflow-hidden rounded-xl">
+        <div className="relative w-full h-96 overflow-hidden rounded-xl">
           <img
             src="/images/convert-heic-to-jpg-on-windows.jpg"
             alt="How to convert HEIC to JPG on Windows using a free online converter"

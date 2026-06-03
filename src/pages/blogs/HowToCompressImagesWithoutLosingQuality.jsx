@@ -233,7 +233,7 @@ export default function HowToCompressImagesWithoutLosingQuality() {
 
       {/* Blog Header */}
       <section className="card p-6 sm:p-8 mb-6">
-        <div className="relative w-full h-72 overflow-hidden rounded-xl">
+        <div className="relative w-full h-96 overflow-hidden rounded-xl">
           <img
             src="/images/compress-images-without-losing-quality.jpg"
             alt="How to compress images without losing quality using a free online image compressor"

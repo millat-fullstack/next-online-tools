@@ -931,6 +931,14 @@ select {
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
+a.home-tool-card {
+  display: flex !important;
+}
+
+a.home-blog-card {
+  display: flex !important;
+}
+
 .home-tool-card {
   width: 100%;
   max-width: 100%;

@@ -15,7 +15,7 @@ export default function HowToConvertWebpToJpg() {
     <article>
       {/* Blog Header */}
       <section className="card p-6 sm:p-8 mb-6">
-        <div className="relative w-full h-72 overflow-hidden rounded-xl bg-[var(--bg-secondary)]">
+        <div className="relative w-full h-96 overflow-hidden rounded-xl bg-[var(--bg-secondary)]">
           <img
             src={blogData.image}
             alt="WEBP to JPG converter guide"

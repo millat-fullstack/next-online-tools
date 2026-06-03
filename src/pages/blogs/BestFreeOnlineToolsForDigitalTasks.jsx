@@ -95,7 +95,7 @@ export default function BestFreeOnlineToolsForEverydayDigitalTasks() {
 
       {/* Blog Header */}
       <section className="card p-6 sm:p-8 mb-6">
-        <div className="relative w-full h-72 overflow-hidden rounded-xl">
+        <div className="relative w-full h-96 overflow-hidden rounded-xl">
           <img
             src="/images/best-free-online-tools-everyday-digital-tasks.jpg"
             alt="Best free online tools for everyday digital tasks"
