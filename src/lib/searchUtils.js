@@ -1,26 +1,34 @@
-// src/lib/searchUtils.js
-// Lightweight in-memory search used for GlobalSearch & SearchResults.
-// No external deps.
-
 import tools from "../data/tools.json";
 import { blogs } from "../data/Blogs";
 
-/** normalize string */
-function norm(s = "") {
-  return String(s || "").toLowerCase();
+function norm(value = "") {
+  return String(value || "").toLowerCase().trim();
 }
 
-/** simple score for substring matches */
-function scoreText(q, text) {
-  const Q = norm(q);
-  const T = norm(text || "");
-  if (!Q || !T) return 0;
-  if (T.includes(Q)) return 100 - T.indexOf(Q);
-  const tokens = Q.split(/\s+/).filter(Boolean);
+function textFromParts(parts = []) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function scoreText(query, text) {
+  const q = norm(query);
+  const t = norm(text);
+
+  if (!q || !t) return 0;
+
+  if (t === q) return 300;
+  if (t.startsWith(q)) return 220;
+  if (t.includes(q)) return 150 - Math.min(t.indexOf(q), 100);
+
+  const tokens = q.split(/\s+/).filter(Boolean);
+
   let score = 0;
-  tokens.forEach((t) => {
-    if (T.includes(t)) score += 10;
+
+  tokens.forEach((token) => {
+    if (t.includes(token)) {
+      score += 20;
+    }
   });
+
   return score;
 }
 
@@ -29,7 +37,7 @@ function createToolResult(tool, score) {
     type: "Tool",
     id: tool.id,
     title: tool.name,
-    subtitle: tool.category,
+    subtitle: tool.category || "Online Tool",
     score,
     url: `/tool/${tool.id}`,
   };
@@ -40,7 +48,7 @@ function createBlogResult(blog, score) {
     type: "Blog",
     id: blog.slug,
     title: blog.title,
-    subtitle: blog.category,
+    subtitle: blog.category || "Blog",
     score,
     url: `/blog/${blog.slug}`,
   };
@@ -48,66 +56,102 @@ function createBlogResult(blog, score) {
 
 export function searchAll(query, limit = 10) {
   const q = String(query || "").trim();
+
   if (!q) return [];
 
   const results = [];
 
   for (const tool of tools) {
-    const s = Math.max(
-      scoreText(q, tool.name),
-      scoreText(q, tool.description),
-      scoreText(q, tool.category)
-    );
-    if (s > 0) {
-      results.push(createToolResult(tool, s));
+    const searchableText = textFromParts([
+      tool.name,
+      tool.id,
+      tool.slug,
+      tool.description,
+      tool.category,
+      Array.isArray(tool.keywords) ? tool.keywords.join(" ") : tool.keywords,
+      Array.isArray(tool.tags) ? tool.tags.join(" ") : tool.tags,
+    ]);
+
+    const score = scoreText(q, searchableText);
+
+    if (score > 0) {
+      results.push(createToolResult(tool, score));
     }
   }
 
   for (const blog of blogs) {
-    const s = Math.max(
-      scoreText(q, blog.title),
-      scoreText(q, blog.excerpt),
-      scoreText(q, blog.category)
-    );
-    if (s > 0) {
-      results.push(createBlogResult(blog, s));
+    const searchableText = textFromParts([
+      blog.title,
+      blog.slug,
+      blog.excerpt,
+      blog.category,
+      Array.isArray(blog.keywords) ? blog.keywords.join(" ") : blog.keywords,
+      Array.isArray(blog.tags) ? blog.tags.join(" ") : blog.tags,
+    ]);
+
+    const score = scoreText(q, searchableText);
+
+    if (score > 0) {
+      results.push(createBlogResult(blog, score));
     }
   }
 
-  results.sort((a, b) => b.score - a.score);
-  return results.slice(0, limit);
+  return results.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
 export function searchAllGrouped(query) {
   const q = String(query || "").trim();
-  if (!q) return { tools: [], blogs: [] };
 
-  const toolsRes = [];
-  const blogsRes = [];
+  if (!q) {
+    return {
+      tools: [],
+      blogs: [],
+    };
+  }
+
+  const toolResults = [];
+  const blogResults = [];
 
   for (const tool of tools) {
-    const s = Math.max(
-      scoreText(q, tool.name),
-      scoreText(q, tool.description),
-      scoreText(q, tool.category)
-    );
-    if (s > 0) toolsRes.push({ item: tool, score: s });
+    const searchableText = textFromParts([
+      tool.name,
+      tool.id,
+      tool.slug,
+      tool.description,
+      tool.category,
+      Array.isArray(tool.keywords) ? tool.keywords.join(" ") : tool.keywords,
+      Array.isArray(tool.tags) ? tool.tags.join(" ") : tool.tags,
+    ]);
+
+    const score = scoreText(q, searchableText);
+
+    if (score > 0) {
+      toolResults.push({ item: tool, score });
+    }
   }
 
   for (const blog of blogs) {
-    const s = Math.max(
-      scoreText(q, blog.title),
-      scoreText(q, blog.excerpt),
-      scoreText(q, blog.category)
-    );
-    if (s > 0) blogsRes.push({ item: blog, score: s });
+    const searchableText = textFromParts([
+      blog.title,
+      blog.slug,
+      blog.excerpt,
+      blog.category,
+      Array.isArray(blog.keywords) ? blog.keywords.join(" ") : blog.keywords,
+      Array.isArray(blog.tags) ? blog.tags.join(" ") : blog.tags,
+    ]);
+
+    const score = scoreText(q, searchableText);
+
+    if (score > 0) {
+      blogResults.push({ item: blog, score });
+    }
   }
 
-  toolsRes.sort((a, b) => b.score - a.score);
-  blogsRes.sort((a, b) => b.score - a.score);
+  toolResults.sort((a, b) => b.score - a.score);
+  blogResults.sort((a, b) => b.score - a.score);
 
   return {
-    tools: toolsRes.map((r) => r.item),
-    blogs: blogsRes.map((r) => r.item),
+    tools: toolResults.map((result) => result.item),
+    blogs: blogResults.map((result) => result.item),
   };
 }

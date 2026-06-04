@@ -8,7 +8,7 @@ import SocialLinks from "./SocialLinks";
 
 function normalizePath(path) {
   if (!path || path === "/") return "/";
-  return String(path).replace(/\/+$/, "");
+  return String(path).replace(/\/$/, "");
 }
 
 export default function Sidebar() {
@@ -16,7 +16,7 @@ export default function Sidebar() {
 
   const navItems = [
     { name: "Explore", path: "/", icon: Home },
-    { name: "All Tools", path: "/tools", icon: Wrench },
+    { name: "All Tools", path: "/tools", icon: Wrench, hardLink: true },
     { name: "Blog", path: "/blog", icon: BookOpen },
     { name: "About", path: "/about", icon: Info },
     { name: "Contact", path: "/contact", icon: Mail },
@@ -43,18 +43,35 @@ export default function Sidebar() {
           const isActive =
             normalizePath(location.pathname) === normalizePath(item.path);
 
+          const navClassName = `flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition ${
+            isActive
+              ? "bg-[#f0e7ff] text-[var(--primary)]"
+              : "text-[var(--text-secondary)] hover:bg-[#f7f1ff]"
+          }`;
+
+          if (item.hardLink) {
+            return (
+              <a
+                key={item.name}
+                href="/tools"
+                className={navClassName}
+                aria-label="Open All Tools"
+              >
+                <Icon size={18} strokeWidth={2} />
+                <span>{item.name}</span>
+              </a>
+            );
+          }
+
           return (
             <SmartLink
-              key={item.path}
+              key={item.name}
               to={item.path}
-              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition ${
-                isActive
-                  ? "bg-[#f0e7ff] text-[var(--primary)]"
-                  : "text-[var(--text-secondary)] hover:bg-[#f7f1ff]"
-              }`}
+              className={navClassName}
+              aria-label={`Open ${item.name}`}
             >
               <Icon size={18} strokeWidth={2} />
-              {item.name}
+              <span>{item.name}</span>
             </SmartLink>
           );
         })}

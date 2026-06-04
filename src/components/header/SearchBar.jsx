@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { searchAll } from "../../lib/searchUtils";
@@ -15,65 +15,83 @@ function normalizeInternalUrl(url) {
 }
 
 export default function SearchBar() {
+  const wrapperRef = useRef(null);
   const [query, setQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const navigate = useNavigate();
 
   const suggestions = useMemo(() => {
     const trimmed = query.trim();
+
     if (!trimmed) return [];
+
     return searchAll(trimmed, 5);
   }, [query]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (!wrapperRef.current) return;
+
+      if (!wrapperRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
+    };
+  }, []);
 
   function closeSearch() {
     setQuery("");
     setShowSuggestions(false);
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
+  function goToSearchPage(value) {
+    const trimmedQuery = value.trim();
 
-    const trimmedQuery = query.trim();
     if (!trimmedQuery) return;
 
     navigate(`/search?q=${encodeURIComponent(trimmedQuery)}`);
     closeSearch();
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    goToSearchPage(query);
   }
 
   function handleSuggestionClick(result) {
     if (!result?.url) return;
 
     const cleanUrl = normalizeInternalUrl(result.url);
+
     navigate(cleanUrl);
-    closeSearch();
-  }
-
-  function handleSearchAll() {
-    const trimmedQuery = query.trim();
-    if (!trimmedQuery) return;
-
-    navigate(`/search?q=${encodeURIComponent(trimmedQuery)}`);
     closeSearch();
   }
 
   return (
     <form
+      ref={wrapperRef}
       onSubmit={handleSubmit}
       className="relative w-full"
       autoComplete="off"
-      onBlur={(e) => {
-        const nextFocusedElement = e.relatedTarget;
-
-        if (!e.currentTarget.contains(nextFocusedElement)) {
-          setShowSuggestions(false);
-        }
-      }}
     >
       <input
         type="text"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setShowSuggestions(true);
+        }}
         onFocus={() => setShowSuggestions(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setShowSuggestions(false);
+          }
+        }}
         placeholder="Search tools, blogs, and guides..."
         className="input pl-11 pr-16"
         aria-label="Search tools"
@@ -112,7 +130,7 @@ export default function SearchBar() {
 
           <button
             type="button"
-            onClick={handleSearchAll}
+            onClick={() => goToSearchPage(query)}
             className="w-full px-4 py-3 text-left text-sm font-medium text-[var(--primary)] hover:bg-slate-50"
           >
             Search all results for “{query.trim()}”

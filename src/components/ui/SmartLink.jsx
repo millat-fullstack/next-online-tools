@@ -1,9 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
 
 function isInternalUrl(to) {
-  if (typeof to !== "string") return false;
-
   return (
+    typeof to === "string" &&
     to.startsWith("/") &&
     !to.startsWith("//") &&
     !to.startsWith("http") &&
@@ -12,13 +11,13 @@ function isInternalUrl(to) {
   );
 }
 
-function isPlainLeftClick(e) {
+function isPlainLeftClick(event) {
   return (
-    e.button === 0 &&
-    !e.metaKey &&
-    !e.ctrlKey &&
-    !e.shiftKey &&
-    !e.altKey
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
   );
 }
 
@@ -31,17 +30,17 @@ export default function SmartLink({
 }) {
   const navigate = useNavigate();
 
-  function handleMouseDown(e) {
+  function handleMouseDown(event) {
     if (!isInternalUrl(to)) return;
-    if (!isPlainLeftClick(e)) return;
+    if (!isPlainLeftClick(event)) return;
 
-    e.preventDefault();
+    event.preventDefault();
     navigate(to);
   }
 
-  function handleClick(e) {
+  function handleClick(event) {
     if (onClick) {
-      onClick(e);
+      onClick(event);
     }
   }
 

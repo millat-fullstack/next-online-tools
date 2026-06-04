@@ -1,5 +1,14 @@
 export const blogs = [
   {
+    "title": "Edit Photos Online Easily with Next Online Tools Quick Photo Editor",
+    "slug": "QuickPhotoEditorOnline",
+    "date": "2026-06-05",
+    "category": "Image Tools",
+    "excerpt": "Learn how to edit, crop, resize, add text, add shapes, and prepare photos online using the free Quick Photo Editor by Next Online Tools.",
+    "image": "/images/quick-photo-editor.png",
+    "pageFile": "QuickPhotoEditorOnline"
+  },
+  {
     "title": "How to Convert JPG to PDF Online for Free",
     "slug": "HowToConvertJpgToPdfOnlineForFree",
     "date": "2026-06-03",

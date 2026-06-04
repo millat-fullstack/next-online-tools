@@ -1,9 +1,9 @@
-import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import * as Icons from "lucide-react";
+import { Helmet } from "react-helmet-async";
+
 import tools from "../data/tools.json";
 import { blogs } from "../data/Blogs";
-import { Helmet } from "react-helmet-async";
 import Button from "../components/ui/Button";
 import SmartLink from "../components/ui/SmartLink";
 
@@ -21,11 +21,11 @@ function HomeToolIcon({ icon }) {
 
 function ToolCard({ tool, compact = false }) {
   return (
-<SmartLink
-  to={`/tool/${tool.id}`}
-  className="home-tool-card"
-  aria-label={`Open ${tool.name}`}
->
+    <SmartLink
+      to={`/tool/${tool.id}`}
+      className="home-tool-card"
+      aria-label={`Open ${tool.name}`}
+    >
       <div className="home-tool-card-top">
         <HomeToolIcon icon={tool.icon} />
 
@@ -46,12 +46,13 @@ function ToolCard({ tool, compact = false }) {
       {!compact && (
         <div className="home-tool-card-bottom">
           <span>{tool.category || "Online Tool"}</span>
+
           <div aria-hidden="true">
             <Icons.ArrowRight size={17} />
           </div>
         </div>
       )}
-</SmartLink>
+    </SmartLink>
   );
 }
 
@@ -121,7 +122,7 @@ export default function Home() {
     {
       question: "What is Next Online Tools?",
       answer:
-        "Next Online Tools is a free online tools website that helps users complete everyday digital tasks such as image editing, PDF work, text formatting, color picking, file conversion, and productivity tasks.",
+        "Next Online Tools is a free online tools website that helps users complete everyday digital tasks such as image editing, PDF work, text formatting, color picking, and productivity tasks.",
     },
     {
       question: "Are the tools free to use?",
@@ -256,6 +257,7 @@ export default function Home() {
         </script>
       </Helmet>
 
+      {/* HERO */}
       <section className="home-hero">
         <div className="home-hero-badge">
           <Icons.Sparkles size={16} />
@@ -281,6 +283,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* POPULAR TOOLS */}
       <section className="home-section">
         <div className="home-section-head home-section-head-row">
           <div>
@@ -289,9 +292,9 @@ export default function Home() {
             <p>Most useful tools to complete common online tasks quickly.</p>
           </div>
 
-          <Link to="/tools" className="home-secondary-btn home-view-btn">
+          <SmartLink to="/tools" className="home-secondary-btn home-view-btn">
             View All Tools
-          </Link>
+          </SmartLink>
         </div>
 
         <div className="home-tools-grid popular">
@@ -301,6 +304,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* CATEGORY CONTENT */}
       <section className="home-section">
         <div className="home-section-head">
           <div>
@@ -315,10 +319,11 @@ export default function Home() {
 
         <div className="home-tools-grid featured">
           {categoryHighlights.slice(0, 6).map((category) => (
-            <Link
+            <SmartLink
               key={category.name}
               to={`/tools?category=${encodeURIComponent(category.name)}`}
               className="home-tool-card"
+              aria-label={`Browse ${category.name}`}
             >
               <div className="home-tool-card-top">
                 <HomeToolIcon icon="FolderOpen" />
@@ -329,15 +334,17 @@ export default function Home() {
 
               <div className="home-tool-card-bottom">
                 <span>Browse category</span>
+
                 <div aria-hidden="true">
                   <Icons.ArrowRight size={17} />
                 </div>
               </div>
-            </Link>
+            </SmartLink>
           ))}
         </div>
       </section>
 
+      {/* FEATURED TOOLS */}
       <section className="home-section">
         <div className="home-section-head">
           <div>
@@ -357,6 +364,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* BENEFITS */}
       <section className="home-benefits">
         <div className="home-benefits-content">
           <div className="home-hero-badge">
@@ -393,6 +401,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* BLOGS */}
       <section className="home-blog-section">
         <div className="home-section-head home-section-head-row">
           <div>
@@ -404,17 +413,18 @@ export default function Home() {
             </p>
           </div>
 
-          <Link to="/blog" className="home-secondary-btn home-view-btn">
+          <SmartLink to="/blog" className="home-secondary-btn home-view-btn">
             View All Blogs
-          </Link>
+          </SmartLink>
         </div>
 
         <div className="home-blog-grid">
           {blogs.slice(0, 3).map((blog, index) => (
-            <Link
+            <SmartLink
               key={blog.id || blog.slug || index}
               to={`/blog/${blog.slug}`}
               className="home-blog-card"
+              aria-label={`Read ${blog.title}`}
             >
               <div className="home-blog-card-top">
                 <span>{blog.category || "Blog"}</span>
@@ -429,11 +439,12 @@ export default function Home() {
               </p>
 
               <strong>Read guide →</strong>
-            </Link>
+            </SmartLink>
           ))}
         </div>
       </section>
 
+      {/* FAQ */}
       <section className="home-section">
         <div className="home-section-head">
           <div>
