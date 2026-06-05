@@ -2,7 +2,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "Social Media Image Size Guide",
-  slug: "SocialMediaImageSizeGuide",
+  slug: "social-media-image-size-guide",
   date: "2026-06-03",
   category: "Image Tools",
   excerpt:

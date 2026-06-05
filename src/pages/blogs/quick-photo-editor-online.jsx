@@ -3,7 +3,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "Edit Photos Online Easily with Next Online Tools Quick Photo Editor",
-  slug: "QuickPhotoEditorOnline",
+  slug: "quick-photo-editor-online",
   date: "2026-06-05",
   category: "Image Tools",
   excerpt:

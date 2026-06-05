@@ -41,7 +41,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 pt-5 border-t border-[var(--border)] flex flex-col sm:flex-row justify-between gap-3 text-sm text-[var(--text-secondary)]">
-          <p>© {new Date().getFullYear()} Next Online Tools. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} NextOnlineTools. All rights reserved.</p>
           <p>100% Free • No Paid API • User Friendly</p>
         </div>
       </div>
