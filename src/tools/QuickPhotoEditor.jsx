@@ -25,6 +25,14 @@ import {
   Eye,
   Trash2,
   Images,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  CaseSensitive,
+  ZoomIn,
+  ZoomOut,
+  Move,
+  PanelLeft,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -48,6 +56,7 @@ const SNAP_DISTANCE = 10;
 
 const TOOLS = [
   { id: "select", label: "Select", icon: MousePointer2 },
+  { id: "hand", label: "Hand", icon: Move },
   { id: "text", label: "Text", icon: Type },
   { id: "draw", label: "Draw", icon: PenLine },
   { id: "blur", label: "Blur", icon: EyeOff },
@@ -153,6 +162,32 @@ const TEXT_PRESETS = [
   },
 ];
 
+const TEXT_CASE_OPTIONS = [
+  { value: "none", label: "Normal" },
+  { value: "uppercase", label: "UPPERCASE" },
+  { value: "lowercase", label: "lowercase" },
+  { value: "capitalize", label: "Capitalize" },
+  { value: "title", label: "Title Case" },
+];
+
+const FONT_WEIGHT_OPTIONS = [
+  { value: 300, label: "Light" },
+  { value: 400, label: "Regular" },
+  { value: 500, label: "Medium" },
+  { value: 600, label: "Semi Bold" },
+  { value: 700, label: "Bold" },
+  { value: 800, label: "Extra Bold" },
+  { value: 900, label: "Black" },
+];
+
+const TEXT_ALIGN_OPTIONS = [
+  { value: "left", label: "Left", icon: AlignLeft },
+  { value: "center", label: "Center", icon: AlignCenter },
+  { value: "right", label: "Right", icon: AlignRight },
+];
+
+
+
 export default function QuickPhotoEditor() {
   const mainFileInputRef = useRef(null);
   const addImageInputRef = useRef(null);
@@ -171,6 +206,7 @@ export default function QuickPhotoEditor() {
     lastPoint: null,
     selectedStart: null,
     dragStartBox: null,
+    resizeHandle: null,
   });
 
   const [imageInfo, setImageInfo] = useState(null);
@@ -199,6 +235,11 @@ export default function QuickPhotoEditor() {
   const [textHasBackground, setTextHasBackground] = useState(true);
   const [textFontFamily, setTextFontFamily] = useState("Arial, sans-serif");
   const [fontSize, setFontSize] = useState(48);
+  const [fontWeight, setFontWeight] = useState(800);
+  const [textAlign, setTextAlign] = useState("center");
+  const [textCase, setTextCase] = useState("none");
+  const [textBoxWidth, setTextBoxWidth] = useState(360);
+  const [textBoxHeight, setTextBoxHeight] = useState(120);
   const [boldText, setBoldText] = useState(true);
   const [textShadow, setTextShadow] = useState(true);
 
@@ -226,6 +267,7 @@ export default function QuickPhotoEditor() {
   const [showGuides] = useState(true);
   const [guideInfo, setGuideInfo] = useState(null);
   const [previewZoom, setPreviewZoom] = useState(1);
+  const [artboardPan, setArtboardPan] = useState({ x: 0, y: 0 });
 
   const [outputFormat, setOutputFormat] = useState("image/png");
   const [quality, setQuality] = useState(0.94);
@@ -252,6 +294,24 @@ export default function QuickPhotoEditor() {
     return OUTPUT_FORMATS.find((item) => item.value === outputFormat) || OUTPUT_FORMATS[0];
   }, [outputFormat]);
 
+  useEffect(() => {
+    if (selectedObject?.type !== "text") return;
+
+    setTextValue(selectedObject.text || "");
+    setTextColor(selectedObject.color || "#ffffff");
+    setTextBackground(selectedObject.background || "#111827");
+    setTextHasBackground(selectedObject.hasBackground !== false);
+    setTextFontFamily(selectedObject.fontFamily || "Arial, sans-serif");
+    setFontSize(Number(selectedObject.fontSize || 48));
+    setFontWeight(Number(selectedObject.fontWeight || (selectedObject.bold ? 800 : 500)));
+    setTextAlign(selectedObject.textAlign || "center");
+    setTextCase(selectedObject.textCase || "none");
+    setTextBoxWidth(Number(selectedObject.w || 360));
+    setTextBoxHeight(Number(selectedObject.h || 120));
+    setBoldText(Boolean(selectedObject.bold || Number(selectedObject.fontWeight || 0) >= 700));
+    setTextShadow(Boolean(selectedObject.shadow));
+  }, [selectedObjectId]);
+
   const previewWidth = useMemo(() => {
     if (!canvasSize.width) return 0;
 
@@ -276,6 +336,7 @@ export default function QuickPhotoEditor() {
     "clone",
     "size",
     "export",
+    "shape",
   ].includes(settingsMode);
 
   const processText = processingTimeMs
@@ -370,6 +431,7 @@ export default function QuickPhotoEditor() {
       setGuideInfo(buildGuideInfo(getObjectBox(baseImageObject), uploadCanvasSize, "Drag image to adjust"));
       setShowOriginal(false);
       setPreviewZoom(1);
+      setArtboardPan({ x: 0, y: 0 });
       setActiveTool("select");
       setActivePanel("image");
       setOutputFormat(getDefaultOutputFormat(file.type));
@@ -431,6 +493,52 @@ export default function QuickPhotoEditor() {
       document.removeEventListener("paste", handlePaste);
     };
   }, [handleMainImageFile]);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (!hasImage || showOriginal) return;
+
+      const target = event.target;
+      const tagName = target?.tagName?.toLowerCase();
+      const isTyping =
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        target?.isContentEditable;
+
+      if (isTyping) return;
+
+      if ((event.key === "Delete" || event.key === "Backspace") && selectedObjectId) {
+        event.preventDefault();
+        deleteSelectedObject();
+        return;
+      }
+
+      const arrowKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+
+      if (selectedObjectId && arrowKeys.includes(event.key)) {
+        event.preventDefault();
+
+        const step = event.shiftKey ? 10 : 1;
+        const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
+        const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
+
+        moveSelectedObjectByKeyboard(dx, dy, { withHistory: !event.repeat });
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [hasImage, showOriginal, selectedObjectId, objects, canvasSize, historyPast, historyFuture]);
 
   useEffect(() => {
     return () => {
@@ -628,9 +736,11 @@ export default function QuickPhotoEditor() {
   }
 
   function handleArtboardPointerDown(event) {
-    if (event.target === event.currentTarget) {
-      clearSelections();
-    }
+    if (event.target === visibleCanvasRef.current) return;
+
+    clearSelections();
+    setActivePanel("");
+    setActiveTool("select");
   }
 
   function renderVisibleCanvas() {
@@ -824,6 +934,24 @@ export default function QuickPhotoEditor() {
   function handlePointerDown(event) {
     if (!hasImage || showOriginal) return;
 
+    if (activeTool === "hand") {
+      event.preventDefault();
+      setErrorMessage("");
+
+      pointerRef.current = {
+        active: true,
+        mode: "pan-artboard",
+        startPoint: { x: event.clientX, y: event.clientY },
+        lastPoint: null,
+        selectedStart: { ...artboardPan },
+        dragStartBox: null,
+        resizeHandle: null,
+      };
+
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
     const point = getCanvasPoint(event);
 
     if (!point) return;
@@ -871,18 +999,44 @@ export default function QuickPhotoEditor() {
       return;
     }
 
+    if (selected.type === "text") {
+      setActivePanel("text");
+    } else if (selected.type === "image") {
+      setActivePanel("image");
+    } else if (["rectangle", "circle", "arrow"].includes(selected.type)) {
+      setActivePanel("shape");
+    } else {
+      setActivePanel("");
+    }
+
+    const selectedBox = getObjectBox(selected);
+    const resizeHandle = getResizeHandleAtPoint(point, selected, previewZoom);
+
     pushHistory();
 
     pointerRef.current = {
       active: true,
-      mode: "move-object",
+      mode: resizeHandle ? "resize-object" : "move-object",
       startPoint: point,
       lastPoint: point,
       selectedStart: cloneObject(selected),
-      dragStartBox: getObjectBox(selected),
+      dragStartBox: selectedBox,
+      resizeHandle,
     };
 
-    setGuideInfo(buildGuideInfo(getObjectBox(selected), canvasSize, selected.isBaseImage ? "Drag image to adjust" : "Selected"));
+    setGuideInfo(
+      buildGuideInfo(
+        selectedBox,
+        canvasSize,
+        resizeHandle
+          ? selected.type === "text"
+            ? "Drag corner to scale text"
+            : "Drag corner to resize"
+          : selected.isBaseImage
+            ? "Drag image to adjust"
+            : "Selected"
+      )
+    );
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -912,6 +1066,7 @@ export default function QuickPhotoEditor() {
       lastPoint: point,
       selectedStart: null,
       dragStartBox: null,
+      resizeHandle: null,
     };
 
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -1047,6 +1202,7 @@ export default function QuickPhotoEditor() {
       lastPoint: point,
       selectedStart: null,
       dragStartBox: null,
+      resizeHandle: null,
     };
 
     applyBrush(point, point);
@@ -1056,34 +1212,57 @@ export default function QuickPhotoEditor() {
   function handlePointerMove(event) {
     if (!pointerRef.current.active || !hasImage || showOriginal) return;
 
+    if (pointerRef.current.mode === "pan-artboard") {
+      event.preventDefault();
+
+      const startPoint = pointerRef.current.startPoint;
+      const startPan = pointerRef.current.selectedStart || { x: 0, y: 0 };
+
+      setArtboardPan({
+        x: startPan.x + event.clientX - startPoint.x,
+        y: startPan.y + event.clientY - startPoint.y,
+      });
+      return;
+    }
+
     const point = getCanvasPoint(event);
 
     if (!point) return;
 
     event.preventDefault();
 
+    if (pointerRef.current.mode === "resize-object" && selectedObjectId) {
+      resizeSelectedObject(point, { shiftKey: event.shiftKey });
+      return;
+    }
+
     if (pointerRef.current.mode === "move-object" && selectedObjectId) {
-      moveSelectedObject(point);
+      moveSelectedObject(point, { shiftKey: event.shiftKey });
       return;
     }
 
     if (pointerRef.current.mode === "draw-object" && draftObject) {
-      const nextDraft = updateDraftObject(draftObject, pointerRef.current.startPoint, point);
+      const nextDraft = updateDraftObject(draftObject, pointerRef.current.startPoint, point, {
+        shiftKey: event.shiftKey,
+      });
       setDraftObject(nextDraft);
       setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Drawing"));
       return;
     }
 
     if (pointerRef.current.mode === "set-patch-target" && draftObject) {
-      const nextDraft = updateDraftObject(draftObject, pointerRef.current.startPoint, point);
+      const nextDraft = updateDraftObject(draftObject, pointerRef.current.startPoint, point, {
+        shiftKey: event.shiftKey,
+      });
       setDraftObject(nextDraft);
       setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Patch Target"));
       return;
     }
 
     if (pointerRef.current.mode === "drag-patch-source" && pointerRef.current.dragStartBox) {
-      const dx = point.x - pointerRef.current.startPoint.x;
-      const dy = point.y - pointerRef.current.startPoint.y;
+      const rawDx = point.x - pointerRef.current.startPoint.x;
+      const rawDy = point.y - pointerRef.current.startPoint.y;
+      const { dx, dy } = event.shiftKey ? lockDragAxis(rawDx, rawDy) : { dx: rawDx, dy: rawDy };
       const rawBox = translateBox(pointerRef.current.dragStartBox, dx, dy);
       const snapResult = snapBoxToGuides(rawBox, canvasSize);
       const nextBox = clampBoxToCanvas(snapResult.box, workingCanvasRef.current);
@@ -1094,15 +1273,18 @@ export default function QuickPhotoEditor() {
     }
 
     if (pointerRef.current.mode === "set-clone-source" && draftObject) {
-      const nextDraft = updateDraftObject(draftObject, pointerRef.current.startPoint, point);
+      const nextDraft = updateDraftObject(draftObject, pointerRef.current.startPoint, point, {
+        shiftKey: event.shiftKey,
+      });
       setDraftObject(nextDraft);
       setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Clone Source"));
       return;
     }
 
     if (pointerRef.current.mode === "drag-clone-target" && pointerRef.current.dragStartBox) {
-      const dx = point.x - pointerRef.current.startPoint.x;
-      const dy = point.y - pointerRef.current.startPoint.y;
+      const rawDx = point.x - pointerRef.current.startPoint.x;
+      const rawDy = point.y - pointerRef.current.startPoint.y;
+      const { dx, dy } = event.shiftKey ? lockDragAxis(rawDx, rawDy) : { dx: rawDx, dy: rawDy };
       const rawBox = translateBox(pointerRef.current.dragStartBox, dx, dy);
       const snapResult = snapBoxToGuides(rawBox, canvasSize);
       const nextBox = clampBoxToCanvas(snapResult.box, workingCanvasRef.current);
@@ -1118,29 +1300,108 @@ export default function QuickPhotoEditor() {
     }
   }
 
-  function moveSelectedObject(point) {
+  function moveSelectedObject(point, options = {}) {
     const startPoint = pointerRef.current.startPoint;
     const selectedStart = pointerRef.current.selectedStart;
 
     if (!startPoint || !selectedStart) return;
 
-    const dx = point.x - startPoint.x;
-    const dy = point.y - startPoint.y;
+    const rawDx = point.x - startPoint.x;
+    const rawDy = point.y - startPoint.y;
+    const { dx, dy } = options.shiftKey
+      ? lockDragAxis(rawDx, rawDy)
+      : { dx: rawDx, dy: rawDy };
 
     const moved = moveObject(selectedStart, dx, dy);
     const movedBox = getObjectBox(moved);
-    const snapResult = snapBoxToGuides(movedBox, canvasSize);
+    const referenceBoxes = objects
+      .filter((item) => item.id !== selectedObjectId)
+      .map(getObjectBox)
+      .filter(Boolean);
+
+    const snapResult = snapBoxToGuides(movedBox, canvasSize, referenceBoxes);
 
     const snapDx = snapResult.box.x - movedBox.x;
     const snapDy = snapResult.box.y - movedBox.y;
 
     const finalMoved = moveObject(selectedStart, dx + snapDx, dy + snapDy);
+    const finalBox = getObjectBox(finalMoved);
 
     setObjects((current) =>
       current.map((item) => (item.id === selectedObjectId ? finalMoved : item))
     );
 
-    setGuideInfo(buildGuideInfo(getObjectBox(finalMoved), canvasSize, snapResult.message || "Moving"));
+    setGuideInfo(
+      buildGuideInfo(finalBox, canvasSize, snapResult.message || "Moving", snapResult)
+    );
+    clearOutput();
+  }
+
+  function resizeSelectedObject(point, options = {}) {
+    const selectedStart = pointerRef.current.selectedStart;
+    const dragStartBox = pointerRef.current.dragStartBox;
+    const resizeHandle = pointerRef.current.resizeHandle;
+
+    if (!selectedStart || !dragStartBox || !resizeHandle) return;
+
+    const nextBox = resizeBoxFromHandle(dragStartBox, point, resizeHandle, {
+      keepRatio: options.shiftKey,
+    });
+
+    if (nextBox.w < 12 || nextBox.h < 12) return;
+
+    const resizedObject = resizeObjectToBox(selectedStart, nextBox);
+    const finalBox = getObjectBox(resizedObject);
+
+    setObjects((current) =>
+      current.map((item) => (item.id === selectedObjectId ? resizedObject : item))
+    );
+
+    if (resizedObject.type === "text") {
+      setTextBoxWidth(Math.round(resizedObject.w));
+      setTextBoxHeight(Math.round(resizedObject.h));
+      setFontSize(Math.round(resizedObject.fontSize));
+    }
+
+    setGuideInfo(
+      buildGuideInfo(
+        finalBox,
+        canvasSize,
+        resizedObject.type === "text" ? "Text scaled" : "Resizing"
+      )
+    );
+    clearOutput();
+  }
+
+  function moveSelectedObjectByKeyboard(dx, dy, { withHistory = true } = {}) {
+    if (!selectedObjectId) return;
+
+    const selected = objects.find((item) => item.id === selectedObjectId);
+    if (!selected) return;
+
+    if (withHistory) {
+      pushHistory();
+    }
+
+    const moved = moveObject(selected, dx, dy);
+    const movedBox = getObjectBox(moved);
+    const referenceBoxes = objects
+      .filter((item) => item.id !== selectedObjectId)
+      .map(getObjectBox)
+      .filter(Boolean);
+    const snapResult = snapBoxToGuides(movedBox, canvasSize, referenceBoxes);
+    const snapDx = snapResult.box.x - movedBox.x;
+    const snapDy = snapResult.box.y - movedBox.y;
+    const finalMoved = moveObject(selected, dx + snapDx, dy + snapDy);
+    const finalBox = getObjectBox(finalMoved);
+
+    setObjects((current) =>
+      current.map((item) => (item.id === selectedObjectId ? finalMoved : item))
+    );
+
+    setGuideInfo(
+      buildGuideInfo(finalBox, canvasSize, snapResult.message || "Keyboard move", snapResult)
+    );
     clearOutput();
   }
 
@@ -1269,6 +1530,7 @@ export default function QuickPhotoEditor() {
       lastPoint: null,
       selectedStart: null,
       dragStartBox: null,
+      resizeHandle: null,
     };
 
     event.currentTarget.releasePointerCapture?.(event.pointerId);
@@ -1276,18 +1538,26 @@ export default function QuickPhotoEditor() {
   }
 
   function createTextObject(point) {
+    const width = clampNumber(textBoxWidth, 80, canvasSize.width * 2);
+    const height = clampNumber(textBoxHeight, 36, canvasSize.height * 2);
+
     return {
       id: createId(),
       type: "text",
-      x: point.x,
-      y: point.y,
+      x: point.x - width / 2,
+      y: point.y - height / 2,
+      w: width,
+      h: height,
       text: textValue.trim() || "Text",
       color: textColor,
       background: textBackground,
       hasBackground: textHasBackground,
       fontFamily: textFontFamily,
       fontSize,
-      bold: boldText,
+      fontWeight,
+      textAlign,
+      textCase,
+      bold: fontWeight >= 700 || boldText,
       shadow: textShadow,
       opacity: 1,
     };
@@ -1325,14 +1595,29 @@ export default function QuickPhotoEditor() {
     };
   }
 
-  function updateDraftObject(object, startPoint, point) {
+  function updateDraftObject(object, startPoint, point, options = {}) {
     if (!object) return null;
+
+    let dx = point.x - startPoint.x;
+    let dy = point.y - startPoint.y;
+
+    if (options.shiftKey) {
+      if (object.type === "arrow") {
+        const locked = lockDragAxis(dx, dy);
+        dx = locked.dx;
+        dy = locked.dy;
+      } else {
+        const size = Math.max(Math.abs(dx), Math.abs(dy));
+        dx = Math.sign(dx || 1) * size;
+        dy = Math.sign(dy || 1) * size;
+      }
+    }
 
     if (object.type === "arrow") {
       return {
         ...object,
-        x2: point.x,
-        y2: point.y,
+        x2: startPoint.x + dx,
+        y2: startPoint.y + dy,
       };
     }
 
@@ -1340,8 +1625,8 @@ export default function QuickPhotoEditor() {
       ...object,
       x: startPoint.x,
       y: startPoint.y,
-      w: point.x - startPoint.x,
-      h: point.y - startPoint.y,
+      w: dx,
+      h: dy,
     };
   }
 
@@ -1376,11 +1661,14 @@ export default function QuickPhotoEditor() {
   }
 
   function applyTextPreset(preset) {
+    const nextFontWeight = preset.bold ? 800 : 500;
+
     setTextColor(preset.color);
     setTextBackground(preset.background);
     setTextHasBackground(preset.hasBackground);
     setTextFontFamily(preset.fontFamily);
     setFontSize(preset.fontSize);
+    setFontWeight(nextFontWeight);
     setBoldText(preset.bold);
     setTextShadow(preset.shadow);
 
@@ -1391,6 +1679,7 @@ export default function QuickPhotoEditor() {
         hasBackground: preset.hasBackground,
         fontFamily: preset.fontFamily,
         fontSize: preset.fontSize,
+        fontWeight: nextFontWeight,
         bold: preset.bold,
         shadow: preset.shadow,
       });
@@ -1423,11 +1712,29 @@ export default function QuickPhotoEditor() {
     if (key === "hasBackground") setTextHasBackground(value);
     if (key === "fontFamily") setTextFontFamily(value);
     if (key === "fontSize") setFontSize(value);
-    if (key === "bold") setBoldText(value);
+    if (key === "fontWeight") {
+      setFontWeight(Number(value));
+      setBoldText(Number(value) >= 700);
+    }
+    if (key === "textAlign") setTextAlign(value);
+    if (key === "textCase") setTextCase(value);
+    if (key === "w") setTextBoxWidth(Number(value));
+    if (key === "h") setTextBoxHeight(Number(value));
+    if (key === "bold") {
+      setBoldText(value);
+      setFontWeight(value ? 800 : 500);
+    }
     if (key === "shadow") setTextShadow(value);
 
     if (selectedObject?.type === "text") {
-      updateSelectedObject({ [key]: value });
+      const updates =
+        key === "bold"
+          ? { bold: value, fontWeight: value ? 800 : 500 }
+          : key === "fontWeight"
+            ? { fontWeight: Number(value), bold: Number(value) >= 700 }
+            : { [key]: value };
+
+      updateSelectedObject(updates);
     }
   }
 
@@ -1663,6 +1970,7 @@ export default function QuickPhotoEditor() {
     setShowCloneSourceGuide(false);
     setShowOriginal(false);
     setPreviewZoom(1);
+    setArtboardPan({ x: 0, y: 0 });
     setGuideInfo(null);
     setOutputFormat("image/png");
     setQuality(0.94);
@@ -1751,628 +2059,709 @@ export default function QuickPhotoEditor() {
         </p>
       </section>
 
-      <section className="card p-4 sm:p-5">
-        {!hasImage && (
-          <div className="grid lg:grid-cols-[1fr_1.2fr] gap-5 mb-5">
-            <div className="border border-[var(--border)] rounded-2xl p-5 bg-white">
-              <h2 className="text-xl font-bold mb-2">Choose Artboard Size First</h2>
+      <section className="card overflow-hidden">
+        {!hasImage ? (
+          <div className="p-4 sm:p-5">
+            <div className="grid lg:grid-cols-[1fr_1.2fr] gap-5">
+              <div className="border border-[var(--border)] rounded-2xl p-5 bg-white">
+                <h2 className="text-xl font-bold mb-2">Choose Artboard Size First</h2>
 
-              <p className="text-sm text-[var(--text-secondary)] mb-4">
-                Select the final size before uploading. Your image will be placed on this artboard,
-                and you can drag it to adjust perfectly.
-              </p>
-
-              <div className="grid sm:grid-cols-2 gap-3">
-                {SIZE_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => applySizePreset(preset.id)}
-                    className={`border rounded-2xl p-4 text-left transition ${
-                      selectedSizePreset === preset.id
-                        ? "border-[var(--primary)] bg-[#f4edff]"
-                        : "border-[var(--border)] hover:bg-[#f8f4ff]"
-                    }`}
-                  >
-                    <p className="font-semibold">{preset.label}</p>
-                    <p className="text-xs text-[var(--text-secondary)] mt-1">
-                      {preset.id === "original"
-                        ? "Use uploaded image size"
-                        : `${preset.width} × ${preset.height}px`}
-                    </p>
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <div>
-                  <label className="text-sm font-semibold mb-2 block">Custom Width</label>
-                  <input
-                    type="number"
-                    min="100"
-                    max="5000"
-                    value={draftSize.width}
-                    onChange={(event) => {
-                      const nextWidth = Number(event.target.value);
-                      setSelectedSizePreset("custom");
-                      setDraftSize((current) => ({
-                        ...current,
-                        width: nextWidth,
-                      }));
-                      setCanvasSize((current) => ({
-                        ...current,
-                        width: nextWidth,
-                      }));
-                    }}
-                    className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold mb-2 block">Custom Height</label>
-                  <input
-                    type="number"
-                    min="100"
-                    max="5000"
-                    value={draftSize.height}
-                    onChange={(event) => {
-                      const nextHeight = Number(event.target.value);
-                      setSelectedSizePreset("custom");
-                      setDraftSize((current) => ({
-                        ...current,
-                        height: nextHeight,
-                      }));
-                      setCanvasSize((current) => ({
-                        ...current,
-                        height: nextHeight,
-                      }));
-                    }}
-                    className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onClick={openMainFilePicker}
-              className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition flex flex-col items-center justify-center min-h-[360px] ${
-                isDraggingFile
-                  ? "border-[var(--primary)] bg-[#f4edff]"
-                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
-              }`}
-            >
-              {isLoadingImage ? (
-                <Loader2
-                  size={44}
-                  className="mx-auto mb-4 text-[var(--primary)] animate-spin"
-                />
-              ) : (
-                <Upload size={44} className="mx-auto mb-4 text-[var(--primary)]" />
-              )}
-
-              <h2 className="text-xl font-semibold mb-2">
-                Upload, drop, or paste photo
-              </h2>
-
-              <p className="text-sm text-[var(--text-secondary)] max-w-md">
-                Supports JPG, PNG, WEBP, GIF, and BMP. You can also paste an image
-                with <strong> Ctrl + V</strong>. Max file size:{" "}
-                <strong>{MAX_FILE_SIZE_MB} MB</strong>.
-              </p>
-
-              <div className="mt-5 bg-white border border-[var(--border)] rounded-2xl px-5 py-3">
-                <p className="text-xs text-[var(--text-secondary)]">Selected Artboard</p>
-                <p className="font-bold text-[var(--primary)]">
-                  {selectedSizePreset === "original"
-                    ? "Original uploaded image size"
-                    : `${draftSize.width} × ${draftSize.height}px`}
+                <p className="text-sm text-[var(--text-secondary)] mb-4">
+                  Select the final size before uploading. Your image will be placed on this artboard,
+                  and you can drag it to adjust perfectly.
                 </p>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {SIZE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => applySizePreset(preset.id)}
+                      className={`border rounded-2xl p-4 text-left transition ${
+                        selectedSizePreset === preset.id
+                          ? "border-[var(--primary)] bg-[#f4edff]"
+                          : "border-[var(--border)] hover:bg-[#f8f4ff]"
+                      }`}
+                    >
+                      <p className="font-semibold">{preset.label}</p>
+                      <p className="text-xs text-[var(--text-secondary)] mt-1">
+                        {preset.id === "original"
+                          ? "Use uploaded image size"
+                          : `${preset.width} × ${preset.height}px`}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">Custom Width</label>
+                    <input
+                      type="number"
+                      min="100"
+                      max="5000"
+                      value={draftSize.width}
+                      onChange={(event) => {
+                        const nextWidth = Number(event.target.value);
+                        setSelectedSizePreset("custom");
+                        setDraftSize((current) => ({
+                          ...current,
+                          width: nextWidth,
+                        }));
+                        setCanvasSize((current) => ({
+                          ...current,
+                          width: nextWidth,
+                        }));
+                      }}
+                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">Custom Height</label>
+                    <input
+                      type="number"
+                      min="100"
+                      max="5000"
+                      value={draftSize.height}
+                      onChange={(event) => {
+                        const nextHeight = Number(event.target.value);
+                        setSelectedSizePreset("custom");
+                        setDraftSize((current) => ({
+                          ...current,
+                          height: nextHeight,
+                        }));
+                        setCanvasSize((current) => ({
+                          ...current,
+                          height: nextHeight,
+                        }));
+                      }}
+                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onClick={openMainFilePicker}
+                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition flex flex-col items-center justify-center min-h-[360px] ${
+                  isDraggingFile
+                    ? "border-[var(--primary)] bg-[#f4edff]"
+                    : "border-[var(--border)] hover:bg-[#f8f4ff]"
+                }`}
+              >
+                {isLoadingImage ? (
+                  <Loader2
+                    size={44}
+                    className="mx-auto mb-4 text-[var(--primary)] animate-spin"
+                  />
+                ) : (
+                  <Upload size={44} className="mx-auto mb-4 text-[var(--primary)]" />
+                )}
+
+                <h2 className="text-xl font-semibold mb-2">
+                  Upload, drop, or paste photo
+                </h2>
+
+                <p className="text-sm text-[var(--text-secondary)] max-w-md">
+                  Supports JPG, PNG, WEBP, GIF, and BMP. You can also paste an image
+                  with <strong> Ctrl + V</strong>. Max file size:{" "}
+                  <strong>{MAX_FILE_SIZE_MB} MB</strong>.
+                </p>
+
+                <div className="mt-5 bg-white border border-[var(--border)] rounded-2xl px-5 py-3">
+                  <p className="text-xs text-[var(--text-secondary)]">Selected Artboard</p>
+                  <p className="font-bold text-[var(--primary)]">
+                    {selectedSizePreset === "original"
+                      ? "Original uploaded image size"
+                      : `${draftSize.width} × ${draftSize.height}px`}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-        )}
-
-        <div className="sticky top-3 z-30 rounded-2xl border border-[var(--border)] bg-white/95 backdrop-blur shadow-sm p-3 mb-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={openMainFilePicker}
-              className="btn-secondary inline-flex items-center justify-center gap-2 px-3 py-2 text-sm"
-            >
-              <Upload size={16} />
-              Upload
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActivePanel("image");
-                setActiveTool("select");
-                openAddImagePicker();
-              }}
-              disabled={!hasImage}
-              className={`btn-secondary inline-flex items-center justify-center gap-2 px-3 py-2 text-sm ${
-                !hasImage ? "opacity-40 cursor-not-allowed" : ""
-              }`}
-            >
-              <Images size={16} />
-              Add Image
-            </button>
-
-            <div className="w-px h-8 bg-[var(--border)] mx-1" />
-
-            {TOOLS.map((tool) => {
-              const Icon = tool.icon;
-
-              return (
+        ) : (
+          <div className="grid lg:grid-cols-[72px_minmax(0,1fr)] min-h-[760px] bg-[#dfe3ea]">
+            <aside className="relative z-40 border-r border-[var(--border)] bg-[#111827] p-2">
+              <div className="sticky top-3 flex flex-col gap-2">
                 <button
-                  key={tool.id}
                   type="button"
-                  onClick={() => activateTool(tool.id)}
-                  disabled={!hasImage}
-                  className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
-                    !hasImage
-                      ? "opacity-40 cursor-not-allowed"
-                      : activeTool === tool.id && !activePanel
-                        ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
-                        : "border-[var(--border)] hover:bg-[#f8f4ff]"
-                  }`}
-                  title={tool.label}
+                  onClick={openMainFilePicker}
+                  title="Upload / Replace"
+                  className="w-12 h-12 rounded-xl bg-white/10 text-white hover:bg-white/20 inline-flex items-center justify-center"
                 >
-                  <Icon size={17} />
-                  <span className="hidden lg:inline">{tool.label}</span>
+                  <Upload size={20} />
                 </button>
-              );
-            })}
 
-            <div className="w-px h-8 bg-[var(--border)] mx-1" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivePanel("image");
+                    setActiveTool("select");
+                    openAddImagePicker();
+                  }}
+                  title="Add Image"
+                  className="w-12 h-12 rounded-xl bg-white/10 text-white hover:bg-white/20 inline-flex items-center justify-center"
+                >
+                  <Images size={20} />
+                </button>
 
-            <IconButton disabled={!historyPast.length} title="Undo" onClick={undo}>
-              <Undo2 size={18} />
-            </IconButton>
+                <div className="h-px bg-white/15 my-1" />
 
-            <IconButton disabled={!historyFuture.length} title="Redo" onClick={redo}>
-              <Redo2 size={18} />
-            </IconButton>
+                {TOOLS.map((tool) => {
+                  const Icon = tool.icon;
 
-            <IconButton
-              disabled={!selectedObjectId}
-              title="Delete selected object"
-              onClick={deleteSelectedObject}
-            >
-              <Trash2 size={18} />
-            </IconButton>
+                  return (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      onClick={() => activateTool(tool.id)}
+                      title={tool.label}
+                      className={`w-12 h-12 rounded-xl inline-flex items-center justify-center transition ${
+                        activeTool === tool.id && !activePanel
+                          ? "bg-white text-[#111827]"
+                          : "bg-white/10 text-white hover:bg-white/20"
+                      }`}
+                    >
+                      <Icon size={20} />
+                    </button>
+                  );
+                })}
 
-            <button
-              type="button"
-              onClick={() => {
-                setShowOriginal((current) => !current);
-                setActivePanel("");
-              }}
-              disabled={!hasImage}
-              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
-                !hasImage
-                  ? "opacity-40 cursor-not-allowed"
-                  : showOriginal
-                    ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
-                    : "border-[var(--border)] hover:bg-[#f8f4ff]"
-              }`}
-            >
-              <Eye size={17} />
-              Before
-            </button>
+                <div className="h-px bg-white/15 my-1" />
 
-            <button
-              type="button"
-              onClick={() => {
-                setActivePanel("size");
-                setActiveTool("select");
-              }}
-              disabled={!hasImage}
-              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
-                !hasImage
-                  ? "opacity-40 cursor-not-allowed"
-                  : activePanel === "size"
-                    ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
-                    : "border-[var(--border)] hover:bg-[#f8f4ff]"
-              }`}
-            >
-              <Maximize2 size={17} />
-              Size
-            </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivePanel("size");
+                    setActiveTool("select");
+                  }}
+                  title="Artboard Size"
+                  className={`w-12 h-12 rounded-xl inline-flex items-center justify-center ${
+                    activePanel === "size"
+                      ? "bg-white text-[#111827]"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Maximize2 size={20} />
+                </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setActivePanel("export");
-                setActiveTool("select");
-              }}
-              disabled={!hasImage}
-              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
-                !hasImage
-                  ? "opacity-40 cursor-not-allowed"
-                  : activePanel === "export"
-                    ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
-                    : "border-[var(--border)] hover:bg-[#f8f4ff]"
-              }`}
-            >
-              <Settings2 size={17} />
-              Export
-            </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivePanel("export");
+                    setActiveTool("select");
+                  }}
+                  title="Export Settings"
+                  className={`w-12 h-12 rounded-xl inline-flex items-center justify-center ${
+                    activePanel === "export"
+                      ? "bg-white text-[#111827]"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Settings2 size={20} />
+                </button>
 
-            <div className="flex-1" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOriginal((current) => !current);
+                    setActivePanel("");
+                  }}
+                  title="Before / Original"
+                  className={`w-12 h-12 rounded-xl inline-flex items-center justify-center ${
+                    showOriginal
+                      ? "bg-white text-[#111827]"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Eye size={20} />
+                </button>
 
-            <button
-              type="button"
-              onClick={() => exportImage({ downloadAfterCreate: true })}
-              disabled={!hasImage || isExporting}
-              className={`btn-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-sm ${
-                !hasImage || isExporting ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-            >
-              {isExporting ? (
-                <Loader2 size={17} className="animate-spin" />
-              ) : (
-                <Download size={17} />
-              )}
-              {isExporting ? "Creating..." : "Create & Download"}
-            </button>
-          </div>
+                <div className="h-px bg-white/15 my-1" />
 
-          {hasImage && shouldShowSettings && (
-            <div className="mt-3 border border-[var(--border)] rounded-2xl bg-[#fafafa] p-4">
-              {settingsMode === "image" && (
-                <div className="grid lg:grid-cols-[1fr_1.2fr] gap-5">
-                  <div>
-                    <p className="text-sm font-semibold mb-3">Image layer</p>
+                <button
+                  type="button"
+                  onClick={undo}
+                  disabled={!historyPast.length}
+                  title="Undo"
+                  className={`w-12 h-12 rounded-xl text-white inline-flex items-center justify-center ${
+                    !historyPast.length ? "opacity-30 cursor-not-allowed" : "bg-white/10 hover:bg-white/20"
+                  }`}
+                >
+                  <Undo2 size={20} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={redo}
+                  disabled={!historyFuture.length}
+                  title="Redo"
+                  className={`w-12 h-12 rounded-xl text-white inline-flex items-center justify-center ${
+                    !historyFuture.length ? "opacity-30 cursor-not-allowed" : "bg-white/10 hover:bg-white/20"
+                  }`}
+                >
+                  <Redo2 size={20} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={deleteSelectedObject}
+                  disabled={!selectedObjectId}
+                  title="Delete selected item"
+                  className={`w-12 h-12 rounded-xl text-white inline-flex items-center justify-center ${
+                    !selectedObjectId ? "opacity-30 cursor-not-allowed" : "bg-red-500/80 hover:bg-red-500"
+                  }`}
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+
+              {shouldShowSettings && (
+                <div className="absolute left-[72px] top-3 w-[min(420px,calc(100vw-96px))] max-h-[calc(100vh-120px)] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4">
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <PanelLeft size={18} className="text-[var(--primary)]" />
+                      <p className="font-bold capitalize">
+                        {settingsMode === "shape" ? "Shape" : settingsMode} Options
+                      </p>
+                    </div>
 
                     <button
                       type="button"
-                      onClick={openAddImagePicker}
-                      className="btn-primary inline-flex items-center justify-center gap-2"
+                      onClick={() => {
+                        setActivePanel("");
+                        setActiveTool("select");
+                      }}
+                      className="w-8 h-8 rounded-full hover:bg-[#f4edff] inline-flex items-center justify-center"
+                      title="Close options"
                     >
-                      <Images size={17} />
-                      Add Logo / Image
+                      ×
                     </button>
-
-                    <p className="text-xs text-[var(--text-secondary)] mt-3">
-                      The first uploaded photo starts as a draggable base image.
-                      Drag it to adjust on the selected artboard before using patch, clone, blur, or draw.
-                    </p>
                   </div>
 
-                  <div className="grid md:grid-cols-4 gap-4">
-                    <InfoCard
-                      label="Selected"
-                      value={
-                        selectedObject?.type === "image"
-                          ? selectedObject.isBaseImage
-                            ? "Base Photo"
-                            : "Image Layer"
-                          : "None"
-                      }
-                    />
+                  {settingsMode === "select" && (
+                    <div className="space-y-4">
+                      <InfoCard
+                        label="Selected"
+                        value={selectedObject ? selectedObject.type : "None"}
+                      />
 
-                    {selectedObject?.type === "image" && (
-                      <>
-                        <RangeInput
-                          label={`Width: ${Math.round(selectedObject.w)}px`}
-                          min={20}
-                          max={canvasSize.width * 3}
-                          step={1}
-                          value={selectedObject.w}
-                          onChange={(value) => {
-                            const nextWidth = Number(value);
-                            const ratio = selectedObject.h / selectedObject.w;
-
-                            updateSelectedObject({
-                              w: nextWidth,
-                              h: nextWidth * ratio,
-                            });
-                          }}
-                        />
-
-                        <RangeInput
-                          label={`Height: ${Math.round(selectedObject.h)}px`}
-                          min={20}
-                          max={canvasSize.height * 3}
-                          step={1}
-                          value={selectedObject.h}
-                          onChange={(value) =>
-                            updateSelectedObject({
-                              h: Number(value),
-                            })
-                          }
-                        />
-
-                        <RangeInput
-                          label={`Opacity: ${Math.round((selectedObject.opacity || 1) * 100)}%`}
-                          min={0.1}
-                          max={1}
-                          step={0.01}
-                          value={selectedObject.opacity || 1}
-                          onChange={(value) =>
-                            updateSelectedObject({
-                              opacity: Number(value),
-                            })
-                          }
-                        />
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {settingsMode === "text" && (
-                <div className="grid lg:grid-cols-[1fr_1.4fr] gap-5">
-                  <div>
-                    <label className="text-sm font-semibold mb-2 block">
-                      Text
-                    </label>
-                    <input
-                      type="text"
-                      value={textValue}
-                      onChange={(event) => updateTextSetting("text", event.target.value)}
-                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white"
-                      placeholder="Enter text"
-                    />
-
-                    <p className="text-xs text-[var(--text-secondary)] mt-2">
-                      Choose Text, then click on the photo. You can place text with or without background.
-                    </p>
-
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {TEXT_PRESETS.map((preset) => (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          onClick={() => applyTextPreset(preset)}
-                          className="px-3 py-2 rounded-xl border border-[var(--border)] bg-white hover:bg-[#f4edff] text-sm font-semibold"
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
+                      <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4 text-sm text-[var(--text-secondary)] leading-7">
+                        <p className="font-semibold text-[var(--text-primary)] mb-1">Keyboard editing</p>
+                        <p>Arrow keys move selected items.</p>
+                        <p>Shift + Arrow moves faster.</p>
+                        <p>Delete or Backspace removes the selected item.</p>
+                        <p>Hold Shift while dragging to keep movement straight.</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  <div className="grid md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="text-sm font-semibold mb-2 block">
-                        Font
-                      </label>
-                      <select
-                        value={textFontFamily}
-                        onChange={(event) => updateTextSetting("fontFamily", event.target.value)}
-                        className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                  {settingsMode === "image" && (
+                    <div className="space-y-4">
+                      <button
+                        type="button"
+                        onClick={openAddImagePicker}
+                        className="btn-primary w-full inline-flex items-center justify-center gap-2"
                       >
-                        {FONT_OPTIONS.map((font) => (
-                          <option key={font.value} value={font.value}>
-                            {font.label}
-                          </option>
+                        <Images size={17} />
+                        Add Logo / Image
+                      </button>
+
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        Add logos, product images, stickers, or overlays. Select an image layer to resize and adjust opacity.
+                      </p>
+
+                      <InfoCard
+                        label="Selected"
+                        value={
+                          selectedObject?.type === "image"
+                            ? selectedObject.isBaseImage
+                              ? "Base Photo"
+                              : "Image Layer"
+                            : "None"
+                        }
+                      />
+
+                      {selectedObject?.type === "image" && (
+                        <>
+                          <RangeInput
+                            label={`Width: ${Math.round(selectedObject.w)}px`}
+                            min={20}
+                            max={canvasSize.width * 3}
+                            step={1}
+                            value={selectedObject.w}
+                            onChange={(value) => {
+                              const nextWidth = Number(value);
+                              const ratio = selectedObject.h / selectedObject.w;
+
+                              updateSelectedObject({
+                                w: nextWidth,
+                                h: nextWidth * ratio,
+                              });
+                            }}
+                          />
+
+                          <RangeInput
+                            label={`Height: ${Math.round(selectedObject.h)}px`}
+                            min={20}
+                            max={canvasSize.height * 3}
+                            step={1}
+                            value={selectedObject.h}
+                            onChange={(value) =>
+                              updateSelectedObject({
+                                h: Number(value),
+                              })
+                            }
+                          />
+
+                          <RangeInput
+                            label={`Opacity: ${Math.round((selectedObject.opacity || 1) * 100)}%`}
+                            min={0.1}
+                            max={1}
+                            step={0.01}
+                            value={selectedObject.opacity || 1}
+                            onChange={(value) =>
+                              updateSelectedObject({
+                                opacity: Number(value),
+                              })
+                            }
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {settingsMode === "text" && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">Text</label>
+                        <textarea
+                          value={textValue}
+                          onChange={(event) => updateTextSetting("text", event.target.value)}
+                          rows={4}
+                          className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white resize-y"
+                          placeholder="Enter text. Press Enter for a new line."
+                        />
+                        <p className="text-xs text-[var(--text-secondary)] mt-2">
+                          Press Enter for multiple lines. Resize the text box below to improve spacing and centering.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {TEXT_PRESETS.map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => applyTextPreset(preset)}
+                            className="px-3 py-2 rounded-xl border border-[var(--border)] bg-white hover:bg-[#f4edff] text-sm font-semibold"
+                          >
+                            {preset.label}
+                          </button>
                         ))}
-                      </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">Font</label>
+                          <select
+                            value={textFontFamily}
+                            onChange={(event) => updateTextSetting("fontFamily", event.target.value)}
+                            className="w-full border border-[var(--border)] rounded-xl px-3 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                          >
+                            {FONT_OPTIONS.map((font) => (
+                              <option key={font.value} value={font.value}>
+                                {font.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">Case</label>
+                          <select
+                            value={textCase}
+                            onChange={(event) => updateTextSetting("textCase", event.target.value)}
+                            className="w-full border border-[var(--border)] rounded-xl px-3 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                          >
+                            {TEXT_CASE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">Text Alignment</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {TEXT_ALIGN_OPTIONS.map((option) => {
+                            const AlignIcon = option.icon;
+
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => updateTextSetting("textAlign", option.value)}
+                                className={`h-11 rounded-xl border inline-flex items-center justify-center gap-2 ${
+                                  textAlign === option.value
+                                    ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                                    : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                                }`}
+                              >
+                                <AlignIcon size={17} />
+                                <span className="text-xs font-semibold">{option.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <ColorInput
+                          label="Text Color"
+                          value={textColor}
+                          onChange={(value) => updateTextSetting("color", value)}
+                        />
+
+                        <ColorInput
+                          label="Background"
+                          value={textBackground}
+                          onChange={(value) => updateTextSetting("background", value)}
+                          disabled={!textHasBackground}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
+                          <span className="font-semibold text-sm">Background</span>
+                          <input
+                            type="checkbox"
+                            checked={textHasBackground}
+                            onChange={(event) =>
+                              updateTextSetting("hasBackground", event.target.checked)
+                            }
+                            className="w-4 h-4 accent-[var(--primary)]"
+                          />
+                        </label>
+
+                        <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
+                          <span className="font-semibold text-sm">Shadow</span>
+                          <input
+                            type="checkbox"
+                            checked={textShadow}
+                            onChange={(event) => updateTextSetting("shadow", event.target.checked)}
+                            className="w-4 h-4 accent-[var(--primary)]"
+                          />
+                        </label>
+                      </div>
+
+                      <RangeInput
+                        label={`Font Size: ${fontSize}px`}
+                        min={14}
+                        max={180}
+                        step={1}
+                        value={fontSize}
+                        onChange={(value) => updateTextSetting("fontSize", Number(value))}
+                      />
+
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">
+                          Font Weight: {fontWeight}
+                        </label>
+                        <select
+                          value={fontWeight}
+                          onChange={(event) => updateTextSetting("fontWeight", Number(event.target.value))}
+                          className="w-full border border-[var(--border)] rounded-xl px-3 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                        >
+                          {FONT_WEIGHT_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label} - {option.value}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <RangeInput
+                        label={`Text Box Width: ${Math.round(textBoxWidth)}px`}
+                        min={60}
+                        max={canvasSize.width * 2}
+                        step={1}
+                        value={textBoxWidth}
+                        onChange={(value) => updateTextSetting("w", Number(value))}
+                      />
+
+                      <RangeInput
+                        label={`Text Box Height: ${Math.round(textBoxHeight)}px`}
+                        min={30}
+                        max={canvasSize.height * 2}
+                        step={1}
+                        value={textBoxHeight}
+                        onChange={(value) => updateTextSetting("h", Number(value))}
+                      />
                     </div>
+                  )}
 
-                    <ColorInput
-                      label="Text Color"
-                      value={textColor}
-                      onChange={(value) => updateTextSetting("color", value)}
-                    />
+                  {["draw", "blur", "restore"].includes(settingsMode) && (
+                    <div className="space-y-4">
+                      <InfoCard label="Active Tool" value={activeTool} />
 
-                    <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
-                      <span className="font-semibold text-sm">Background</span>
-                      <input
-                        type="checkbox"
-                        checked={textHasBackground}
-                        onChange={(event) =>
-                          updateTextSetting("hasBackground", event.target.checked)
-                        }
-                        className="w-4 h-4 accent-[var(--primary)]"
+                      {settingsMode === "draw" && (
+                        <ColorInput label="Brush Color" value={brushColor} onChange={setBrushColor} />
+                      )}
+
+                      <RangeInput
+                        label={`Brush: ${brushSize}px`}
+                        min={4}
+                        max={220}
+                        step={1}
+                        value={brushSize}
+                        onChange={(value) => setBrushSize(Number(value))}
                       />
-                    </label>
 
-                    <ColorInput
-                      label="Background Color"
-                      value={textBackground}
-                      onChange={(value) => updateTextSetting("background", value)}
-                      disabled={!textHasBackground}
-                    />
-
-                    <RangeInput
-                      label={`Font: ${fontSize}px`}
-                      min={14}
-                      max={130}
-                      step={1}
-                      value={fontSize}
-                      onChange={(value) => updateTextSetting("fontSize", Number(value))}
-                    />
-
-                    <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
-                      <span className="font-semibold text-sm">Bold</span>
-                      <input
-                        type="checkbox"
-                        checked={boldText}
-                        onChange={(event) => updateTextSetting("bold", event.target.checked)}
-                        className="w-4 h-4 accent-[var(--primary)]"
+                      <RangeInput
+                        label={`Opacity: ${Math.round(brushOpacity * 100)}%`}
+                        min={0.1}
+                        max={1}
+                        step={0.01}
+                        value={brushOpacity}
+                        onChange={(value) => setBrushOpacity(Number(value))}
                       />
-                    </label>
 
-                    <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
-                      <span className="font-semibold text-sm">Shadow</span>
-                      <input
-                        type="checkbox"
-                        checked={textShadow}
-                        onChange={(event) => updateTextSetting("shadow", event.target.checked)}
-                        className="w-4 h-4 accent-[var(--primary)]"
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {["draw", "blur", "restore"].includes(settingsMode) && (
-                <div className="grid md:grid-cols-5 gap-4">
-                  <InfoCard label="Active Tool" value={activeTool} />
-
-                  <ColorInput label="Brush Color" value={brushColor} onChange={setBrushColor} />
-
-                  <RangeInput
-                    label={`Brush: ${brushSize}px`}
-                    min={4}
-                    max={180}
-                    step={1}
-                    value={brushSize}
-                    onChange={(value) => setBrushSize(Number(value))}
-                  />
-
-                  <RangeInput
-                    label={`Opacity: ${Math.round(brushOpacity * 100)}%`}
-                    min={0.1}
-                    max={1}
-                    step={0.01}
-                    value={brushOpacity}
-                    onChange={(value) => setBrushOpacity(Number(value))}
-                  />
-
-                  <RangeInput
-                    label={`Blur: ${blurStrength}px`}
-                    min={2}
-                    max={32}
-                    step={1}
-                    value={blurStrength}
-                    onChange={(value) => setBlurStrength(Number(value))}
-                  />
-                </div>
-              )}
-
-              {["rectangle", "circle", "arrow"].includes(settingsMode) && (
-                <div className="grid lg:grid-cols-[1fr_1.5fr] gap-5">
-                  <div>
-                    <p className="text-sm font-semibold mb-2">Shape tool</p>
-                    <p className="text-sm text-[var(--text-secondary)] leading-7">
-                      Choose a shape, then drag on the artboard. You can use fill, stroke,
-                      or both. Stroke width can be increased or decreased.
-                    </p>
-
-                    <div className="grid grid-cols-3 gap-2 mt-4">
-                      <button
-                        type="button"
-                        onClick={() => activateShapeTool("rectangle")}
-                        className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
-                          activeTool === "rectangle"
-                            ? "border-[var(--primary)] bg-[#f4edff]"
-                            : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                        }`}
-                      >
-                        Rectangle
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => activateShapeTool("circle")}
-                        className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
-                          activeTool === "circle"
-                            ? "border-[var(--primary)] bg-[#f4edff]"
-                            : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                        }`}
-                      >
-                        Circle
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => activateShapeTool("arrow")}
-                        className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
-                          activeTool === "arrow"
-                            ? "border-[var(--primary)] bg-[#f4edff]"
-                            : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                        }`}
-                      >
-                        Arrow
-                      </button>
+                      {settingsMode === "blur" && (
+                        <RangeInput
+                          label={`Blur: ${blurStrength}px`}
+                          min={2}
+                          max={40}
+                          step={1}
+                          value={blurStrength}
+                          onChange={(value) => setBlurStrength(Number(value))}
+                        />
+                      )}
                     </div>
-                  </div>
+                  )}
 
-                  <div className="grid md:grid-cols-5 gap-4">
-                    <InfoCard label="Shape" value={shapeType} />
+                  {["rectangle", "circle", "arrow", "shape"].includes(settingsMode) && (
+                    <div className="space-y-4">
+                      <p className="text-sm text-[var(--text-secondary)] leading-7">
+                        Choose a shape, then drag on the artboard. Hold Shift while drawing for a straight line or perfect square/circle.
+                      </p>
 
-                    <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
-                      <span className="font-semibold text-sm">Fill</span>
-                      <input
-                        type="checkbox"
-                        checked={shapeFillEnabled}
-                        disabled={activeTool === "arrow"}
-                        onChange={(event) =>
-                          updateShapeSetting("fillEnabled", event.target.checked)
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => activateShapeTool("rectangle")}
+                          className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
+                            activeTool === "rectangle"
+                              ? "border-[var(--primary)] bg-[#f4edff]"
+                              : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                          }`}
+                        >
+                          Rectangle
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => activateShapeTool("circle")}
+                          className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
+                            activeTool === "circle"
+                              ? "border-[var(--primary)] bg-[#f4edff]"
+                              : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                          }`}
+                        >
+                          Circle
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => activateShapeTool("arrow")}
+                          className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
+                            activeTool === "arrow"
+                              ? "border-[var(--primary)] bg-[#f4edff]"
+                              : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                          }`}
+                        >
+                          Arrow
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
+                          <span className="font-semibold text-sm">Fill</span>
+                          <input
+                            type="checkbox"
+                            checked={shapeFillEnabled}
+                            disabled={activeTool === "arrow" || selectedObject?.type === "arrow"}
+                            onChange={(event) =>
+                              updateShapeSetting("fillEnabled", event.target.checked)
+                            }
+                            className="w-4 h-4 accent-[var(--primary)]"
+                          />
+                        </label>
+
+                        <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
+                          <span className="font-semibold text-sm">Stroke</span>
+                          <input
+                            type="checkbox"
+                            checked={shapeStrokeEnabled}
+                            onChange={(event) =>
+                              updateShapeSetting("strokeEnabled", event.target.checked)
+                            }
+                            className="w-4 h-4 accent-[var(--primary)]"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <ColorInput
+                          label="Fill Color"
+                          value={shapeFillColor}
+                          onChange={(value) => updateShapeSetting("fill", value)}
+                          disabled={!shapeFillEnabled || activeTool === "arrow" || selectedObject?.type === "arrow"}
+                        />
+
+                        <ColorInput
+                          label="Stroke Color"
+                          value={shapeStrokeColor}
+                          onChange={(value) => updateShapeSetting("stroke", value)}
+                          disabled={!shapeStrokeEnabled}
+                        />
+                      </div>
+
+                      <RangeInput
+                        label={`Stroke: ${shapeStrokeWidth}px`}
+                        min={1}
+                        max={60}
+                        step={1}
+                        value={shapeStrokeWidth}
+                        onChange={(value) =>
+                          updateShapeSetting("strokeWidth", Number(value))
                         }
-                        className="w-4 h-4 accent-[var(--primary)]"
                       />
-                    </label>
 
-                    <ColorInput
-                      label="Fill Color"
-                      value={shapeFillColor}
-                      onChange={(value) => updateShapeSetting("fill", value)}
-                      disabled={!shapeFillEnabled || activeTool === "arrow"}
-                    />
-
-                    <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
-                      <span className="font-semibold text-sm">Stroke</span>
-                      <input
-                        type="checkbox"
-                        checked={shapeStrokeEnabled}
-                        onChange={(event) =>
-                          updateShapeSetting("strokeEnabled", event.target.checked)
-                        }
-                        className="w-4 h-4 accent-[var(--primary)]"
+                      <RangeInput
+                        label={`Opacity: ${Math.round(brushOpacity * 100)}%`}
+                        min={0.1}
+                        max={1}
+                        step={0.01}
+                        value={brushOpacity}
+                        onChange={(value) => setBrushOpacity(Number(value))}
                       />
-                    </label>
+                    </div>
+                  )}
 
-                    <ColorInput
-                      label="Stroke Color"
-                      value={shapeStrokeColor}
-                      onChange={(value) => updateShapeSetting("stroke", value)}
-                      disabled={!shapeStrokeEnabled}
-                    />
+                  {settingsMode === "patch" && (
+                    <div className="space-y-4">
+                      <ol className="text-sm text-[var(--text-secondary)] leading-7 list-decimal pl-5">
+                        <li>Select the unwanted area first.</li>
+                        <li>Click or drag any clean/flat area.</li>
+                        <li>Release to make the unwanted area look like that clean area.</li>
+                      </ol>
 
-                    <RangeInput
-                      label={`Stroke: ${shapeStrokeWidth}px`}
-                      min={1}
-                      max={40}
-                      step={1}
-                      value={shapeStrokeWidth}
-                      onChange={(value) =>
-                        updateShapeSetting("strokeWidth", Number(value))
-                      }
-                    />
-
-                    <RangeInput
-                      label={`Opacity: ${Math.round(brushOpacity * 100)}%`}
-                      min={0.1}
-                      max={1}
-                      step={0.01}
-                      value={brushOpacity}
-                      onChange={(value) => setBrushOpacity(Number(value))}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {settingsMode === "patch" && (
-                <div className="grid lg:grid-cols-[1fr_1.2fr] gap-5">
-                  <div>
-                    <p className="text-sm font-semibold mb-2">Patch tool</p>
-
-                    <ol className="text-sm text-[var(--text-secondary)] leading-7 list-decimal pl-5">
-                      <li>Select the unwanted area first.</li>
-                      <li>Click or drag any clean/flat area.</li>
-                      <li>Release to make the unwanted area look like that clean area.</li>
-                    </ol>
-
-                    <div className="flex flex-wrap gap-2 mt-4">
                       <button
                         type="button"
                         onClick={() => {
@@ -2385,83 +2774,40 @@ export default function QuickPhotoEditor() {
                           setGuideInfo(null);
                           setSuccessMessage("Select the area you want to remove.");
                         }}
-                        className="btn-primary inline-flex items-center justify-center gap-2"
+                        className="btn-primary w-full inline-flex items-center justify-center gap-2"
                       >
                         <Sparkles size={16} />
                         New Patch Selection
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPatchTargetBox(null);
-                          setPatchSourcePreviewBox(null);
-                          setGuideInfo(null);
-                          setSuccessMessage("Patch selection cleared.");
-                        }}
-                        disabled={!patchTargetBox}
-                        className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                          !patchTargetBox ? "opacity-50 cursor-not-allowed" : ""
-                        }`}
-                      >
-                        <RotateCcw size={16} />
-                        Clear Patch
-                      </button>
+                      <RangeInput
+                        label={`Strength: ${Math.round(patchStrength * 100)}%`}
+                        min={0.2}
+                        max={1}
+                        step={0.01}
+                        value={patchStrength}
+                        onChange={(value) => setPatchStrength(Number(value))}
+                      />
+
+                      <RangeInput
+                        label={`Feather: ${patchFeather}px`}
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={patchFeather}
+                        onChange={(value) => setPatchFeather(Number(value))}
+                      />
                     </div>
-                  </div>
+                  )}
 
-                  <div className="grid md:grid-cols-4 gap-4">
-                    <InfoCard
-                      label="Target"
-                      value={
-                        patchTargetBox
-                          ? `${Math.round(patchTargetBox.w)}×${Math.round(patchTargetBox.h)}`
-                          : "Not Set"
-                      }
-                    />
+                  {settingsMode === "clone" && (
+                    <div className="space-y-4">
+                      <ol className="text-sm text-[var(--text-secondary)] leading-7 list-decimal pl-5">
+                        <li>Select the area you want to copy.</li>
+                        <li>Click or drag anywhere to paste the same clone.</li>
+                        <li>Use New Clone Selection to choose another clone area.</li>
+                      </ol>
 
-                    <RangeInput
-                      label={`Strength: ${Math.round(patchStrength * 100)}%`}
-                      min={0.2}
-                      max={1}
-                      step={0.01}
-                      value={patchStrength}
-                      onChange={(value) => setPatchStrength(Number(value))}
-                    />
-
-                    <RangeInput
-                      label={`Feather: ${patchFeather}px`}
-                      min={0}
-                      max={80}
-                      step={1}
-                      value={patchFeather}
-                      onChange={(value) => setPatchFeather(Number(value))}
-                    />
-
-                    <RangeInput
-                      label={`Zoom: ${Math.round(previewZoom * 100)}%`}
-                      min={0.35}
-                      max={2}
-                      step={0.01}
-                      value={previewZoom}
-                      onChange={(value) => setPreviewZoom(Number(value))}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {settingsMode === "clone" && (
-                <div className="grid lg:grid-cols-[1fr_1.2fr] gap-5">
-                  <div>
-                    <p className="text-sm font-semibold mb-2">Clone tool</p>
-
-                    <ol className="text-sm text-[var(--text-secondary)] leading-7 list-decimal pl-5">
-                      <li>Select the area you want to copy.</li>
-                      <li>Click or drag anywhere to paste the same clone.</li>
-                      <li>Use New Clone Selection to choose another clone area.</li>
-                    </ol>
-
-                    <div className="flex flex-wrap gap-2 mt-4">
                       <button
                         type="button"
                         onClick={() => {
@@ -2475,29 +2821,10 @@ export default function QuickPhotoEditor() {
                           setGuideInfo(null);
                           setSuccessMessage("Select the new area you want to clone.");
                         }}
-                        className="btn-primary inline-flex items-center justify-center gap-2"
+                        className="btn-primary w-full inline-flex items-center justify-center gap-2"
                       >
                         <Copy size={16} />
                         New Clone Selection
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTool("clone");
-                          setActivePanel("");
-                          setShowCloneSourceGuide(true);
-                          setSuccessMessage(
-                            "Saved clone source is visible. Click or drag anywhere to paste it again."
-                          );
-                        }}
-                        disabled={!cloneSourceBox}
-                        className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                          !cloneSourceBox ? "opacity-50 cursor-not-allowed" : ""
-                        }`}
-                      >
-                        <Eye size={16} />
-                        Show Saved Clone
                       </button>
 
                       <button
@@ -2511,7 +2838,7 @@ export default function QuickPhotoEditor() {
                           );
                         }}
                         disabled={!cloneSourceBox}
-                        className={`btn-secondary inline-flex items-center justify-center gap-2 ${
+                        className={`btn-secondary w-full inline-flex items-center justify-center gap-2 ${
                           !cloneSourceBox ? "opacity-50 cursor-not-allowed" : ""
                         }`}
                       >
@@ -2519,333 +2846,340 @@ export default function QuickPhotoEditor() {
                         Use Same Clone
                       </button>
 
+                      <RangeInput
+                        label={`Strength: ${Math.round(cloneStrength * 100)}%`}
+                        min={0.2}
+                        max={1}
+                        step={0.01}
+                        value={cloneStrength}
+                        onChange={(value) => setCloneStrength(Number(value))}
+                      />
+
+                      <RangeInput
+                        label={`Feather: ${cloneFeather}px`}
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={cloneFeather}
+                        onChange={(value) => setCloneFeather(Number(value))}
+                      />
+                    </div>
+                  )}
+
+                  {settingsMode === "size" && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-2">
+                        {SIZE_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => applySizePreset(preset.id)}
+                            className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
+                              selectedSizePreset === preset.id
+                                ? "border-[var(--primary)] bg-[#f4edff]"
+                                : "border-[var(--border)] bg-white hover:bg-[#f4edff]"
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">Width</label>
+                          <input
+                            type="number"
+                            value={draftSize.width}
+                            min="100"
+                            max="5000"
+                            onChange={(event) => {
+                              setSelectedSizePreset("custom");
+                              setDraftSize((current) => ({
+                                ...current,
+                                width: Number(event.target.value),
+                              }));
+                            }}
+                            className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-semibold mb-2 block">Height</label>
+                          <input
+                            type="number"
+                            value={draftSize.height}
+                            min="100"
+                            max="5000"
+                            onChange={(event) => {
+                              setSelectedSizePreset("custom");
+                              setDraftSize((current) => ({
+                                ...current,
+                                height: Number(event.target.value),
+                              }));
+                            }}
+                            className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white"
+                          />
+                        </div>
+                      </div>
+
                       <button
                         type="button"
-                        onClick={() => {
-                          setCloneSourceBox(null);
-                          setCloneTargetPreviewBox(null);
-                          setShowCloneSourceGuide(false);
-                          setGuideInfo(null);
-                          setSuccessMessage("Clone source cleared.");
-                        }}
-                        disabled={!cloneSourceBox}
-                        className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                          !cloneSourceBox ? "opacity-50 cursor-not-allowed" : ""
-                        }`}
+                        onClick={applyCanvasResize}
+                        className="btn-primary w-full"
                       >
-                        <RotateCcw size={16} />
-                        Clear Clone
+                        Apply Size
                       </button>
                     </div>
-                  </div>
+                  )}
 
-                  <div className="grid md:grid-cols-4 gap-4">
-                    <InfoCard
-                      label="Source"
-                      value={
-                        cloneSourceBox
-                          ? `${Math.round(cloneSourceBox.w)}×${Math.round(cloneSourceBox.h)}`
-                          : "Not Set"
-                      }
-                    />
+                  {settingsMode === "export" && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">Format</label>
+                        <select
+                          value={outputFormat}
+                          onChange={(event) => {
+                            setOutputFormat(event.target.value);
+                            clearOutput();
+                          }}
+                          className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                        >
+                          {OUTPUT_FORMATS.map((format) => (
+                            <option key={format.value} value={format.value}>
+                              {format.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                    <RangeInput
-                      label={`Strength: ${Math.round(cloneStrength * 100)}%`}
-                      min={0.2}
-                      max={1}
-                      step={0.01}
-                      value={cloneStrength}
-                      onChange={(value) => setCloneStrength(Number(value))}
-                    />
+                      {(outputFormat === "image/jpeg" || outputFormat === "image/webp") && (
+                        <RangeInput
+                          label={`Quality: ${Math.round(quality * 100)}%`}
+                          min={0.6}
+                          max={1}
+                          step={0.01}
+                          value={quality}
+                          onChange={(value) => {
+                            setQuality(Number(value));
+                            clearOutput();
+                          }}
+                        />
+                      )}
 
-                    <RangeInput
-                      label={`Feather: ${cloneFeather}px`}
-                      min={0}
-                      max={80}
-                      step={1}
-                      value={cloneFeather}
-                      onChange={(value) => setCloneFeather(Number(value))}
-                    />
+                      <InfoCard label="Processing" value={processText} green={Boolean(processingTimeMs)} />
 
-                    <RangeInput
-                      label={`Zoom: ${Math.round(previewZoom * 100)}%`}
-                      min={0.35}
-                      max={2}
-                      step={0.01}
-                      value={previewZoom}
-                      onChange={(value) => setPreviewZoom(Number(value))}
-                    />
-                  </div>
+                      <InfoCard
+                        label="Output Size"
+                        value={lastOutputSize ? formatBytes(lastOutputSize) : "-"}
+                        green={Boolean(lastOutputSize)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </aside>
+
+            <div className="min-w-0 flex flex-col">
+              <div className="border-b border-[var(--border)] bg-white/95 backdrop-blur px-4 py-3 flex flex-wrap items-center gap-3">
+                <div>
+                  <p className="text-xs text-[var(--text-secondary)]">Artboard</p>
+                  <p className="font-bold text-sm">
+                    {canvasSize.width} × {canvasSize.height}px
+                  </p>
+                </div>
+
+                <div className="h-8 w-px bg-[var(--border)]" />
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewZoom((current) => clampNumber(current - 0.1, 0.25, 5))}
+                  className="w-9 h-9 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
+                  title="Zoom out"
+                >
+                  <ZoomOut size={17} />
+                </button>
+
+                <input
+                  type="range"
+                  min="0.25"
+                  max="5"
+                  step="0.01"
+                  value={previewZoom}
+                  onChange={(event) => setPreviewZoom(Number(event.target.value))}
+                  className="w-36 accent-[var(--primary)]"
+                  title="Artboard zoom"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewZoom((current) => clampNumber(current + 0.1, 0.25, 5))}
+                  className="w-9 h-9 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
+                  title="Zoom in"
+                >
+                  <ZoomIn size={17} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewZoom(1)}
+                  className="h-9 rounded-xl border border-[var(--border)] px-3 text-sm font-semibold hover:bg-[#f8f4ff]"
+                >
+                  100%
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewZoom(0.75);
+                    setArtboardPan({ x: 0, y: 0 });
+                  }}
+                  className="h-9 rounded-xl border border-[var(--border)] px-3 text-sm font-semibold hover:bg-[#f8f4ff]"
+                >
+                  Fit
+                </button>
+
+                <div className="flex-1" />
+
+                <div className="hidden md:flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                  <Move size={15} />
+                  <span>Hand drags artboard • Text corners scale • Delete removes</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => exportImage({ downloadAfterCreate: true })}
+                  disabled={isExporting}
+                  className={`btn-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-sm ${
+                    isExporting ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {isExporting ? (
+                    <Loader2 size={17} className="animate-spin" />
+                  ) : (
+                    <Download size={17} />
+                  )}
+                  {isExporting ? "Creating..." : "Create & Download"}
+                </button>
+              </div>
+
+              {(errorMessage || successMessage || isExporting) && (
+                <div className="grid md:grid-cols-2 gap-3 p-4 pb-0">
+                  {errorMessage && (
+                    <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
+                      <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                      <p>{errorMessage}</p>
+                    </div>
+                  )}
+
+                  {successMessage && (
+                    <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
+                      <CheckCircle size={18} className="shrink-0 mt-0.5" />
+                      <p>{successMessage}</p>
+                    </div>
+                  )}
+
+                  {isExporting && (
+                    <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 md:col-span-2">
+                      <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                        <span>Creating final edited photo...</span>
+                        <span>{exportProgress}%</span>
+                      </div>
+
+                      <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                        <div
+                          className="h-full bg-[var(--primary)] transition-all duration-300"
+                          style={{ width: `${exportProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {settingsMode === "size" && (
-                <div className="grid lg:grid-cols-[1fr_1.2fr] gap-5">
-                  <div>
-                    <p className="text-sm font-semibold mb-3">Size presets</p>
-                    <div className="flex flex-wrap gap-2">
-                      {SIZE_PRESETS.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => applySizePreset(preset.id)}
-                          className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
-                            selectedSizePreset === preset.id
-                              ? "border-[var(--primary)] bg-[#f4edff]"
-                              : "border-[var(--border)] bg-white hover:bg-[#f4edff]"
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+              <div
+                onPointerDown={handleArtboardPointerDown}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                className={`flex-1 overflow-auto p-4 sm:p-8 flex items-center justify-center ${
+                  isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
+                }`}
+              >
+                <div
+                  className="rounded-[28px] bg-[#cfd5df] p-8 shadow-inner"
+                  style={{
+                    transform: `translate(${artboardPan.x}px, ${artboardPan.y}px)`,
+                    transition: pointerRef.current.mode === "pan-artboard" ? "none" : "transform 120ms ease",
+                  }}
+                >
+                  <canvas
+                    ref={visibleCanvasRef}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
+                    className="rounded-2xl shadow-2xl bg-white touch-none"
+                    style={{
+                      width: `${previewWidth}px`,
+                      maxWidth: "none",
+                      cursor:
+                        activeTool === "hand"
+                          ? "grab"
+                          : activeTool === "select"
+                            ? "default"
+                            : activeTool === "text"
+                              ? "text"
+                              : "crosshair",
+                    }}
+                  />
+                </div>
+              </div>
 
-                  <div className="grid md:grid-cols-3 gap-4">
+              {outputPreviewUrl && (
+                <div className="m-4 mt-0 border border-[var(--border)] rounded-2xl p-5 bg-white">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                      <label className="text-sm font-semibold mb-2 block">
-                        Width
-                      </label>
-                      <input
-                        type="number"
-                        value={draftSize.width}
-                        min="100"
-                        max="5000"
-                        onChange={(event) => {
-                          setSelectedSizePreset("custom");
-                          setDraftSize((current) => ({
-                            ...current,
-                            width: Number(event.target.value),
-                          }));
-                        }}
-                        className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-semibold mb-2 block">
-                        Height
-                      </label>
-                      <input
-                        type="number"
-                        value={draftSize.height}
-                        min="100"
-                        max="5000"
-                        onChange={(event) => {
-                          setSelectedSizePreset("custom");
-                          setDraftSize((current) => ({
-                            ...current,
-                            height: Number(event.target.value),
-                          }));
-                        }}
-                        className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white"
-                      />
+                      <h3 className="font-semibold">Final Preview</h3>
+                      <p className="text-sm text-[var(--text-secondary)] mt-1">
+                        Created in {(processingTimeMs / 1000).toFixed(1)}s •{" "}
+                        {formatBytes(lastOutputSize)}
+                      </p>
                     </div>
 
                     <button
                       type="button"
-                      onClick={applyCanvasResize}
-                      className="btn-primary self-end"
+                      onClick={() => downloadBlob()}
+                      className="btn-primary inline-flex items-center justify-center gap-2"
                     >
-                      Apply Size
+                      <Download size={18} />
+                      Download Again
                     </button>
                   </div>
-                </div>
-              )}
 
-              {settingsMode === "export" && (
-                <div className="grid md:grid-cols-5 gap-4">
-                  <div>
-                    <label className="text-sm font-semibold mb-2 block">
-                      Format
-                    </label>
-                    <select
-                      value={outputFormat}
-                      onChange={(event) => {
-                        setOutputFormat(event.target.value);
-                        clearOutput();
-                      }}
-                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
-                    >
-                      {OUTPUT_FORMATS.map((format) => (
-                        <option key={format.value} value={format.value}>
-                          {format.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {(outputFormat === "image/jpeg" || outputFormat === "image/webp") && (
-                    <RangeInput
-                      label={`Quality: ${Math.round(quality * 100)}%`}
-                      min={0.6}
-                      max={1}
-                      step={0.01}
-                      value={quality}
-                      onChange={(value) => {
-                        setQuality(Number(value));
-                        clearOutput();
-                      }}
+                  <div className="mt-4 flex justify-center bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-4 overflow-auto">
+                    <img
+                      src={outputPreviewUrl}
+                      alt="Final edited preview"
+                      className="max-w-[280px] rounded-xl"
                     />
-                  )}
-
-                  <RangeInput
-                    label={`Preview Zoom: ${Math.round(previewZoom * 100)}%`}
-                    min={0.35}
-                    max={2}
-                    step={0.01}
-                    value={previewZoom}
-                    onChange={(value) => setPreviewZoom(Number(value))}
-                  />
-
-                  <InfoCard label="Processing" value={processText} green={Boolean(processingTimeMs)} />
-
-                  <InfoCard
-                    label="Output Size"
-                    value={lastOutputSize ? formatBytes(lastOutputSize) : "-"}
-                    green={Boolean(lastOutputSize)}
-                  />
+                  </div>
                 </div>
               )}
             </div>
-          )}
+          </div>
+        )}
+
+        <div className="p-4 border-t border-[var(--border)] bg-white">
+          <button
+            type="button"
+            onClick={resetTool}
+            className="btn-secondary w-full inline-flex items-center justify-center gap-2"
+          >
+            <RotateCcw size={18} />
+            Reset Everything
+          </button>
         </div>
-
-        {(errorMessage || successMessage || isExporting) && (
-          <div className="grid md:grid-cols-2 gap-3 mb-4">
-            {errorMessage && (
-              <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{errorMessage}</p>
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
-                <CheckCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{successMessage}</p>
-              </div>
-            )}
-
-            {isExporting && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 md:col-span-2">
-                <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                  <span>Creating final edited photo...</span>
-                  <span>{exportProgress}%</span>
-                </div>
-
-                <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
-                  <div
-                    className="h-full bg-[var(--primary)] transition-all duration-300"
-                    style={{ width: `${exportProgress}%` }}
-                  />
-                </div>
-
-                <p className="text-xs text-[var(--text-secondary)] mt-3">
-                  Premium processing time: minimum 6 seconds for final output.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div
-          onPointerDown={handleArtboardPointerDown}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          className={`border border-[var(--border)] rounded-2xl bg-[#eef0f5] min-h-[700px] overflow-auto p-4 sm:p-6 flex items-center justify-center ${
-            isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
-          }`}
-        >
-          {!hasImage ? (
-            <div className="text-center">
-              <ImageIcon size={64} className="mx-auto mb-4 text-gray-300" />
-              <p className="text-[var(--text-secondary)]">
-                Choose a size above, then upload your photo to start editing.
-              </p>
-            </div>
-          ) : (
-            <canvas
-              ref={visibleCanvasRef}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              className="rounded-2xl shadow-2xl bg-white touch-none"
-              style={{
-                width: `${previewWidth}px`,
-                maxWidth: "none",
-                cursor:
-                  activeTool === "select"
-                    ? "default"
-                    : activeTool === "text"
-                      ? "text"
-                      : "crosshair",
-              }}
-            />
-          )}
-        </div>
-
-        {hasImage && (
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-4">
-            <InfoCard label="Canvas" value={`${canvasSize.width}×${canvasSize.height}`} />
-            <InfoCard label="Tool" value={activeTool} />
-            <InfoCard label="Objects" value={objects.length} />
-            <InfoCard label="Patch" value={patchTargetBox ? "Target Set" : "Not Set"} />
-            <InfoCard label="Clone" value={cloneSourceBox ? "Source Saved" : "Not Set"} />
-            <InfoCard label="Process Time" value={processText} green={Boolean(processingTimeMs)} />
-          </div>
-        )}
-
-        {outputPreviewUrl && (
-          <div className="mt-4 border border-[var(--border)] rounded-2xl p-5 bg-white">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <h3 className="font-semibold">Final Preview</h3>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  Created in {(processingTimeMs / 1000).toFixed(1)}s •{" "}
-                  {formatBytes(lastOutputSize)}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => downloadBlob()}
-                className="btn-primary inline-flex items-center justify-center gap-2"
-              >
-                <Download size={18} />
-                Download Again
-              </button>
-            </div>
-
-            <div className="mt-4 flex justify-center bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-4 overflow-auto">
-              <img
-                src={outputPreviewUrl}
-                alt="Final edited preview"
-                className="max-w-[280px] rounded-xl"
-              />
-            </div>
-          </div>
-        )}
-
-        {hasImage && (
-          <div className="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-5">
-            <p className="text-sm text-blue-800">
-              Tip: Text can now be used with or without background, and shapes can use fill,
-              stroke, or both. Click outside the artboard to hide active selections.
-            </p>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={resetTool}
-          className="btn-secondary w-full mt-4 inline-flex items-center justify-center gap-2"
-        >
-          <RotateCcw size={18} />
-          Reset Everything
-        </button>
       </section>
 
       <section className="card p-6 sm:p-8">
@@ -2967,38 +3301,55 @@ function drawImageObject(ctx, object) {
 function drawTextObject(ctx, object) {
   const fontFamily = object.fontFamily || "Arial, sans-serif";
   const fontSize = Number(object.fontSize || 48);
+  const fontWeight = Number(object.fontWeight || (object.bold ? 800 : 500));
   const hasBackground = object.hasBackground !== false;
+  const textAlign = object.textAlign || "center";
+  const paddingX = Math.max(10, fontSize * 0.35);
+  const paddingY = Math.max(8, fontSize * 0.22);
+  const boxWidth = Math.max(40, Number(object.w || 260));
+  const boxHeight = Math.max(30, Number(object.h || fontSize * 1.45));
+  const text = applyTextCase(object.text || "", object.textCase || "none");
 
-  ctx.font = `${object.bold ? "800" : "500"} ${fontSize}px ${fontFamily}`;
-  ctx.textBaseline = "top";
+  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = textAlign;
 
-  const metrics = ctx.measureText(object.text);
-  const paddingX = fontSize * 0.35;
-  const paddingY = fontSize * 0.22;
-  const width = metrics.width + paddingX * 2;
-  const height = fontSize * 1.32;
-
-  if (object.shadow) {
-    ctx.shadowColor = "rgba(0,0,0,0.28)";
-    ctx.shadowBlur = fontSize * 0.22;
-    ctx.shadowOffsetY = fontSize * 0.08;
-  }
+  const maxTextWidth = Math.max(20, boxWidth - paddingX * 2);
+  const lines = getWrappedTextLines(ctx, text, maxTextWidth);
+  const lineHeight = fontSize * 1.18;
+  const totalTextHeight = lines.length * lineHeight;
+  const firstLineY = object.y + boxHeight / 2 - totalTextHeight / 2 + lineHeight / 2;
 
   if (hasBackground) {
+    ctx.shadowColor = "transparent";
     ctx.fillStyle = object.background || "#111827";
-    roundRect(ctx, object.x, object.y, width, height, fontSize * 0.22);
+    roundRect(ctx, object.x, object.y, boxWidth, boxHeight, fontSize * 0.22);
     ctx.fill();
   }
 
-  ctx.shadowColor = object.shadow ? "rgba(0,0,0,0.32)" : "transparent";
+  if (object.shadow) {
+    ctx.shadowColor = "rgba(0,0,0,0.32)";
+    ctx.shadowBlur = fontSize * 0.22;
+    ctx.shadowOffsetY = fontSize * 0.08;
+  } else {
+    ctx.shadowColor = "transparent";
+  }
+
   ctx.fillStyle = object.color || "#ffffff";
-  ctx.fillText(
-    object.text,
-    object.x + (hasBackground ? paddingX : 0),
-    object.y + (hasBackground ? paddingY : 0)
-  );
+
+  const textX =
+    textAlign === "left"
+      ? object.x + paddingX
+      : textAlign === "right"
+        ? object.x + boxWidth - paddingX
+        : object.x + boxWidth / 2;
+
+  lines.forEach((line, index) => {
+    ctx.fillText(line, textX, firstLineY + index * lineHeight);
+  });
 
   ctx.shadowColor = "transparent";
+  ctx.textAlign = "left";
 }
 
 function drawRectangleObject(ctx, object) {
@@ -3276,18 +3627,38 @@ function drawSmartGuide(ctx, guideInfo, width, height) {
   ctx.lineWidth = Math.max(2, width * 0.0015);
   ctx.setLineDash([10, 7]);
 
-  if (guideInfo.centerX) {
-    ctx.beginPath();
-    ctx.moveTo(width / 2, 0);
-    ctx.lineTo(width / 2, height);
-    ctx.stroke();
-  }
+  const customLines = guideInfo.guideLines || [];
 
-  if (guideInfo.centerY) {
-    ctx.beginPath();
-    ctx.moveTo(0, height / 2);
-    ctx.lineTo(width, height / 2);
-    ctx.stroke();
+  if (customLines.length) {
+    customLines.forEach((line) => {
+      ctx.beginPath();
+
+      if (line.type === "vertical") {
+        ctx.moveTo(line.value, line.start ?? 0);
+        ctx.lineTo(line.value, line.end ?? height);
+      }
+
+      if (line.type === "horizontal") {
+        ctx.moveTo(line.start ?? 0, line.value);
+        ctx.lineTo(line.end ?? width, line.value);
+      }
+
+      ctx.stroke();
+    });
+  } else {
+    if (guideInfo.centerX) {
+      ctx.beginPath();
+      ctx.moveTo(width / 2, 0);
+      ctx.lineTo(width / 2, height);
+      ctx.stroke();
+    }
+
+    if (guideInfo.centerY) {
+      ctx.beginPath();
+      ctx.moveTo(0, height / 2);
+      ctx.lineTo(width, height / 2);
+      ctx.stroke();
+    }
   }
 
   ctx.setLineDash([]);
@@ -3389,18 +3760,11 @@ function getObjectBox(object) {
   }
 
   if (object.type === "text") {
-    const fontSize = Number(object.fontSize || 48);
-    const hasBackground = object.hasBackground !== false;
-    const estimatedWidth = Math.max(
-      90,
-      String(object.text || "").length * fontSize * 0.62 + (hasBackground ? fontSize * 0.7 : 0)
-    );
-
     return {
       x: object.x,
       y: object.y,
-      w: estimatedWidth,
-      h: hasBackground ? fontSize * 1.35 : fontSize * 1.05,
+      w: Math.max(40, Number(object.w || 260)),
+      h: Math.max(30, Number(object.h || Number(object.fontSize || 48) * 1.45)),
     };
   }
 
@@ -3460,6 +3824,8 @@ function scaleObject(object, scaleX, scaleY) {
       ...object,
       x: object.x * scaleX,
       y: object.y * scaleY,
+      w: Number(object.w || 260) * scaleX,
+      h: Number(object.h || 80) * scaleY,
       fontSize: object.fontSize * averageScale,
     };
   }
@@ -3548,6 +3914,120 @@ function scaleBox(box, scaleX, scaleY) {
   };
 }
 
+function getResizeHandleAtPoint(point, object, zoom = 1) {
+  if (!point || !object) return null;
+
+  if (!["image", "text", "rectangle", "circle"].includes(object.type)) {
+    return null;
+  }
+
+  const box = getObjectBox(object);
+  if (!box) return null;
+
+  const hitSize = Math.max(10, 18 / Math.max(0.25, Number(zoom) || 1));
+  const handles = [
+    { id: "nw", x: box.x, y: box.y },
+    { id: "ne", x: box.x + box.w, y: box.y },
+    { id: "sw", x: box.x, y: box.y + box.h },
+    { id: "se", x: box.x + box.w, y: box.y + box.h },
+  ];
+
+  const found = handles.find(
+    (handle) =>
+      Math.abs(point.x - handle.x) <= hitSize &&
+      Math.abs(point.y - handle.y) <= hitSize
+  );
+
+  return found?.id || null;
+}
+
+function resizeBoxFromHandle(startBox, point, handle, { keepRatio = false } = {}) {
+  const minSize = 12;
+  const right = startBox.x + startBox.w;
+  const bottom = startBox.y + startBox.h;
+  let x = startBox.x;
+  let y = startBox.y;
+  let w = startBox.w;
+  let h = startBox.h;
+
+  if (handle === "nw") {
+    x = Math.min(point.x, right - minSize);
+    y = Math.min(point.y, bottom - minSize);
+    w = right - x;
+    h = bottom - y;
+  }
+
+  if (handle === "ne") {
+    y = Math.min(point.y, bottom - minSize);
+    w = Math.max(minSize, point.x - startBox.x);
+    h = bottom - y;
+  }
+
+  if (handle === "sw") {
+    x = Math.min(point.x, right - minSize);
+    w = right - x;
+    h = Math.max(minSize, point.y - startBox.y);
+  }
+
+  if (handle === "se") {
+    w = Math.max(minSize, point.x - startBox.x);
+    h = Math.max(minSize, point.y - startBox.y);
+  }
+
+  if (keepRatio && startBox.w > 0 && startBox.h > 0) {
+    const ratio = startBox.w / startBox.h;
+    const scale = Math.max(w / startBox.w, h / startBox.h);
+    w = Math.max(minSize, startBox.w * scale);
+    h = Math.max(minSize, w / ratio);
+
+    if (handle.includes("n")) y = bottom - h;
+    if (handle.includes("w")) x = right - w;
+  }
+
+  return { x, y, w, h };
+}
+
+function resizeObjectToBox(object, box) {
+  const startBox = getObjectBox(object) || box;
+
+  if (object.type === "text") {
+    const scaleX = box.w / Math.max(1, startBox.w);
+    const scaleY = box.h / Math.max(1, startBox.h);
+    const scale = Math.max(scaleX, scaleY);
+
+    return {
+      ...object,
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+      fontSize: clampNumber(Number(object.fontSize || 48) * scale, 8, 500),
+    };
+  }
+
+  if (object.type === "image") {
+    return {
+      ...object,
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+    };
+  }
+
+  if (object.type === "rectangle" || object.type === "circle") {
+    return {
+      ...object,
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+    };
+  }
+
+  return object;
+}
+
 function clampBoxToCanvas(box, canvas) {
   const x = clampNumber(box.x, 0, Math.max(0, canvas.width - 1));
   const y = clampNumber(box.y, 0, Math.max(0, canvas.height - 1));
@@ -3557,8 +4037,9 @@ function clampBoxToCanvas(box, canvas) {
   return { x, y, w, h };
 }
 
-function snapBoxToGuides(box, canvasSize) {
+function snapBoxToGuides(box, canvasSize, referenceBoxes = []) {
   const resultBox = { ...box };
+  const guideLines = [];
   let centerX = false;
   let centerY = false;
   let message = "";
@@ -3571,39 +4052,82 @@ function snapBoxToGuides(box, canvasSize) {
   if (Math.abs(boxCenterX - canvasCenterX) <= SNAP_DISTANCE) {
     resultBox.x = canvasCenterX - box.w / 2;
     centerX = true;
+    guideLines.push({ type: "vertical", value: canvasCenterX, label: "Canvas center" });
   }
 
   if (Math.abs(boxCenterY - canvasCenterY) <= SNAP_DISTANCE) {
     resultBox.y = canvasCenterY - box.h / 2;
     centerY = true;
+    guideLines.push({ type: "horizontal", value: canvasCenterY, label: "Canvas center" });
   }
 
-  if (centerX && centerY) message = "Center aligned";
-  else if (centerX) message = "Vertical center";
-  else if (centerY) message = "Horizontal center";
+  referenceBoxes.forEach((referenceBox) => {
+    const refCenterX = referenceBox.x + referenceBox.w / 2;
+    const refCenterY = referenceBox.y + referenceBox.h / 2;
+
+    if (!centerX && Math.abs(boxCenterX - refCenterX) <= SNAP_DISTANCE) {
+      resultBox.x = refCenterX - box.w / 2;
+      centerX = true;
+      message = "Aligned to object center";
+      guideLines.push({
+        type: "vertical",
+        value: refCenterX,
+        label: "Object center",
+        start: referenceBox.y,
+        end: referenceBox.y + referenceBox.h,
+      });
+    }
+
+    if (!centerY && Math.abs(boxCenterY - refCenterY) <= SNAP_DISTANCE) {
+      resultBox.y = refCenterY - box.h / 2;
+      centerY = true;
+      message = "Aligned to object center";
+      guideLines.push({
+        type: "horizontal",
+        value: refCenterY,
+        label: "Object center",
+        start: referenceBox.x,
+        end: referenceBox.x + referenceBox.w,
+      });
+    }
+  });
+
+  if (!message) {
+    if (centerX && centerY) message = "Center aligned";
+    else if (centerX) message = "Vertical center";
+    else if (centerY) message = "Horizontal center";
+  }
 
   return {
     box: resultBox,
     centerX,
     centerY,
+    guideLines,
     message,
   };
 }
 
-function buildGuideInfo(box, canvasSize, message = "") {
+function buildGuideInfo(box, canvasSize, message = "", snapResult = null) {
   if (!box) return null;
 
   const boxCenterX = box.x + box.w / 2;
   const boxCenterY = box.y + box.h / 2;
 
-  const centerX = Math.abs(boxCenterX - canvasSize.width / 2) <= SNAP_DISTANCE;
-  const centerY = Math.abs(boxCenterY - canvasSize.height / 2) <= SNAP_DISTANCE;
+  const centerX =
+    snapResult?.centerX ||
+    Math.abs(boxCenterX - canvasSize.width / 2) <= SNAP_DISTANCE;
+  const centerY =
+    snapResult?.centerY ||
+    Math.abs(boxCenterY - canvasSize.height / 2) <= SNAP_DISTANCE;
+
+  const guideLines = snapResult?.guideLines || [];
 
   return {
     box,
     centerX,
     centerY,
-    message,
+    guideLines,
+    message: snapResult?.message || message,
   };
 }
 
@@ -3676,6 +4200,64 @@ function getImageCoverBox({ imageWidth, imageHeight, canvasWidth, canvasHeight }
     w: width,
     h: height,
   };
+}
+
+function lockDragAxis(dx, dy) {
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return { dx, dy: 0 };
+  }
+
+  return { dx: 0, dy };
+}
+
+function applyTextCase(text, textCase) {
+  const value = String(text || "");
+
+  if (textCase === "uppercase") return value.toUpperCase();
+  if (textCase === "lowercase") return value.toLowerCase();
+
+  if (textCase === "capitalize") {
+    return value.replace(/\b\p{L}/gu, (match) => match.toUpperCase());
+  }
+
+  if (textCase === "title") {
+    return value
+      .toLowerCase()
+      .replace(/\b\p{L}/gu, (match) => match.toUpperCase());
+  }
+
+  return value;
+}
+
+function getWrappedTextLines(ctx, text, maxWidth) {
+  const manualLines = String(text || "").split(/\r\n|\r|\n/);
+  const lines = [];
+
+  manualLines.forEach((manualLine) => {
+    const words = manualLine.split(/(\s+)/).filter((word) => word.length > 0);
+
+    if (!words.length) {
+      lines.push("");
+      return;
+    }
+
+    let line = "";
+
+    words.forEach((word) => {
+      const nextLine = `${line}${word}`;
+
+      if (line && ctx.measureText(nextLine.trim()).width > maxWidth) {
+        lines.push(line.trimEnd());
+        line = word.trimStart();
+      } else {
+        line = nextLine;
+      }
+    });
+
+    lines.push(line.trimEnd());
+  });
+
+  return lines.length ? lines : [""];
 }
 
 function roundRect(ctx, x, y, width, height, radius) {

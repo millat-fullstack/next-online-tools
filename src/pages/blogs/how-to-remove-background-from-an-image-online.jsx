@@ -2,7 +2,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "How to Remove Background from an Image Online",
-  slug: "HowToRemoveBackgroundFromAnImageOnline",
+  slug: "how-to-remove-background-from-an-image-online",
   date: "2026-06-03",
   category: "Image Tools",
   excerpt:

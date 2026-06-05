@@ -2,7 +2,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "How to Crop an Image Online for Social Media",
-  slug: "HowToCropAnImageOnlineForSocialMedia",
+  slug: "how-to-crop-an-image-online-for-social-media",
   date: "2026-06-03",
   category: "Image Tools",
   excerpt:

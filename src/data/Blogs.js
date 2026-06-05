@@ -1,20 +1,29 @@
 export const blogs = [
   {
+    "title": "How to Merge and Split PDF Files Online Without Installing Software",
+    "slug": "how-to-merge-and-split-pdf-files-online-without-installing-software",
+    "date": "2026-06-05",
+    "category": "PDF Tools",
+    "excerpt": "Learn how to merge and split PDF files online without installing software. Combine multiple PDFs or separate PDF pages easily using free browser-based tools.",
+    "image": "/images/merge-split-pdf-online.png",
+    "pageFile": "how-to-merge-and-split-pdf-files-online-without-installing-software"
+  },
+  {
     "title": "Edit Photos Online Easily with Next Online Tools Quick Photo Editor",
-    "slug": "quick-photo-editor-online",
+    "slug": "edit-photos-online-easily-with-next-online-tools-quick-photo-editor",
     "date": "2026-06-05",
     "category": "Image Tools",
-    "excerpt": "Learn how to edit, crop, resize, add text, add shapes, and prepare photos online using the free Quick Photo Editor by Next Online Tools.",
+    "excerpt": "Learn how to edit photos online easily using the Quick Photo Editor by Next Online Tools for simple image adjustments, cropping, resizing, and daily photo editing tasks.",
     "image": "/images/quick-photo-editor.png",
     "pageFile": "quick-photo-editor-online"
   },
   {
     "title": "Why Choose NextOnlineTools for Your Digital Works?",
+    "slug": "why-choose-nextonlinetools-for-your-digital-works",
     "date": "2026-06-05",
     "category": "Online Tools",
     "excerpt": "Discover why NextOnlineTools is a simple, fast, and free platform for everyday digital tasks like image editing, PDF conversion, text tools, and more.",
     "image": "/images/why-choose-nextonlinetools.png",
-    "slug": "why-choose-nextonlinetools-for-your-digital-works",
     "pageFile": "why-choose-nextonlinetools-for-your-digital-works"
   },
   {
@@ -27,6 +36,24 @@ export const blogs = [
     "pageFile": "how-to-convert-jpg-to-pdf-online-for-free"
   },
   {
+    "title": "How to Crop an Image Online for Social Media",
+    "slug": "how-to-crop-an-image-online-for-social-media",
+    "date": "2026-06-03",
+    "category": "Image Tools",
+    "excerpt": "Learn how to crop an image online for Facebook, Instagram, LinkedIn, Pinterest, YouTube, TikTok, and other social media platforms.",
+    "image": "/images/crop-image-social-media.png",
+    "pageFile": "how-to-crop-an-image-online-for-social-media"
+  },
+  {
+    "title": "How to Remove Background from an Image Online",
+    "slug": "how-to-remove-background-from-an-image-online",
+    "date": "2026-06-03",
+    "category": "Image Tools",
+    "excerpt": "Learn how to remove the background from an image online quickly for product photos, profile pictures, social media posts, and designs.",
+    "image": "/images/remove-background-online.png",
+    "pageFile": "how-to-remove-background-from-an-image-online"
+  },
+  {
     "title": "How to Count Words and Characters Online Easily",
     "slug": "HowToCountWordsAndCharactersOnlineEasily",
     "date": "2026-06-03",
@@ -34,24 +61,6 @@ export const blogs = [
     "excerpt": "Learn how to count words, characters, sentences, and paragraphs online quickly using a simple word counter tool.",
     "image": "/images/word-character-counter.png",
     "pageFile": "HowToCountWordsAndCharactersOnlineEasily"
-  },
-  {
-    "title": "How to Crop an Image Online for Social Media",
-    "slug": "HowToCropAnImageOnlineForSocialMedia",
-    "date": "2026-06-03",
-    "category": "Image Tools",
-    "excerpt": "Learn how to crop an image online for Facebook, Instagram, LinkedIn, Pinterest, YouTube, TikTok, and other social media platforms.",
-    "image": "/images/crop-image-social-media.png",
-    "pageFile": "HowToCropAnImageOnlineForSocialMedia"
-  },
-  {
-    "title": "How to Remove Background from an Image Online",
-    "slug": "HowToRemoveBackgroundFromAnImageOnline",
-    "date": "2026-06-03",
-    "category": "Image Tools",
-    "excerpt": "Learn how to remove the background from an image online quickly for product photos, profile pictures, social media posts, and designs.",
-    "image": "/images/remove-background-online.png",
-    "pageFile": "HowToRemoveBackgroundFromAnImageOnline"
   },
   {
     "title": "Social Media Image Size Guide",
@@ -78,7 +87,7 @@ export const blogs = [
     "category": "Image Tools",
     "excerpt": "Learn how to compress images and reduce image file size without visible quality loss using smart settings, modern formats, and a free online image compressor.",
     "image": "/images/compress-images-without-losing-quality.jpg",
-    "pageFile": "HowToCompressImagesWithoutLosingQuality"
+    "pageFile": "how-to-compress-images-without-losing-quality"
   },
   {
     "title": "How to Convert HEIC to JPG on Windows",
@@ -87,7 +96,7 @@ export const blogs = [
     "category": "Image Tools",
     "excerpt": "Learn how to convert HEIC to JPG on Windows using simple methods, browser-based tools, and Windows image viewing options.",
     "image": "/images/convert-heic-to-jpg-on-windows.jpg",
-    "pageFile": "HowToConvertHeicToJpgOnWindows"
+    "pageFile": "how-to-convert-heic-to-jpg-on-windows"
   },
   {
     "title": "How to Resize an Image for Facebook Post",
