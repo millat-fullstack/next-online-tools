@@ -1,21 +1,30 @@
 export const blogs = [
   {
     "title": "Edit Photos Online Easily with Next Online Tools Quick Photo Editor",
-    "slug": "QuickPhotoEditorOnline",
+    "slug": "quick-photo-editor-online",
     "date": "2026-06-05",
     "category": "Image Tools",
     "excerpt": "Learn how to edit, crop, resize, add text, add shapes, and prepare photos online using the free Quick Photo Editor by Next Online Tools.",
     "image": "/images/quick-photo-editor.png",
-    "pageFile": "QuickPhotoEditorOnline"
+    "pageFile": "quick-photo-editor-online"
+  },
+  {
+    "title": "Why Choose NextOnlineTools for Your Digital Works?",
+    "date": "2026-06-05",
+    "category": "Online Tools",
+    "excerpt": "Discover why NextOnlineTools is a simple, fast, and free platform for everyday digital tasks like image editing, PDF conversion, text tools, and more.",
+    "image": "/images/why-choose-nextonlinetools.png",
+    "slug": "why-choose-nextonlinetools-for-your-digital-works",
+    "pageFile": "why-choose-nextonlinetools-for-your-digital-works"
   },
   {
     "title": "How to Convert JPG to PDF Online for Free",
-    "slug": "HowToConvertJpgToPdfOnlineForFree",
     "date": "2026-06-03",
     "category": "PDF Tools",
     "excerpt": "Learn how to convert JPG images to PDF online for free using a simple browser-based JPG to PDF converter.",
     "image": "/images/jpg-to-pdf-online.png",
-    "pageFile": "HowToConvertJpgToPdfOnlineForFree"
+    "slug": "how-to-convert-jpg-to-pdf-online-for-free",
+    "pageFile": "how-to-convert-jpg-to-pdf-online-for-free"
   },
   {
     "title": "How to Count Words and Characters Online Easily",
@@ -46,12 +55,12 @@ export const blogs = [
   },
   {
     "title": "Social Media Image Size Guide",
-    "slug": "SocialMediaImageSizeGuide",
+    "slug": "social-media-image-size-guide",
     "date": "2026-06-03",
     "category": "Image Tools",
     "excerpt": "A simple social media image size guide for Facebook, Instagram, LinkedIn, Pinterest, TikTok, YouTube, and X.",
     "image": "/images/social-media-image-size-guide.png",
-    "pageFile": "SocialMediaImageSizeGuide"
+    "pageFile": "social-media-image-size-guide"
   },
   {
     "title": "Best Free Online Tools for Everyday Digital Tasks",
@@ -60,7 +69,7 @@ export const blogs = [
     "category": "Productivity Tools",
     "excerpt": "Discover the best free online tools for everyday digital tasks, including image editing, PDF conversion, text formatting, color tools, and quick productivity work.",
     "image": "/images/best-free-online-tools-everyday-digital-tasks.jpg",
-    "pageFile": "BestFreeOnlineToolsForDigitalTasks"
+    "pageFile": "best-free-online-tools-for-digital-tasks"
   },
   {
     "title": "How to Compress Images or Reduce Image Files Without Losing Quality",
@@ -100,21 +109,21 @@ export const blogs = [
   },
   {
     "title": "Best Free Online Passport Photo Maker for Visa, ID, and Documents",
-    "slug": "BestFreeOnlinePassportPhotoMaker",
+    "slug": "best-free-online-passport-photo-maker",
     "date": "2026-05-12",
     "category": "Image Tools",
     "excerpt": "Create passport size photos online for visa, ID, job application, school forms, and documents using the free Passport Size Photo Maker by Next Online Tools.",
     "image": "/images/passport-photo-maker.jpg",
-    "pageFile": "BestFreeOnlinePassportPhotoMaker"
+    "pageFile": "best-free-online-passport-photo-maker"
   },
   {
     "title": "Best Free Online Screenshot Editor Tools for Quick Editing",
-    "slug": "BestFreeOnlineScreenshotEditorTools",
+    "slug": "best-free-online-screenshot-editor-tools",
     "date": "2026-05-12",
     "category": "Image Tools",
     "excerpt": "Discover the best free online screenshot editor tools for quick editing, annotation, cropping, blurring, and sharing screenshots faster.",
     "image": "/images/free-online-screenshot-editor-tools.jpg",
-    "pageFile": "BestFreeOnlineScreenshotEditorTools"
+    "pageFile": "best-free-online-screenshot-editor-tools"
   },
   {
     "title": "How to Extract Hidden Links from Google Sheets Easily",
@@ -127,12 +136,12 @@ export const blogs = [
   },
   {
     "title": "10 Best Free Online Image Compressor Tools to Reduce/Compress File Size",
-    "slug": "BestFreeImageCompressorTools",
+    "slug": "best-free-image-compressor-tools",
     "date": "2026-05-10",
     "category": "Image Tools",
     "excerpt": "Discover the 10 best free online image compressor tools to reduce image file size, improve website speed, and optimize photos without losing quality.",
     "image": "/images/free-image-compressor-tools.jpg",
-    "pageFile": "BestFreeImageCompressorTools"
+    "pageFile": "best-free-image-compressor-tools"
   },
   {
     "title": "Essential Online Image Tools to Optimize, Resize, and Convert Images Easily",
@@ -150,7 +159,7 @@ export const blogs = [
     "category": "Tools",
     "excerpt": "Discover the best free online tools to help you complete daily tasks faster and more efficiently.",
     "image": "/images/free-online-tools.jpg",
-    "pageFile": "BestFreeOnlineTools"
+    "pageFile": "best-free-online-tools"
   },
   {
     "title": "How to Convert WEBP to JPG Online",

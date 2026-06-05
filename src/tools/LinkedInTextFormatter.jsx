@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import {
   Linkedin,
@@ -25,6 +25,14 @@ import {
   Info,
   BookOpen,
   ListChecks,
+  Hash,
+  Save,
+  MessageCircle,
+  ThumbsUp,
+  Repeat2,
+  Send,
+  Image as ImageIcon,
+  X,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -33,21 +41,55 @@ export const toolData = {
   path: "/linkedin-text-formatter",
   category: "Social Media Tools",
   description:
-    "Format LinkedIn posts with bold, italic, underline, strikethrough, monospace, bullets, and other copyable Unicode text styles.",
+    "Format and optimize LinkedIn posts with bold, italic, underline, strikethrough, Unicode text styles, templates, hook score, post preview, and character counter.",
   metaTitle:
-    "LinkedIn Text Formatter | Bold, Italic & Styled Text Generator",
+    "LinkedIn Text Formatter & Post Optimizer | Bold, Italic & Styled Text",
   metaDescription:
-    "Format LinkedIn posts with bold, italic, underline, strikethrough, monospace, bullets, and other Unicode text styles. Copy and paste styled text into LinkedIn posts, comments, and profiles.",
+    "Format LinkedIn posts with bold, italic, underline, strikethrough, Unicode styles, templates, hook preview, hook score, optional image preview, and character counter.",
 };
 
 const LINKEDIN_POST_LIMIT = 3000;
 const SEE_MORE_PREVIEW_LIMIT = 210;
+const LOCAL_STORAGE_KEY = "nextOnlineToolsLinkedInFormatterDraft";
 
 const SAMPLE_POST =
   "Big lesson from building online tools:\n\nSimple tools win when they solve one clear problem fast.\n\nMake it useful. Make it easy. Make it reliable.\n\nWhat is one small tool you use every week?";
 
 const SITE_URL = "https://nextonlinetools.com";
 const canonicalUrl = `${SITE_URL}${toolData.path.startsWith("/tool") ? toolData.path : `/tool${toolData.path}`}`;
+
+const POST_MODES = [
+  {
+    id: "post",
+    label: "LinkedIn Post",
+    limit: LINKEDIN_POST_LIMIT,
+    helper: "Best for normal feed posts, founder updates, tips, lessons, and storytelling.",
+  },
+  {
+    id: "comment",
+    label: "LinkedIn Comment",
+    limit: 1250,
+    helper: "Best for short opinions, thoughtful replies, and discussion comments.",
+  },
+  {
+    id: "headline",
+    label: "Profile Headline",
+    limit: 220,
+    helper: "Best for short professional positioning and profile headline ideas.",
+  },
+  {
+    id: "about",
+    label: "About Section Draft",
+    limit: 2600,
+    helper: "Best for longer profile summaries before you paste and refine on LinkedIn.",
+  },
+  {
+    id: "message",
+    label: "LinkedIn Message",
+    limit: 1000,
+    helper: "Best for clean outreach messages, follow-ups, and networking notes.",
+  },
+];
 
 const STYLE_OPTIONS = [
   {
@@ -119,13 +161,25 @@ const QUICK_ACTIONS = [
     id: "addBullets",
     label: "Add Bullets",
     icon: List,
-    description: "Add bullet points to selected lines.",
+    description: "Add bullets to selected lines or the full post.",
   },
   {
     id: "cleanSpacing",
     label: "Clean Spacing",
     icon: Scissors,
     description: "Remove extra spaces and repeated blank lines.",
+  },
+  {
+    id: "cleanHashtags",
+    label: "Clean Hashtags",
+    icon: Hash,
+    description: "Fix multi-word hashtags into LinkedIn-friendly format.",
+  },
+  {
+    id: "addCTA",
+    label: "Add CTA",
+    icon: MessageCircle,
+    description: "Add a clean engagement question at the end.",
   },
   {
     id: "plainText",
@@ -135,46 +189,107 @@ const QUICK_ACTIONS = [
   },
 ];
 
+const BULLET_STYLES = [
+  { id: "dot", label: "• Standard", symbol: "•" },
+  { id: "arrow", label: "→ Arrow", symbol: "→" },
+  { id: "check", label: "✓ Check", symbol: "✓" },
+  { id: "star", label: "★ Star", symbol: "★" },
+  { id: "fire", label: "🔥 Fire", symbol: "🔥" },
+];
+
+const CTA_OPTIONS = [
+  "What would you add?",
+  "Which point do you agree with most?",
+  "Save this for later.",
+  "What is your experience with this?",
+  "Follow for more practical tips.",
+];
+
+const POST_TEMPLATES = [
+  {
+    id: "lesson",
+    title: "Lesson Learned Post",
+    description: "A simple reflective post with a strong lesson.",
+    text:
+      "I learned this the hard way:\n\n[Write your main lesson here]\n\nAt first, I thought:\n• [Old belief]\n• [Old mistake]\n\nBut now I understand:\n• [New lesson]\n• [Better approach]\n\nWhat I would do differently:\n1. [Point one]\n2. [Point two]\n3. [Point three]\n\nWhat is one lesson you learned recently?",
+  },
+  {
+    id: "tips",
+    title: "Tips/List Post",
+    description: "Best for educational or practical LinkedIn content.",
+    text:
+      "[Number] simple ways to improve [topic]:\n\n1. [Tip one]\n2. [Tip two]\n3. [Tip three]\n4. [Tip four]\n5. [Tip five]\n\nThe key is not to do everything at once.\n\nStart with one small improvement and stay consistent.\n\nWhich one would you try first?",
+  },
+  {
+    id: "story",
+    title: "Personal Story Post",
+    description: "Use a small story to create connection.",
+    text:
+      "A few months ago, I made a mistake.\n\n[Write the short story here]\n\nThe problem was not the mistake itself.\nThe real problem was what I ignored before it happened.\n\nHere is what it taught me:\n\n• [Lesson one]\n• [Lesson two]\n• [Lesson three]\n\nSometimes the best growth comes from the moments we did not plan.\n\nHave you ever experienced something similar?",
+  },
+  {
+    id: "launch",
+    title: "Product Launch Post",
+    description: "Useful for launching a tool, feature, product, or service.",
+    text:
+      "We just launched something new.\n\n[Product/tool name] helps [target audience] to [main benefit].\n\nWhy we built it:\n• [Problem one]\n• [Problem two]\n• [Problem three]\n\nWhat it can do:\n✓ [Feature one]\n✓ [Feature two]\n✓ [Feature three]\n\nSimple goal: make [task] faster, easier, and more useful.\n\nTry it here: [link]\n\nWhat should we improve next?",
+  },
+  {
+    id: "beforeAfter",
+    title: "Before vs After Post",
+    description: "Great for transformation, mistakes, and improvement stories.",
+    text:
+      "Before, I used to think:\n\n[Old way of thinking]\n\nAfter working on this, I realized:\n\n[New way of thinking]\n\nThe difference came from three small changes:\n\n1. [Change one]\n2. [Change two]\n3. [Change three]\n\nProgress usually starts when we stop overcomplicating the process.\n\nWhat changed your thinking recently?",
+  },
+  {
+    id: "hiring",
+    title: "Hiring Post",
+    description: "A clear template for hiring or team expansion posts.",
+    text:
+      "We are hiring.\n\nRole: [Job title]\nLocation: [Location/Remote/Hybrid]\nType: [Full-time/Part-time/Contract]\n\nWhat we are looking for:\n• [Skill one]\n• [Skill two]\n• [Skill three]\n\nYou will work on:\n• [Responsibility one]\n• [Responsibility two]\n• [Responsibility three]\n\nInterested candidates can send their CV/portfolio to: [email/link]\n\nPlease share this with someone who may be a good fit.",
+  },
+];
+
 export default function LinkedInTextFormatter() {
   const textareaRef = useRef(null);
+  const imageInputRef = useRef(null);
 
   const [postText, setPostText] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("bold");
-  const [copied, setCopied] = useState(false);
+  const [selectedMode, setSelectedMode] = useState("post");
+  const [selectedBullet, setSelectedBullet] = useState("dot");
+  const [previewImage, setPreviewImage] = useState("");
+  const [copiedType, setCopiedType] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+
+  const activeMode = useMemo(() => {
+    return POST_MODES.find((mode) => mode.id === selectedMode) || POST_MODES[0];
+  }, [selectedMode]);
+
+  const activeBullet = useMemo(() => {
+    return BULLET_STYLES.find((bullet) => bullet.id === selectedBullet) || BULLET_STYLES[0];
+  }, [selectedBullet]);
 
   const characterCount = useMemo(() => {
     return Array.from(postText).length;
   }, [postText]);
 
-  const remainingCharacters = LINKEDIN_POST_LIMIT - characterCount;
+  const remainingCharacters = activeMode.limit - characterCount;
 
   const limitPercent = Math.min(
     100,
-    Math.round((characterCount / LINKEDIN_POST_LIMIT) * 100)
+    Math.round((characterCount / activeMode.limit) * 100)
   );
 
-  const lineCount = useMemo(() => {
-    return postText ? postText.split(/\r\n|\r|\n/).length : 0;
-  }, [postText]);
-
-  const wordCount = useMemo(() => {
-    const matches = postText.match(/[\p{L}\p{N}]+(?:['’.-][\p{L}\p{N}]+)*/gu);
-    return matches ? matches.length : 0;
-  }, [postText]);
-
-  const paragraphCount = useMemo(() => {
-    const cleanText = postText.trim();
-
-    if (!cleanText) return 0;
-
-    return cleanText.split(/\n\s*\n/).filter(Boolean).length;
-  }, [postText]);
 
   const hookPreview = useMemo(() => {
     return Array.from(postText).slice(0, SEE_MORE_PREVIEW_LIMIT).join("");
   }, [postText]);
+
+  const hashtags = useMemo(() => extractHashtags(postText), [postText]);
+  const hookScore = useMemo(() => analyzeHook(postText), [postText]);
+  const styleDensity = useMemo(() => calculateStyledDensity(postText), [postText]);
 
   const limitStatus = useMemo(() => {
     if (!characterCount) {
@@ -185,7 +300,7 @@ export default function LinkedInTextFormatter() {
       };
     }
 
-    if (characterCount > LINKEDIN_POST_LIMIT) {
+    if (characterCount > activeMode.limit) {
       return {
         label: "Too Long",
         status: "danger",
@@ -193,7 +308,7 @@ export default function LinkedInTextFormatter() {
       };
     }
 
-    if (characterCount >= 2500) {
+    if (characterCount >= activeMode.limit * 0.85) {
       return {
         label: "Near Limit",
         status: "warning",
@@ -206,19 +321,19 @@ export default function LinkedInTextFormatter() {
       status: "good",
       barClass: "bg-green-500",
     };
-  }, [characterCount]);
+  }, [characterCount, activeMode.limit]);
 
   const seoJsonLd = useMemo(() => {
     return {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      name: "LinkedIn Text Formatter",
+      name: "LinkedIn Text Formatter & Post Optimizer",
       applicationCategory: "UtilitiesApplication",
       operatingSystem: "Any",
       "@id": canonicalUrl,
       url: canonicalUrl,
       description:
-        "Format LinkedIn posts with bold, italic, underline, strikethrough, monospace, bullets, and copyable Unicode text styles.",
+        "Format LinkedIn posts with bold, italic, underline, strikethrough, Unicode text styles, templates, hook score, post preview, and character counter.",
       offers: {
         "@type": "Offer",
         price: "0",
@@ -227,7 +342,9 @@ export default function LinkedInTextFormatter() {
       featureList: [
         "LinkedIn bold text generator",
         "LinkedIn italic text generator",
-        "Underline and strikethrough text",
+        "LinkedIn post templates",
+        "LinkedIn hook score",
+        "Optional image preview",
         "LinkedIn character counter",
         "Copy formatted LinkedIn post",
         "Unicode text formatter",
@@ -253,7 +370,7 @@ export default function LinkedInTextFormatter() {
           name: "What is the LinkedIn post character limit?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "LinkedIn posts have a 3000-character limit. This tool includes a live LinkedIn post character counter.",
+            text: "This tool uses a 3000-character limit for LinkedIn posts and includes a live counter to help users stay within the limit.",
           },
         },
         {
@@ -264,14 +381,41 @@ export default function LinkedInTextFormatter() {
             text: "Unicode styled text can be harder for screen readers and some devices. Use it sparingly for hooks, headings, and short phrases rather than formatting an entire post.",
           },
         },
+        {
+          "@type": "Question",
+          name: "Can this tool improve my LinkedIn post?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes. The tool includes a hook score, templates, spacing cleaner, CTA helper, hashtag cleaner, optional image preview, and copy options.",
+          },
+        },
       ],
     };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const savedDraft = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+
+      if (savedDraft) {
+        setPostText(savedDraft);
+      }
+    } catch {
+      // Local storage may be blocked in private browser modes.
+    }
   }, []);
 
   function clearFeedback() {
     setSuccess("");
     setError("");
-    setCopied(false);
+    setCopiedType("");
+  }
+
+  function updateText(nextText, message = "") {
+    setPostText(nextText);
+    setSuccess(message);
+    setError("");
+    setCopiedType("");
   }
 
   function handleTextChange(value) {
@@ -299,7 +443,7 @@ export default function LinkedInTextFormatter() {
     clearFeedback();
 
     if (!postText.trim()) {
-      setError("Please type or paste your LinkedIn post first.");
+      setError("Please type or paste your LinkedIn text first.");
       return;
     }
 
@@ -314,11 +458,11 @@ export default function LinkedInTextFormatter() {
     const nextText = hasSelection ? `${before}${styledText}${after}` : styledText;
 
     setSelectedStyle(styleId);
-    setPostText(nextText);
-    setSuccess(
+    updateText(
+      nextText,
       hasSelection
         ? `${getStyleLabel(styleId)} applied to selected text.`
-        : `${getStyleLabel(styleId)} applied to the full post.`
+        : `${getStyleLabel(styleId)} applied to the full text.`
     );
 
     window.setTimeout(() => {
@@ -336,7 +480,7 @@ export default function LinkedInTextFormatter() {
     clearFeedback();
 
     if (!postText.trim()) {
-      setError("Please type or paste your LinkedIn post first.");
+      setError("Please type or paste your LinkedIn text first.");
       return;
     }
 
@@ -350,9 +494,7 @@ export default function LinkedInTextFormatter() {
       }
 
       lines[firstNonEmptyIndex] = transformText(lines[firstNonEmptyIndex], "bold");
-
-      setPostText(lines.join("\n"));
-      setSuccess("First line formatted in bold.");
+      updateText(lines.join("\n"), "First line formatted in bold.");
       return;
     }
 
@@ -364,45 +506,60 @@ export default function LinkedInTextFormatter() {
       const selected = hasSelection ? postText.slice(start, end) : postText;
       const after = postText.slice(end);
 
-      const bulleted = addBulletsToLines(selected);
+      const bulleted = addBulletsToLines(selected, activeBullet.symbol);
 
-      setPostText(hasSelection ? `${before}${bulleted}${after}` : bulleted);
-      setSuccess(
+      updateText(
+        hasSelection ? `${before}${bulleted}${after}` : bulleted,
         hasSelection
           ? "Bullets added to selected lines."
-          : "Bullets added to the full post."
+          : "Bullets added to the full text."
       );
       return;
     }
 
     if (actionId === "cleanSpacing") {
-      setPostText(cleanPostSpacing(postText));
-      setSuccess("Extra spacing cleaned.");
+      updateText(cleanPostSpacing(postText), "Extra spacing cleaned.");
+      return;
+    }
+
+    if (actionId === "cleanHashtags") {
+      updateText(cleanHashtags(postText), "Hashtags cleaned.");
+      return;
+    }
+
+    if (actionId === "addCTA") {
+      const nextText = addRandomCTA(postText);
+      updateText(nextText, "A clean CTA was added to the end.");
       return;
     }
 
     if (actionId === "plainText") {
-      setPostText(convertStyledUnicodeToPlainText(postText));
-      setSuccess("Styled Unicode removed where possible.");
+      updateText(convertStyledUnicodeToPlainText(postText), "Styled Unicode removed where possible.");
     }
   }
 
-  async function handleCopyPost() {
+  async function handleCopyVariant(copyType) {
     clearFeedback();
 
     if (!postText.trim()) {
-      setError("Please type or paste your LinkedIn post first.");
+      setError("Please type or paste your LinkedIn text first.");
+      return;
+    }
+
+    const textToCopy = getCopyText(copyType, postText);
+
+    if (!textToCopy.trim()) {
+      setError("Nothing found to copy for this option.");
       return;
     }
 
     try {
-      await copyToClipboard(postText);
-
-      setCopied(true);
-      setSuccess("Formatted LinkedIn text copied successfully.");
+      await copyToClipboard(textToCopy);
+      setCopiedType(copyType);
+      setSuccess(getCopySuccessMessage(copyType));
 
       window.setTimeout(() => {
-        setCopied(false);
+        setCopiedType("");
       }, 1500);
     } catch {
       setError("Copy failed. Please copy the text manually.");
@@ -410,25 +567,115 @@ export default function LinkedInTextFormatter() {
   }
 
   function handleSamplePost() {
-    setPostText(SAMPLE_POST);
-    setSuccess("Sample LinkedIn post added.");
+    updateText(SAMPLE_POST, "Sample LinkedIn post added.");
+  }
+
+  function handleTemplate(templateText, templateTitle) {
+    updateText(templateText, `${templateTitle} template added.`);
+    window.setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
+  function handleSaveDraft() {
+    clearFeedback();
+
+    if (!postText.trim()) {
+      setError("Please type or paste your LinkedIn text before saving a draft.");
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, postText);
+      setSuccess("Draft saved in this browser.");
+    } catch {
+      setError("Draft could not be saved. Your browser may be blocking local storage.");
+    }
+  }
+
+  function handleLoadDraft() {
+    clearFeedback();
+
+    try {
+      const savedDraft = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+
+      if (!savedDraft) {
+        setError("No saved draft found in this browser.");
+        return;
+      }
+
+      setPostText(savedDraft);
+      setSuccess("Saved draft loaded.");
+    } catch {
+      setError("Draft could not be loaded. Your browser may be blocking local storage.");
+    }
+  }
+
+  function handleClearDraft() {
+    clearFeedback();
+
+    try {
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+      setSuccess("Saved browser draft cleared.");
+    } catch {
+      setError("Saved draft could not be cleared.");
+    }
+  }
+
+  function handlePreviewImageChange(event) {
+    clearFeedback();
+
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose a valid image file.");
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      setPreviewImage(String(reader.result || ""));
+      setSuccess("Preview image added.");
+    };
+
+    reader.onerror = () => {
+      setError("Image could not be loaded. Please try another image.");
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  function handleRemovePreviewImage() {
+    setPreviewImage("");
+    setSuccess("Preview image removed.");
     setError("");
-    setCopied(false);
+
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
+    }
   }
 
   function handleClear() {
     setPostText("");
     setSuccess("");
     setError("");
-    setCopied(false);
+    setCopiedType("");
   }
 
   function handleReset() {
     setPostText("");
     setSelectedStyle("bold");
+    setSelectedMode("post");
+    setSelectedBullet("dot");
+    setPreviewImage("");
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
+    }
     setSuccess("");
     setError("");
-    setCopied(false);
+    setCopiedType("");
   }
 
   return (
@@ -454,9 +701,7 @@ export default function LinkedInTextFormatter() {
           })}
         </script>
 
-        <script type="application/ld+json">
-          {JSON.stringify(faqJsonLd)}
-        </script>
+        <script type="application/ld+json">{JSON.stringify(faqJsonLd)}</script>
       </Helmet>
 
       {/* HEADER */}
@@ -465,35 +710,198 @@ export default function LinkedInTextFormatter() {
           <Linkedin size={28} className="text-[var(--primary)]" />
         </div>
 
+        <p className="text-xs uppercase tracking-[0.24em] text-[var(--primary)] font-bold mb-2">
+          Formatter + Optimizer
+        </p>
+
         <h1 className="text-3xl font-bold mb-3">
-          LinkedIn Text Formatter
+          LinkedIn Text Formatter & Post Optimizer
         </h1>
 
-        <p className="text-[var(--text-secondary)] max-w-2xl">
-          Format your LinkedIn posts with bold, italic, underline,
-          strikethrough, monospace, bullets, and other copyable Unicode text
-          styles. Write your post, highlight any part, apply a style, and copy
-          the formatted text for LinkedIn.
+        <p className="text-[var(--text-secondary)] max-w-3xl">
+          Format LinkedIn posts with bold, italic, underline, strikethrough,
+          monospace, bullets, and copyable Unicode styles. Use templates, hook
+          score, hashtag cleaner, optional image preview card, and copy
+          options to prepare a stronger LinkedIn post faster.
         </p>
       </section>
 
       {/* TOOL BODY */}
       <section className="card p-6 sm:p-8">
+        {/* COMPACT TOP CONTROLS */}
+        <div className="grid lg:grid-cols-3 gap-4 mb-6">
+          <details className="border border-[var(--border)] rounded-2xl bg-white p-4">
+            <summary className="cursor-pointer list-none">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={20} className="text-[var(--primary)]" />
+                  <span className="font-semibold">LinkedIn Post Templates</span>
+                </div>
+                <span className="text-xs text-[var(--primary)] font-semibold">Open</span>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-2">
+                Pick a ready structure for your post.
+              </p>
+            </summary>
+
+            <div className="grid gap-2 pt-4">
+              {POST_TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => handleTemplate(template.text, template.title)}
+                  className="rounded-xl border border-[var(--border)] bg-white p-3 text-left hover:bg-[#f8f4ff] transition"
+                >
+                  <p className="font-semibold text-sm mb-1">{template.title}</p>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    {template.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </details>
+
+          <details className="border border-[var(--border)] rounded-2xl bg-[#f8f4ff] p-4">
+            <summary className="cursor-pointer list-none">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Type size={20} className="text-[var(--primary)]" />
+                  <span className="font-semibold">Text Styles</span>
+                </div>
+                <span className="text-xs text-[var(--primary)] font-semibold">Open</span>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-2">
+                Select text, then apply a style.
+              </p>
+            </summary>
+
+            <div className="grid grid-cols-2 gap-2 pt-4">
+              {STYLE_OPTIONS.map((style) => {
+                const Icon = style.icon;
+
+                return (
+                  <button
+                    key={style.id}
+                    type="button"
+                    onClick={() => applyStyle(style.id)}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      selectedStyle === style.id
+                        ? "border-[var(--primary)] bg-white text-[var(--primary)]"
+                        : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon size={16} />
+                      <span className="font-semibold text-sm">{style.label}</span>
+                    </div>
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      {style.example}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </details>
+
+          <details className="border border-[var(--border)] rounded-2xl bg-white p-4">
+            <summary className="cursor-pointer list-none">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Wand2 size={20} className="text-[var(--primary)]" />
+                  <span className="font-semibold">Quick Post Formatting</span>
+                </div>
+                <span className="text-xs text-[var(--primary)] font-semibold">Open</span>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-2">
+                Clean, bullet, CTA, hashtag, or remove styles.
+              </p>
+            </summary>
+
+            <div className="pt-4">
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-[var(--text-secondary)] mb-2">
+                  Bullet Style
+                </p>
+
+                <div className="grid grid-cols-5 gap-2">
+                  {BULLET_STYLES.map((bullet) => (
+                    <button
+                      key={bullet.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedBullet(bullet.id);
+                        clearFeedback();
+                      }}
+                      className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${
+                        selectedBullet === bullet.id
+                          ? "border-[var(--primary)] bg-[#f8f4ff] text-[var(--primary)]"
+                          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                      }`}
+                      title={bullet.label}
+                      aria-label={`Use ${bullet.label} bullet style`}
+                    >
+                      {bullet.symbol}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {QUICK_ACTIONS.map((action) => {
+                  const Icon = action.icon;
+
+                  return (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={() => handleQuickAction(action.id)}
+                      className="rounded-xl border border-[var(--border)] bg-white p-3 text-left hover:bg-[#f8f4ff] transition"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Icon size={16} className="text-[var(--primary)]" />
+                        <span className="font-semibold text-sm">
+                          {action.label}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </details>
+        </div>
+
         <div className="grid lg:grid-cols-2 gap-6">
           {/* LEFT COLUMN */}
           <div className="flex flex-col gap-5">
             {/* INPUT */}
             <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-2">
                   <FileText size={20} className="text-[var(--primary)]" />
-                  <h2 className="text-xl font-semibold">LinkedIn Post Text</h2>
+                  <h2 className="text-xl font-semibold">LinkedIn Content</h2>
                 </div>
 
-                <span className="text-xs text-[var(--text-secondary)]">
-                  Select text to format only that part
-                </span>
+                <select
+                  value={selectedMode}
+                  onChange={(event) => {
+                    setSelectedMode(event.target.value);
+                    clearFeedback();
+                  }}
+                  className="border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm outline-none focus:border-[var(--primary)]"
+                  aria-label="Choose LinkedIn content type"
+                >
+                  {POST_MODES.map((mode) => (
+                    <option key={mode.id} value={mode.id}>
+                      {mode.label}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              <p className="text-xs text-[var(--text-secondary)] mb-4">
+                {activeMode.helper} Select text to format only that part.
+              </p>
 
               <textarea
                 ref={textareaRef}
@@ -516,14 +924,14 @@ export default function LinkedInTextFormatter() {
 
                 <button
                   type="button"
-                  onClick={handleCopyPost}
+                  onClick={() => handleCopyVariant("formatted")}
                   disabled={!postText.trim()}
                   className={`btn-primary inline-flex items-center justify-center gap-2 ${
                     !postText.trim() ? "opacity-50 cursor-not-allowed" : ""
                   }`}
                 >
-                  {copied ? <Check size={18} /> : <Copy size={18} />}
-                  {copied ? "Copied" : "Copy"}
+                  {copiedType === "formatted" ? <Check size={18} /> : <Copy size={18} />}
+                  {copiedType === "formatted" ? "Copied" : "Copy"}
                 </button>
 
                 <button
@@ -549,84 +957,46 @@ export default function LinkedInTextFormatter() {
               </div>
             </div>
 
-            {/* STYLE BUTTONS */}
-            <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Type size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Text Styles</h3>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-3">
-                {STYLE_OPTIONS.map((style) => {
-                  const Icon = style.icon;
-
-                  return (
-                    <button
-                      key={style.id}
-                      type="button"
-                      onClick={() => applyStyle(style.id)}
-                      className={`rounded-2xl border p-4 text-left transition ${
-                        selectedStyle === style.id
-                          ? "border-[var(--primary)] bg-white text-[var(--primary)]"
-                          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <div className="flex items-center gap-2">
-                          <Icon size={18} />
-                          <span className="font-semibold">{style.label}</span>
-                        </div>
-
-                        <span className="text-sm">{style.example}</span>
-                      </div>
-
-                      <p className="text-xs text-[var(--text-secondary)]">
-                        {style.description}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <p className="text-xs text-[var(--text-secondary)] mt-4">
-                Tip: Select a word or heading inside the post box, then click a
-                style. If nothing is selected, the style applies to the full
-                post.
-              </p>
-            </div>
-
-            {/* QUICK ACTIONS */}
+            {/* DRAFT CONTROLS */}
             <div className="border border-[var(--border)] rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
-                <Wand2 size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Quick Post Formatting</h3>
+                <Save size={20} className="text-[var(--primary)]" />
+                <h3 className="font-semibold">Browser Draft</h3>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-3">
-                {QUICK_ACTIONS.map((action) => {
-                  const Icon = action.icon;
+              <div className="grid sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="btn-secondary inline-flex items-center justify-center gap-2"
+                >
+                  <Save size={18} />
+                  Save Draft
+                </button>
 
-                  return (
-                    <button
-                      key={action.id}
-                      type="button"
-                      onClick={() => handleQuickAction(action.id)}
-                      className="rounded-2xl border border-[var(--border)] bg-white p-4 text-left hover:bg-[#f8f4ff] transition"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <Icon size={18} className="text-[var(--primary)]" />
-                        <span className="font-semibold text-sm">
-                          {action.label}
-                        </span>
-                      </div>
+                <button
+                  type="button"
+                  onClick={handleLoadDraft}
+                  className="btn-secondary inline-flex items-center justify-center gap-2"
+                >
+                  <FileText size={18} />
+                  Load Draft
+                </button>
 
-                      <p className="text-xs text-[var(--text-secondary)]">
-                        {action.description}
-                      </p>
-                    </button>
-                  );
-                })}
+                <button
+                  type="button"
+                  onClick={handleClearDraft}
+                  className="btn-secondary inline-flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={18} />
+                  Clear Draft
+                </button>
               </div>
+
+              <p className="text-xs text-[var(--text-secondary)] mt-3">
+                Drafts are saved only in this browser using local storage. Your
+                text is not uploaded to a server.
+              </p>
             </div>
 
             {/* FEEDBACK */}
@@ -662,51 +1032,93 @@ export default function LinkedInTextFormatter() {
                 <div>
                   <div className="flex items-center gap-2">
                     <Eye size={20} className="text-[var(--primary)]" />
-                    <h2 className="text-xl font-semibold">Formatted Preview</h2>
+                    <h2 className="text-xl font-semibold">LinkedIn Preview</h2>
                   </div>
 
                   <p className="text-xs text-[var(--text-secondary)] mt-1">
-                    Copy this formatted text and paste it into LinkedIn.
+                    A LinkedIn-style feed preview before copying.
                   </p>
                 </div>
 
-                <StatusPill
-                  status={limitStatus.status}
-                  label={limitStatus.label}
-                />
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePreviewImageChange}
+                    className="hidden"
+                    aria-label="Add optional preview image"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--primary)] hover:bg-[#f8f4ff] transition"
+                  >
+                    <ImageIcon size={15} />
+                    {previewImage ? "Change Image" : "Add Image"}
+                  </button>
+
+                  {previewImage ? (
+                    <button
+                      type="button"
+                      onClick={handleRemovePreviewImage}
+                      className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-white p-2 text-[var(--text-secondary)] hover:text-red-600 transition"
+                      aria-label="Remove preview image"
+                    >
+                      <X size={15} />
+                    </button>
+                  ) : null}
+
+                  <StatusPill status={limitStatus.status} label={limitStatus.label} />
+                </div>
               </div>
 
-              <div className="border border-[var(--border)] rounded-2xl p-5 bg-gray-50 min-h-[420px]">
-                {postText ? (
-                  <div className="bg-white border border-[var(--border)] rounded-2xl p-5 whitespace-pre-wrap leading-7 min-h-[360px]">
-                    {postText}
-                  </div>
-                ) : (
-                  <div className="min-h-[360px] flex items-center justify-center text-center">
-                    <div>
-                      <Linkedin
-                        size={54}
-                        className="mx-auto mb-3 text-gray-300"
-                      />
-                      <p className="text-[var(--text-secondary)]">
-                        Your formatted LinkedIn text will appear here.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <LinkedInPreviewCard
+                postText={postText}
+                hookPreview={hookPreview}
+                characterCount={characterCount}
+                previewImage={previewImage}
+                copied={copiedType === "formatted"}
+                disabled={!postText.trim()}
+                onCopy={() => handleCopyVariant("formatted")}
+              />
             </div>
+
+            {/* OPTIMIZER */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              <ScoreCard
+                title="Hook Score"
+                value={`${hookScore.score}/100`}
+                status={hookScore.status}
+                helper={hookScore.summary}
+              />
+
+              <ScoreCard
+                title="Style Density"
+                value={`${styleDensity}%`}
+                status={styleDensity <= 25 ? "good" : styleDensity <= 40 ? "warning" : "danger"}
+                helper={
+                  styleDensity <= 25
+                    ? "Good. Styled text is not overused."
+                    : styleDensity <= 40
+                      ? "Use styles carefully for better readability."
+                      : "Too much styled text may reduce accessibility."
+                }
+              />
+            </div>
+
 
             {/* CHARACTER LIMIT */}
             <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart3 size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">LinkedIn Character Counter</h3>
+                <h3 className="font-semibold">Character Counter</h3>
               </div>
 
               <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
                 <span>
-                  {characterCount} / {LINKEDIN_POST_LIMIT} characters
+                  {characterCount} / {activeMode.limit} characters
                 </span>
                 <span>
                   {remainingCharacters >= 0
@@ -723,32 +1135,12 @@ export default function LinkedInTextFormatter() {
               </div>
 
               <p className="text-xs text-[var(--text-secondary)] mt-3">
-                LinkedIn post limit: {LINKEDIN_POST_LIMIT} characters.
+                Active mode: {activeMode.label}. Keep your content focused and
+                easy to scan.
               </p>
             </div>
 
-            {/* STATS */}
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard label="Characters" value={characterCount} />
-              <StatCard
-                label="Remaining"
-                value={remainingCharacters}
-                green={remainingCharacters >= 0}
-              />
-              <StatCard label="Words" value={wordCount} />
-              <StatCard label="Lines" value={lineCount} />
-              <StatCard label="Paragraphs" value={paragraphCount} />
-              <StatCard
-                label="Preview Hook"
-                value={`${Math.min(
-                  characterCount,
-                  SEE_MORE_PREVIEW_LIMIT
-                )}/${SEE_MORE_PREVIEW_LIMIT}`}
-                green
-              />
-            </div>
-
-            {/* SEE MORE PREVIEW */}
+            {/* HOOK PREVIEW */}
             <div className="border border-[var(--border)] rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Linkedin size={20} className="text-[var(--primary)]" />
@@ -779,29 +1171,43 @@ export default function LinkedInTextFormatter() {
               </p>
             </div>
 
-            {/* COPY CTA */}
+            {/* COPY OPTIONS */}
             <div className="border border-[var(--border)] rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Copy size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Ready to Use</h3>
+                <h3 className="font-semibold">Copy Options</h3>
               </div>
 
-              <p className="text-sm text-[var(--text-secondary)] mb-4">
-                After formatting your LinkedIn post, copy it and paste it into
-                LinkedIn posts, comments, messages, or profile sections.
-              </p>
-
-              <button
-                type="button"
-                onClick={handleCopyPost}
-                disabled={!postText.trim()}
-                className={`btn-primary w-full inline-flex items-center justify-center gap-2 ${
-                  !postText.trim() ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                {copied ? <Check size={18} /> : <Copy size={18} />}
-                {copied ? "Copied" : "Copy Formatted Text"}
-              </button>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <CopyButton
+                  label="Copy Formatted"
+                  icon={Copy}
+                  active={copiedType === "formatted"}
+                  disabled={!postText.trim()}
+                  onClick={() => handleCopyVariant("formatted")}
+                />
+                <CopyButton
+                  label="Copy Plain Text"
+                  icon={FileText}
+                  active={copiedType === "plain"}
+                  disabled={!postText.trim()}
+                  onClick={() => handleCopyVariant("plain")}
+                />
+                <CopyButton
+                  label="Copy Hook Only"
+                  icon={Sparkles}
+                  active={copiedType === "hook"}
+                  disabled={!postText.trim()}
+                  onClick={() => handleCopyVariant("hook")}
+                />
+                <CopyButton
+                  label="Copy Hashtags"
+                  icon={Hash}
+                  active={copiedType === "hashtags"}
+                  disabled={!postText.trim() || hashtags.length === 0}
+                  onClick={() => handleCopyVariant("hashtags")}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -812,40 +1218,41 @@ export default function LinkedInTextFormatter() {
         <div className="flex items-center gap-2 mb-4">
           <BookOpen size={22} className="text-[var(--primary)]" />
           <h2 className="text-2xl font-bold">
-            Format LinkedIn Posts with Bold, Italic, and Styled Text
+            Format and Optimize LinkedIn Posts Online
           </h2>
         </div>
 
         <div className="text-[var(--text-secondary)] leading-7 space-y-4">
           <p>
             This LinkedIn Text Formatter helps you create copyable styled text
-            for LinkedIn posts, comments, headlines, and profile sections. You
-            can make selected words bold, italic, underlined, strikethrough, or
-            monospace using Unicode text styles.
+            for LinkedIn posts, comments, headlines, messages, and profile
+            sections. You can make selected words bold, italic, underlined,
+            strikethrough, monospace, fullwidth, or small caps using Unicode
+            text styles.
           </p>
 
           <p>
-            The tool is useful for writing stronger LinkedIn hooks, separating
-            sections, highlighting important phrases, and making posts easier to
-            scan. It also includes a LinkedIn character counter so you can check
-            your post length before publishing.
+            The tool also works as a LinkedIn post optimizer. You can check your
+            hook score, preview the first part of the post, clean spacing, add
+            bullets, clean hashtags, use post templates, save a browser draft,
+            and copy formatted or plain text.
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-4 mt-6">
           <InfoCard
-            title="Bold LinkedIn Text"
+            title="LinkedIn Bold Text Generator"
             text="Use bold Unicode text for hooks, headings, and important points."
           />
 
           <InfoCard
-            title="LinkedIn Character Counter"
-            text="Track your post length against LinkedIn’s 3,000-character limit."
+            title="LinkedIn Hook Score"
+            text="Check whether your opening line is short, clear, specific, and engaging."
           />
 
           <InfoCard
-            title="Copy and Paste"
-            text="Copy the formatted result and paste it directly into LinkedIn."
+            title="LinkedIn Character Counter"
+            text="Track your content length and avoid writing posts that are too long."
           />
         </div>
       </section>
@@ -865,17 +1272,17 @@ export default function LinkedInTextFormatter() {
 
           <FaqItem
             question="Can I format only part of my LinkedIn post?"
-            answer="Yes. Select a word, sentence, or heading in the text box, then click a style button. If nothing is selected, the style applies to the full post."
+            answer="Yes. Select a word, sentence, or heading in the text box, then click a style button. If nothing is selected, the style applies to the full text."
           />
 
           <FaqItem
-            question="Does styled text count toward LinkedIn’s character limit?"
-            answer="Yes. Styled Unicode characters still count as characters, so this tool includes a live character counter."
+            question="What does the hook score mean?"
+            answer="The hook score checks simple writing signals such as first-line length, clarity, curiosity, question use, and weak opening phrases. It is a practical guide, not a guaranteed performance score."
           />
 
           <FaqItem
             question="Is this tool safe to use?"
-            answer="Yes. It runs in your browser, does not need a paid API, and does not upload your text to a server."
+            answer="Yes. It runs in your browser, does not need a paid API, and does not upload your text to a server. Saved drafts are stored only in your browser."
           />
 
           <FaqItem
@@ -906,17 +1313,114 @@ export default function LinkedInTextFormatter() {
   );
 }
 
-function StatCard({ label, value, green = false }) {
+function LinkedInPreviewCard({
+  postText,
+  hookPreview,
+  characterCount,
+  previewImage,
+  copied,
+  disabled,
+  onCopy,
+}) {
   return (
-    <div className="bg-white border border-[var(--border)] rounded-2xl p-4 text-center">
-      <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
-      <p
-        className={`text-xl font-bold break-all ${
-          green ? "text-green-600" : "text-[var(--primary)]"
-        }`}
-      >
-        {value}
-      </p>
+    <div className="border border-[var(--border)] rounded-2xl p-5 bg-gray-50 min-h-[420px]">
+      <div className="bg-white border border-[var(--border)] rounded-2xl p-5 min-h-[360px]">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-11 h-11 rounded-full bg-[#f4edff] flex items-center justify-center shrink-0">
+            <Linkedin size={22} className="text-[var(--primary)]" />
+          </div>
+
+          <div>
+            <p className="font-semibold leading-tight">Your Name</p>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Your headline or professional title
+            </p>
+            <p className="text-xs text-[var(--text-secondary)]">Now • 🌐</p>
+          </div>
+        </div>
+
+        {postText ? (
+          <div className="whitespace-pre-wrap leading-7 text-sm sm:text-base">
+            {hookPreview}
+            {characterCount > SEE_MORE_PREVIEW_LIMIT ? (
+              <span className="text-[var(--primary)] font-semibold">
+                {" "}
+                ...see more
+              </span>
+            ) : null}
+          </div>
+        ) : previewImage ? null : (
+          <div className="min-h-[220px] flex items-center justify-center text-center">
+            <div>
+              <Linkedin size={54} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-[var(--text-secondary)]">
+                Your LinkedIn-style preview will appear here.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {previewImage ? (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-gray-50">
+            <img
+              src={previewImage}
+              alt="Optional LinkedIn post preview"
+              className="w-full max-h-[360px] object-cover"
+            />
+          </div>
+        ) : null}
+
+        <div className="border-t border-[var(--border)] mt-5 pt-4">
+          <div className="grid grid-cols-4 gap-2 text-xs text-[var(--text-secondary)]">
+            <PreviewAction icon={ThumbsUp} label="Like" />
+            <PreviewAction icon={MessageCircle} label="Comment" />
+            <PreviewAction icon={Repeat2} label="Repost" />
+            <PreviewAction icon={Send} label="Send" />
+          </div>
+
+          <div className="flex justify-end mt-4">
+            <button
+              type="button"
+              onClick={onCopy}
+              disabled={disabled}
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-secondary)] transition hover:text-[var(--primary)] ${
+                disabled ? "opacity-40 cursor-not-allowed" : ""
+              }`}
+              aria-label="Copy formatted LinkedIn text"
+              title={copied ? "Copied" : "Copy formatted text"}
+            >
+              {copied ? <Check size={18} /> : <Copy size={18} />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewAction({ icon: Icon, label }) {
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <Icon size={15} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+
+function ScoreCard({ title, value, status, helper }) {
+  const statusClass =
+    status === "good"
+      ? "text-green-700 bg-green-50 border-green-100"
+      : status === "warning"
+        ? "text-yellow-700 bg-yellow-50 border-yellow-100"
+        : "text-red-700 bg-red-50 border-red-100";
+
+  return (
+    <div className={`border rounded-2xl p-5 ${statusClass}`}>
+      <p className="text-sm font-semibold mb-1">{title}</p>
+      <p className="text-3xl font-bold mb-2">{value}</p>
+      <p className="text-xs leading-5">{helper}</p>
     </div>
   );
 }
@@ -937,6 +1441,23 @@ function StatusPill({ status, label }) {
     >
       {label}
     </span>
+  );
+}
+
+
+function CopyButton({ label, icon: Icon, active, disabled, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`btn-secondary inline-flex items-center justify-center gap-2 ${
+        disabled ? "opacity-50 cursor-not-allowed" : ""
+      }`}
+    >
+      {active ? <Check size={18} /> : <Icon size={18} />}
+      {active ? "Copied" : label}
+    </button>
   );
 }
 
@@ -1079,13 +1600,13 @@ function toSmallCaps(text) {
     .join("");
 }
 
-function addBulletsToLines(text) {
+function addBulletsToLines(text, bulletSymbol = "•") {
   return String(text || "")
     .split(/\r\n|\r|\n/)
     .map((line) => {
       if (!line.trim()) return line;
-      if (/^\s*[•\-–—*]\s+/.test(line)) return line;
-      return `• ${line.trim()}`;
+      if (/^\s*(?:[•\-–—*→✓★]|🔥)\s+/.test(line)) return line;
+      return `${bulletSymbol} ${line.trim()}`;
     })
     .join("\n");
 }
@@ -1096,6 +1617,34 @@ function cleanPostSpacing(text) {
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function cleanHashtags(text) {
+  return String(text || "")
+    .replace(/#([\p{L}\p{N}]+)(?:\s+)([\p{L}\p{N}]+)/gu, (_, first, second) => {
+      return `#${toPascalCase(`${first} ${second}`)}`;
+    })
+    .replace(/#([\p{L}\p{N}]+(?:[\s_-]+[\p{L}\p{N}]+)+)/gu, (_, tag) => {
+      return `#${toPascalCase(tag)}`;
+    });
+}
+
+function toPascalCase(text) {
+  return String(text || "")
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join("");
+}
+
+function addRandomCTA(text) {
+  const cleanText = String(text || "").trim();
+  const hasQuestion = /\?\s*$/.test(cleanText);
+
+  if (hasQuestion) return cleanText;
+
+  const randomIndex = Math.floor(Math.random() * CTA_OPTIONS.length);
+  return `${cleanText}\n\n${CTA_OPTIONS[randomIndex]}`;
 }
 
 function convertStyledUnicodeToPlainText(text) {
@@ -1182,6 +1731,110 @@ function fromCodePoint(codePoint) {
   } catch {
     return "";
   }
+}
+
+function extractHashtags(text) {
+  const matches = String(text || "").match(/#[\p{L}\p{N}_]+/gu);
+  return matches ? [...new Set(matches)] : [];
+}
+
+function getFirstMeaningfulLine(text) {
+  return String(text || "")
+    .split(/\r\n|\r|\n/)
+    .map((line) => line.trim())
+    .find(Boolean) || "";
+}
+
+function analyzeHook(text) {
+  const firstLine = getFirstMeaningfulLine(text);
+
+  if (!firstLine) {
+    return {
+      score: 0,
+      status: "danger",
+      summary: "Add a strong first line to start your post.",
+    };
+  }
+
+  let score = 30;
+  const plainHook = convertStyledUnicodeToPlainText(firstLine).trim();
+  const hookLength = Array.from(plainHook).length;
+  const lowerHook = plainHook.toLowerCase();
+
+  if (hookLength <= 120) score += 20;
+  else if (hookLength <= 180) score += 10;
+
+  if (/[?]/.test(plainHook)) score += 12;
+  if (/\b(lesson|mistake|learned|why|how|truth|simple|hard way|changed|growth|problem|secret)\b/i.test(plainHook)) {
+    score += 18;
+  }
+  if (/\b(you|your|we|i)\b/i.test(plainHook)) score += 8;
+  if (/\d/.test(plainHook)) score += 7;
+
+  if (/^(i am excited|i'm excited|happy to announce|proud to announce)/i.test(lowerHook)) {
+    score -= 15;
+  }
+
+  score = Math.max(0, Math.min(100, score));
+
+  return {
+    score,
+    status: score >= 75 ? "good" : score >= 50 ? "warning" : "danger",
+    summary:
+      score >= 75
+        ? "Strong opening. It is short, clear, and engaging."
+        : score >= 50
+          ? "Good start. Make it more specific or curiosity-driven."
+          : "Weak opening. Try a shorter, clearer, more specific first line.",
+  };
+}
+
+
+function calculateStyledDensity(text) {
+  const chars = Array.from(String(text || "")).filter((char) => !/\s/.test(char));
+
+  if (!chars.length) return 0;
+
+  const styledCount = chars.filter((char) => {
+    const plain = convertStyledUnicodeToPlainText(char);
+    return plain !== char || /[\u0332\u0336]/.test(char);
+  }).length;
+
+  return Math.round((styledCount / chars.length) * 100);
+}
+
+function getLongestParagraphLength(text) {
+  const paragraphs = String(text || "")
+    .trim()
+    .split(/\n\s*\n/)
+    .filter(Boolean);
+
+  if (!paragraphs.length) return 0;
+
+  return Math.max(...paragraphs.map((paragraph) => Array.from(paragraph).length));
+}
+
+function getCopyText(copyType, postText) {
+  if (copyType === "plain") {
+    return convertStyledUnicodeToPlainText(postText);
+  }
+
+  if (copyType === "hook") {
+    return getFirstMeaningfulLine(postText);
+  }
+
+  if (copyType === "hashtags") {
+    return extractHashtags(postText).join(" ");
+  }
+
+  return postText;
+}
+
+function getCopySuccessMessage(copyType) {
+  if (copyType === "plain") return "Plain text copied successfully.";
+  if (copyType === "hook") return "Hook copied successfully.";
+  if (copyType === "hashtags") return "Hashtags copied successfully.";
+  return "Formatted LinkedIn text copied successfully.";
 }
 
 async function copyToClipboard(text) {
