@@ -11,11 +11,29 @@ const TOOLS_URL = `${SITE_URL}/tools`;
 const CONTACT_URL = `${SITE_URL}/contact`;
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 
+function getBlogDateTime(blog) {
+  const dateValue = blog?.date || blog?.publishedAt || blog?.updatedAt;
+
+  if (!dateValue) return 0;
+
+  const time = new Date(dateValue).getTime();
+
+  return Number.isNaN(time) ? 0 : time;
+}
+
 export default function Blog() {
   const location = useLocation();
 
   const latestBlogs = useMemo(() => {
-    return [...blogs];
+    return [...blogs].sort((a, b) => {
+      const dateDifference = getBlogDateTime(b) - getBlogDateTime(a);
+
+      if (dateDifference !== 0) {
+        return dateDifference;
+      }
+
+      return String(b.slug || "").localeCompare(String(a.slug || ""));
+    });
   }, []);
 
   const pageSize = 9;
@@ -35,7 +53,7 @@ export default function Blog() {
   const currentPage = Math.min(pageNumber, pageCount);
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedBlogs = latestBlogs.slice(startIndex, startIndex + pageSize);
-  const pageStart = startIndex + 1;
+  const pageStart = latestBlogs.length > 0 ? startIndex + 1 : 0;
   const pageEnd = Math.min(latestBlogs.length, startIndex + pageSize);
 
   const canonicalUrl = useMemo(() => {
@@ -74,6 +92,8 @@ export default function Blog() {
         blog.excerpt ||
         "Helpful guide from Next Online Tools for using free online tools better.",
       url: `${SITE_URL}/blog/${blog.slug}`,
+      datePublished: blog.date || blog.publishedAt,
+      dateModified: blog.updatedAt || blog.date || blog.publishedAt,
       mainEntityOfPage: {
         "@type": "WebPage",
         "@id": `${SITE_URL}/blog/${blog.slug}`,

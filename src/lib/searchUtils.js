@@ -1,35 +1,131 @@
 import tools from "../data/tools.json";
 import { blogs } from "../data/Blogs";
 
-function norm(value = "") {
-  return String(value || "").toLowerCase().trim();
+const SEARCH_SYNONYMS = {
+  jpg: ["jpeg", "image", "photo", "picture"],
+  jpeg: ["jpg", "image", "photo", "picture"],
+  image: ["photo", "picture", "jpg", "jpeg", "png", "webp"],
+  photo: ["image", "picture", "passport"],
+  pdf: ["document", "file"],
+  compress: ["reduce", "resize", "minify", "smaller"],
+  resize: ["size", "dimension", "scale"],
+  convert: ["converter", "change", "transform"],
+  remove: ["delete", "erase", "page remover", "remover"],
+  merge: ["combine", "join"],
+  split: ["separate", "divide"],
+  text: ["word", "character", "paragraph", "sentence"],
+  slug: ["url", "seo", "permalink"],
+};
+
+function normalizeText(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function textFromParts(parts = []) {
-  return parts.filter(Boolean).join(" ");
-}
+function getTokens(value = "") {
+  const normalized = normalizeText(value);
 
-function scoreText(query, text) {
-  const q = norm(query);
-  const t = norm(text);
+  if (!normalized) return [];
 
-  if (!q || !t) return 0;
+  const baseTokens = normalized.split(" ").filter(Boolean);
+  const expandedTokens = [];
 
-  if (t === q) return 300;
-  if (t.startsWith(q)) return 220;
-  if (t.includes(q)) return 150 - Math.min(t.indexOf(q), 100);
+  baseTokens.forEach((token) => {
+    expandedTokens.push(token);
 
-  const tokens = q.split(/\s+/).filter(Boolean);
-
-  let score = 0;
-
-  tokens.forEach((token) => {
-    if (t.includes(token)) {
-      score += 20;
+    if (SEARCH_SYNONYMS[token]) {
+      expandedTokens.push(...SEARCH_SYNONYMS[token]);
     }
   });
 
+  return [...new Set(expandedTokens)];
+}
+
+function textFromParts(parts = []) {
+  return normalizeText(
+    parts
+      .filter(Boolean)
+      .map((part) => {
+        if (Array.isArray(part)) return part.join(" ");
+        return String(part);
+      })
+      .join(" ")
+  );
+}
+
+function scoreText(query, text) {
+  const q = normalizeText(query);
+  const t = normalizeText(text);
+
+  if (!q || !t) return 0;
+
+  let score = 0;
+
+  if (t === q) score += 500;
+  if (t.startsWith(q)) score += 350;
+  if (t.includes(q)) score += 250;
+
+  const queryTokens = getTokens(q);
+  const textTokens = getTokens(t);
+
+  queryTokens.forEach((token) => {
+    if (!token) return;
+
+    if (textTokens.includes(token)) {
+      score += 80;
+    } else if (t.includes(token)) {
+      score += 40;
+    }
+  });
+
+  const originalTokens = q.split(" ").filter(Boolean);
+  const matchedOriginalTokens = originalTokens.filter((token) =>
+    t.includes(token)
+  );
+
+  if (originalTokens.length > 0) {
+    score += Math.round(
+      (matchedOriginalTokens.length / originalTokens.length) * 100
+    );
+  }
+
   return score;
+}
+
+function getToolSearchText(tool) {
+  return textFromParts([
+    tool.name,
+    tool.id,
+    tool.slug,
+    tool.description,
+    tool.category,
+    tool.type,
+    tool.group,
+    tool.shortDescription,
+    tool.longDescription,
+    tool.metaTitle,
+    tool.metaDescription,
+    tool.keywords,
+    tool.tags,
+  ]);
+}
+
+function getBlogSearchText(blog) {
+  return textFromParts([
+    blog.title,
+    blog.slug,
+    blog.excerpt,
+    blog.category,
+    blog.description,
+    blog.metaTitle,
+    blog.metaDescription,
+    blog.keywords,
+    blog.tags,
+  ]);
 }
 
 function createToolResult(tool, score) {
@@ -62,17 +158,7 @@ export function searchAll(query, limit = 10) {
   const results = [];
 
   for (const tool of tools) {
-    const searchableText = textFromParts([
-      tool.name,
-      tool.id,
-      tool.slug,
-      tool.description,
-      tool.category,
-      Array.isArray(tool.keywords) ? tool.keywords.join(" ") : tool.keywords,
-      Array.isArray(tool.tags) ? tool.tags.join(" ") : tool.tags,
-    ]);
-
-    const score = scoreText(q, searchableText);
+    const score = scoreText(q, getToolSearchText(tool));
 
     if (score > 0) {
       results.push(createToolResult(tool, score));
@@ -80,16 +166,7 @@ export function searchAll(query, limit = 10) {
   }
 
   for (const blog of blogs) {
-    const searchableText = textFromParts([
-      blog.title,
-      blog.slug,
-      blog.excerpt,
-      blog.category,
-      Array.isArray(blog.keywords) ? blog.keywords.join(" ") : blog.keywords,
-      Array.isArray(blog.tags) ? blog.tags.join(" ") : blog.tags,
-    ]);
-
-    const score = scoreText(q, searchableText);
+    const score = scoreText(q, getBlogSearchText(blog));
 
     if (score > 0) {
       results.push(createBlogResult(blog, score));
@@ -113,17 +190,7 @@ export function searchAllGrouped(query) {
   const blogResults = [];
 
   for (const tool of tools) {
-    const searchableText = textFromParts([
-      tool.name,
-      tool.id,
-      tool.slug,
-      tool.description,
-      tool.category,
-      Array.isArray(tool.keywords) ? tool.keywords.join(" ") : tool.keywords,
-      Array.isArray(tool.tags) ? tool.tags.join(" ") : tool.tags,
-    ]);
-
-    const score = scoreText(q, searchableText);
+    const score = scoreText(q, getToolSearchText(tool));
 
     if (score > 0) {
       toolResults.push({ item: tool, score });
@@ -131,16 +198,7 @@ export function searchAllGrouped(query) {
   }
 
   for (const blog of blogs) {
-    const searchableText = textFromParts([
-      blog.title,
-      blog.slug,
-      blog.excerpt,
-      blog.category,
-      Array.isArray(blog.keywords) ? blog.keywords.join(" ") : blog.keywords,
-      Array.isArray(blog.tags) ? blog.tags.join(" ") : blog.tags,
-    ]);
-
-    const score = scoreText(q, searchableText);
+    const score = scoreText(q, getBlogSearchText(blog));
 
     if (score > 0) {
       blogResults.push({ item: blog, score });

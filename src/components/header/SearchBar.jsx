@@ -1,5 +1,4 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { searchAll } from "../../lib/searchUtils";
 
@@ -14,19 +13,29 @@ function normalizeInternalUrl(url) {
   return `${cleanPath}${search ? `?${search}` : ""}${hash ? `#${hash}` : ""}`;
 }
 
+function goToUrl(url) {
+  const cleanUrl = normalizeInternalUrl(url);
+
+  // Hard navigation fallback. This avoids the first-click issue completely.
+  window.location.href = cleanUrl;
+}
+
 export default function SearchBar() {
   const wrapperRef = useRef(null);
+  const inputRef = useRef(null);
+
   const [query, setQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const navigate = useNavigate();
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  const trimmedQuery = query.trim();
 
   const suggestions = useMemo(() => {
-    const trimmed = query.trim();
+    if (!trimmedQuery) return [];
+    return searchAll(trimmedQuery, 8);
+  }, [trimmedQuery]);
 
-    if (!trimmed) return [];
-
-    return searchAll(trimmed, 5);
-  }, [query]);
+  const totalOptions = suggestions.length + 1; // suggestions + search all option
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -34,42 +43,88 @@ export default function SearchBar() {
 
       if (!wrapperRef.current.contains(event.target)) {
         setShowSuggestions(false);
+        setActiveIndex(-1);
       }
     }
 
-    document.addEventListener("pointerdown", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
-      document.removeEventListener("pointerdown", handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  function closeSearch() {
-    setQuery("");
-    setShowSuggestions(false);
+  function openSearchPage(value) {
+    const cleanQuery = String(value || "").trim();
+
+    if (!cleanQuery) {
+      inputRef.current?.focus();
+      return;
+    }
+
+    goToUrl(`/search?q=${encodeURIComponent(cleanQuery)}`);
   }
 
-  function goToSearchPage(value) {
-    const trimmedQuery = value.trim();
-
-    if (!trimmedQuery) return;
-
-    navigate(`/search?q=${encodeURIComponent(trimmedQuery)}`);
-    closeSearch();
-  }
-
-  function handleSubmit(e) {
-    e.preventDefault();
-    goToSearchPage(query);
-  }
-
-  function handleSuggestionClick(result) {
+  function openSuggestion(result) {
     if (!result?.url) return;
+    goToUrl(result.url);
+  }
 
-    const cleanUrl = normalizeInternalUrl(result.url);
+  function handleSubmit(event) {
+    event.preventDefault();
 
-    navigate(cleanUrl);
-    closeSearch();
+    if (activeIndex >= 0 && activeIndex < suggestions.length) {
+      openSuggestion(suggestions[activeIndex]);
+      return;
+    }
+
+    openSearchPage(query);
+  }
+
+  function handleKeyDown(event) {
+    if (!showSuggestions && trimmedQuery) {
+      setShowSuggestions(true);
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+
+      setActiveIndex((currentIndex) => {
+        if (totalOptions <= 0) return -1;
+        return currentIndex < totalOptions - 1 ? currentIndex + 1 : 0;
+      });
+
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+
+      setActiveIndex((currentIndex) => {
+        if (totalOptions <= 0) return -1;
+        return currentIndex > 0 ? currentIndex - 1 : totalOptions - 1;
+      });
+
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+
+      if (activeIndex >= 0 && activeIndex < suggestions.length) {
+        openSuggestion(suggestions[activeIndex]);
+        return;
+      }
+
+      openSearchPage(query);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    }
   }
 
   return (
@@ -78,50 +133,63 @@ export default function SearchBar() {
       onSubmit={handleSubmit}
       className="relative w-full"
       autoComplete="off"
+      role="search"
     >
       <input
+        ref={inputRef}
         type="text"
         value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
+        onChange={(event) => {
+          setQuery(event.target.value);
           setShowSuggestions(true);
+          setActiveIndex(-1);
         }}
-        onFocus={() => setShowSuggestions(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            setShowSuggestions(false);
+        onFocus={() => {
+          if (trimmedQuery) {
+            setShowSuggestions(true);
           }
         }}
+        onKeyDown={handleKeyDown}
         placeholder="Search tools, blogs, and guides..."
         className="input pl-11 pr-16"
-        aria-label="Search tools"
+        aria-label="Search tools, blogs, and guides"
       />
 
-      {showSuggestions && query.trim() && (
+      {showSuggestions && trimmedQuery && (
         <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
           {suggestions.length > 0 ? (
-            suggestions.map((result) => (
-              <button
-                key={`${result.type}-${result.id}`}
-                type="button"
-                onClick={() => handleSuggestionClick(result)}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium text-sm text-slate-900">
-                    {result.title}
-                  </span>
+            suggestions.map((result, index) => {
+              const isActive = activeIndex === index;
 
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-600">
-                    {result.type}
-                  </span>
-                </div>
+              return (
+                <button
+                  key={`${result.type}-${result.id}`}
+                  type="button"
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    openSuggestion(result);
+                  }}
+                  className={`w-full text-left px-4 py-3 ${
+                    isActive ? "bg-slate-100" : "hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-sm text-slate-900">
+                      {result.title}
+                    </span>
 
-                <p className="text-[13px] text-slate-500 mt-1">
-                  {result.subtitle}
-                </p>
-              </button>
-            ))
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-600">
+                      {result.type}
+                    </span>
+                  </div>
+
+                  <p className="text-[13px] text-slate-500 mt-1">
+                    {result.subtitle}
+                  </p>
+                </button>
+              );
+            })
           ) : (
             <div className="px-4 py-3 text-slate-500">
               No suggestions found.
@@ -130,10 +198,18 @@ export default function SearchBar() {
 
           <button
             type="button"
-            onClick={() => goToSearchPage(query)}
-            className="w-full px-4 py-3 text-left text-sm font-medium text-[var(--primary)] hover:bg-slate-50"
+            onMouseEnter={() => setActiveIndex(suggestions.length)}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              openSearchPage(query);
+            }}
+            className={`w-full px-4 py-3 text-left text-sm font-medium text-[var(--primary)] ${
+              activeIndex === suggestions.length
+                ? "bg-slate-100"
+                : "hover:bg-slate-50"
+            }`}
           >
-            Search all results for “{query.trim()}”
+            Search all results for “{trimmedQuery}”
           </button>
         </div>
       )}
