@@ -3,7 +3,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "Best Free Online Passport Photo Maker for Visa, ID, and Documents",
-  slug: "BestFreeOnlinePassportPhotoMaker",
+  slug: "best-free-online-passport-photo-maker",
   date: "2026-05-12",
   category: "Image Tools",
   excerpt:

@@ -3,7 +3,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "Best Free Online Screenshot Editor Tools for Quick Editing",
-  slug: "BestFreeOnlineScreenshotEditorTools",
+  slug: "best-free-online-screenshot-editor-tools",
   date: "2026-05-12",
   category: "Image Tools",
   excerpt:
