@@ -337,6 +337,8 @@ export default function QuickPhotoEditor() {
   const settingsMode = activePanel || activeTool;
 
   const shouldShowSettings = toolPopupOpen && [
+    "select",
+    "hand",
     "image",
     "text",
     "draw",
@@ -552,6 +554,12 @@ export default function QuickPhotoEditor() {
       const isModifier = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
 
+      if (isModifier && key === "d") {
+        event.preventDefault();
+        clearFreeSelectionManually("Free selection deselected.");
+        return;
+      }
+
       if (isModifier && key === "z") {
         event.preventDefault();
         if (event.shiftKey) redo();
@@ -736,10 +744,17 @@ export default function QuickPhotoEditor() {
     setPatchSourcePreviewBox(null);
     setIsSettingPatchTarget(false);
     setCloneTargetPreviewBox(null);
-    setActiveSelection(null);
-    setFreeSelectionDraft(null);
     setShowCloneSourceGuide(false);
     setColorPickerTarget(null);
+  }
+
+  function clearFreeSelectionManually(message = "Free selection cleared.") {
+    setActiveSelection(null);
+    setFreeSelectionDraft(null);
+    setPatchTargetSelection(null);
+    setCloneSourceSelection(null);
+    setGuideInfo(null);
+    setSuccessMessage(message);
   }
 
   function openMainFilePicker() {
@@ -897,9 +912,12 @@ export default function QuickPhotoEditor() {
   function handleArtboardPointerDown(event) {
     if (event.target === visibleCanvasRef.current) return;
 
-    clearSelections();
+    setSelectedObjectId(null);
+    setDraftObject(null);
+    setGuideInfo(null);
     setActivePanel("");
     setToolPopupOpen(false);
+    setColorPickerTarget(null);
   }
 
   function renderVisibleCanvas() {
@@ -1215,7 +1233,10 @@ export default function QuickPhotoEditor() {
     setSelectedObjectId(selected?.id || null);
 
     if (!selected) {
-      clearSelections();
+      setSelectedObjectId(null);
+      setDraftObject(null);
+      setGuideInfo(null);
+      setColorPickerTarget(null);
       return;
     }
 
@@ -1252,8 +1273,8 @@ export default function QuickPhotoEditor() {
         canvasSize,
         resizeHandle
           ? selected.type === "text"
-            ? "Drag corner to scale text"
-            : "Drag corner to resize"
+            ? "Drag corner to scale text • Alt = center scale"
+            : "Drag corner to resize • Alt = center scale"
           : selected.isBaseImage
             ? "Drag image to adjust"
             : "Selected"
@@ -1333,8 +1354,7 @@ export default function QuickPhotoEditor() {
       setPatchSourcePreviewBox(null);
       setIsSettingPatchTarget(false);
       setGuideInfo(buildGuideInfo(activeSelection.box, canvasSize, "Free patch target"));
-      setSuccessMessage("Free selection set as patch target. Now click or drag a clean area to patch it.");
-      setActiveSelection(null);
+      setSuccessMessage("Free selection set as patch target. Now click or drag a clean area to patch it. Press Ctrl/Cmd + D to hide the selection when done.");
       return;
     }
 
@@ -1408,8 +1428,7 @@ export default function QuickPhotoEditor() {
       setIsSettingCloneSource(false);
       setShowCloneSourceGuide(true);
       setGuideInfo(buildGuideInfo(activeSelection.box, canvasSize, "Free clone source"));
-      setSuccessMessage("Free selection saved as clone source. Click or drag where you want to paste it.");
-      setActiveSelection(null);
+      setSuccessMessage("Free selection saved as clone source. Click or drag where you want to paste it. Press Ctrl/Cmd + D to hide the selection when done.");
       return;
     }
 
@@ -1538,7 +1557,7 @@ export default function QuickPhotoEditor() {
     }
 
     if (pointerRef.current.mode === "resize-object" && selectedObjectId) {
-      resizeSelectedObject(point, { shiftKey: event.shiftKey });
+      resizeSelectedObject(point, { shiftKey: event.shiftKey, altKey: event.altKey });
       return;
     }
 
@@ -1688,6 +1707,7 @@ export default function QuickPhotoEditor() {
 
     const nextBox = resizeBoxFromHandle(dragStartBox, point, resizeHandle, {
       keepRatio: options.shiftKey,
+      fromCenter: options.altKey,
     });
 
     if (nextBox.w < 12 || nextBox.h < 12) return;
@@ -2428,12 +2448,20 @@ export default function QuickPhotoEditor() {
   }
 
   function activateTool(toolId) {
+    const isSameToolOpen = toolPopupOpen && activeTool === toolId && !activePanel;
+
     setColorPickerTarget(null);
     setActiveTool(toolId);
     setActivePanel("");
-    setToolPopupOpen(true);
     setShowOriginal(false);
     setGuideInfo(null);
+
+    if (isSameToolOpen) {
+      setToolPopupOpen(false);
+      return;
+    }
+
+    setToolPopupOpen(true);
 
     if (["rectangle", "circle", "arrow"].includes(toolId)) {
       setShapeType(toolId);
@@ -2640,7 +2668,7 @@ export default function QuickPhotoEditor() {
             </div>
           </div>
         ) : (
-          <div className="grid lg:grid-cols-[72px_minmax(0,1fr)] min-h-[760px] bg-[#dfe3ea]">
+          <div className="grid lg:grid-cols-[72px_minmax(0,1fr)] min-h-[760px] bg-[#f3f4f6]">
             <aside className="relative z-40 border-r border-[var(--border)] bg-[#111827] p-2">
               <div ref={toolbarRef} className="sticky top-3 flex flex-col gap-2">
                 <button
@@ -2655,10 +2683,11 @@ export default function QuickPhotoEditor() {
                 <button
                   type="button"
                   onClick={() => {
-                    setActivePanel("image");
-                    setToolPopupOpen(true);
+                    const isImagePanelOpen = toolPopupOpen && activePanel === "image";
                     setActiveTool("select");
-                    openAddImagePicker();
+                    setActivePanel(isImagePanelOpen ? "" : "image");
+                    setToolPopupOpen(!isImagePanelOpen);
+                    if (!isImagePanelOpen) openAddImagePicker();
                   }}
                   title="Add Image"
                   className="w-12 h-12 rounded-xl bg-white/10 text-white hover:bg-white/20 inline-flex items-center justify-center"
@@ -2693,9 +2722,10 @@ export default function QuickPhotoEditor() {
                 <button
                   type="button"
                   onClick={() => {
-                    setActivePanel("size");
-                    setToolPopupOpen(true);
+                    const isSizePanelOpen = toolPopupOpen && activePanel === "size";
                     setActiveTool("select");
+                    setActivePanel(isSizePanelOpen ? "" : "size");
+                    setToolPopupOpen(!isSizePanelOpen);
                   }}
                   title="Artboard Size"
                   className={`w-12 h-12 rounded-xl inline-flex items-center justify-center ${
@@ -2710,9 +2740,10 @@ export default function QuickPhotoEditor() {
                 <button
                   type="button"
                   onClick={() => {
-                    setActivePanel("export");
-                    setToolPopupOpen(true);
+                    const isExportPanelOpen = toolPopupOpen && activePanel === "export";
                     setActiveTool("select");
+                    setActivePanel(isExportPanelOpen ? "" : "export");
+                    setToolPopupOpen(!isExportPanelOpen);
                   }}
                   title="Export Settings"
                   className={`w-12 h-12 rounded-xl inline-flex items-center justify-center ${
@@ -2782,26 +2813,16 @@ export default function QuickPhotoEditor() {
 
               {shouldShowSettings && (
                 <div ref={optionsPanelRef} className="absolute left-[72px] top-3 w-[min(440px,calc(100vw-96px))] max-h-[calc(100vh-120px)] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4">
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-2">
-                      <PanelLeft size={18} className="text-[var(--primary)]" />
+                  <div className="flex items-center gap-2 mb-4">
+                    <PanelLeft size={18} className="text-[var(--primary)]" />
+                    <div>
                       <p className="font-bold capitalize">
                         {settingsMode === "shape" ? "Shape" : settingsMode === "freeSelect" ? "Free Select" : settingsMode} Options
                       </p>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        Click the same tool again or click outside the artboard to hide this panel.
+                      </p>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActivePanel("");
-                        setToolPopupOpen(false);
-                        setActiveTool("select");
-                      }}
-                      className="w-8 h-8 rounded-full hover:bg-[#f4edff] inline-flex items-center justify-center"
-                      title="Close options"
-                    >
-                      ×
-                    </button>
                   </div>
 
                   {settingsMode === "select" && (
@@ -2819,8 +2840,29 @@ export default function QuickPhotoEditor() {
                         <p>Hold Shift while dragging to keep movement straight.</p>
                         <p>Ctrl/Cmd + C copies selected object or Free Select area.</p>
                         <p>Ctrl/Cmd + V pastes copied item as a new layer.</p>
+                        <p>Ctrl/Cmd + D hides Free Select manually.</p>
+                        <p>Alt + corner drag scales images/text/shapes from center.</p>
                         <p>Ctrl/Cmd + +/- zooms the artboard.</p>
                       </div>
+                    </div>
+                  )}
+
+                  {settingsMode === "hand" && (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4 text-sm text-[var(--text-secondary)] leading-7">
+                        <p className="font-semibold text-[var(--text-primary)] mb-1">Hand tool</p>
+                        <p>Drag the artboard position for precise editing.</p>
+                        <p>Use Ctrl/Cmd + mouse wheel to zoom in or out.</p>
+                        <p>Click Hand again or click outside the artboard to hide this panel.</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setArtboardPan({ x: 0, y: 0 })}
+                        className="btn-secondary w-full"
+                      >
+                        Reset Artboard Position
+                      </button>
                     </div>
                   )}
 
@@ -2830,23 +2872,19 @@ export default function QuickPhotoEditor() {
                         <p className="font-bold mb-1">Free Select</p>
                         <p>Draw around any image area to make a custom selection.</p>
                         <p>Hold Space while drawing to move the selection before releasing.</p>
+                        <p>The custom selection stays visible until you press Ctrl/Cmd + D or click Deselect Selection below.</p>
                         <p>After selecting, press Ctrl/Cmd + C to copy it, or use Patch/Clone.</p>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setActiveSelection(null);
-                          setFreeSelectionDraft(null);
-                          setGuideInfo(null);
-                          setSuccessMessage("Free selection cleared.");
-                        }}
+                        onClick={() => clearFreeSelectionManually("Free selection deselected.")}
                         disabled={!activeSelection && !freeSelectionDraft}
                         className={`btn-secondary w-full inline-flex items-center justify-center gap-2 ${
                           !activeSelection && !freeSelectionDraft ? "opacity-50 cursor-not-allowed" : ""
                         }`}
                       >
-                        Clear Selection
+                        Deselect Selection / Ctrl+D
                       </button>
 
                       <InfoCard
@@ -3298,8 +3336,7 @@ export default function QuickPhotoEditor() {
                           setPatchSourcePreviewBox(null);
                           setIsSettingPatchTarget(false);
                           setGuideInfo(buildGuideInfo(activeSelection.box, canvasSize, "Free patch target"));
-                          setActiveSelection(null);
-                          setSuccessMessage("Free selection set as patch target. Click or drag a clean area to apply it.");
+                          setSuccessMessage("Free selection set as patch target. Click or drag a clean area to apply it. Press Ctrl/Cmd + D to hide the selection when done.");
                         }}
                         disabled={!activeSelection}
                         className={`btn-secondary w-full inline-flex items-center justify-center gap-2 ${
@@ -3371,8 +3408,7 @@ export default function QuickPhotoEditor() {
                           setIsSettingCloneSource(false);
                           setShowCloneSourceGuide(true);
                           setGuideInfo(buildGuideInfo(activeSelection.box, canvasSize, "Free clone source"));
-                          setActiveSelection(null);
-                          setSuccessMessage("Free selection saved as clone source. Click or drag where you want to paste it.");
+                          setSuccessMessage("Free selection saved as clone source. Click or drag where you want to paste it. Press Ctrl/Cmd + D to hide the selection when done.");
                         }}
                         disabled={!activeSelection}
                         className={`btn-secondary w-full inline-flex items-center justify-center gap-2 ${
@@ -3598,7 +3634,7 @@ export default function QuickPhotoEditor() {
 
                 <div className="hidden md:flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                   <Move size={15} />
-                  <span>Hand drags artboard • Text corners scale • Delete removes</span>
+                  <span>Hand drags artboard • Alt + corner scales from center • Delete removes</span>
                 </div>
 
                 <button
@@ -3663,7 +3699,6 @@ export default function QuickPhotoEditor() {
                 }`}
               >
                 <div
-                  className="rounded-[28px] bg-[#cfd5df] p-8 shadow-inner"
                   style={{
                     transform: `translate(${artboardPan.x}px, ${artboardPan.y}px)`,
                     transition: pointerRef.current.mode === "pan-artboard" ? "none" : "transform 120ms ease",
@@ -3676,7 +3711,7 @@ export default function QuickPhotoEditor() {
                     onPointerUp={handlePointerUp}
                     onPointerCancel={handlePointerUp}
                     onPointerLeave={() => setBrushPreviewPoint(null)}
-                    className="rounded-2xl shadow-2xl bg-white touch-none"
+                    className="bg-white touch-none border border-[var(--border)] shadow-xl"
                     style={{
                       width: `${previewWidth}px`,
                       maxWidth: "none",
@@ -4726,8 +4761,33 @@ function getResizeHandleAtPoint(point, object, zoom = 1) {
   return found?.id || null;
 }
 
-function resizeBoxFromHandle(startBox, point, handle, { keepRatio = false } = {}) {
+function resizeBoxFromHandle(startBox, point, handle, { keepRatio = false, fromCenter = false } = {}) {
   const minSize = 12;
+
+  if (fromCenter) {
+    const centerX = startBox.x + startBox.w / 2;
+    const centerY = startBox.y + startBox.h / 2;
+    let halfW = Math.max(minSize / 2, Math.abs(point.x - centerX));
+    let halfH = Math.max(minSize / 2, Math.abs(point.y - centerY));
+
+    if (keepRatio && startBox.w > 0 && startBox.h > 0) {
+      const scale = Math.max(
+        halfW / Math.max(1, startBox.w / 2),
+        halfH / Math.max(1, startBox.h / 2)
+      );
+
+      halfW = Math.max(minSize / 2, (startBox.w / 2) * scale);
+      halfH = Math.max(minSize / 2, (startBox.h / 2) * scale);
+    }
+
+    return {
+      x: centerX - halfW,
+      y: centerY - halfH,
+      w: halfW * 2,
+      h: halfH * 2,
+    };
+  }
+
   const right = startBox.x + startBox.w;
   const bottom = startBox.y + startBox.h;
   let x = startBox.x;
