@@ -216,13 +216,14 @@ export default function QuickPhotoEditor() {
   });
 
   const [imageInfo, setImageInfo] = useState(null);
-  const [selectedSizePreset, setSelectedSizePreset] = useState("facebook-post");
+  const [selectedSizePreset, setSelectedSizePreset] = useState("original");
   const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 630 });
   const [draftSize, setDraftSize] = useState({ width: 1200, height: 630 });
 
   const [activeTool, setActiveTool] = useState("select");
   const [activePanel, setActivePanel] = useState("");
   const [toolPopupOpen, setToolPopupOpen] = useState(false);
+  const [colorPickerTarget, setColorPickerTarget] = useState(null);
 
   const [objects, setObjects] = useState([]);
   const [draftObject, setDraftObject] = useState(null);
@@ -391,7 +392,7 @@ export default function QuickPhotoEditor() {
         naturalHeight,
       });
 
-      const baseBox = getImageCoverBox({
+      const baseBox = getImageFitBox({
         imageWidth: naturalWidth,
         imageHeight: naturalHeight,
         canvasWidth: uploadCanvasSize.width,
@@ -401,6 +402,7 @@ export default function QuickPhotoEditor() {
       setupBlankCanvas({
         width: uploadCanvasSize.width,
         height: uploadCanvasSize.height,
+        transparent: selectedSizePreset === "original" && supportsTransparentFormat(file.type),
       });
 
       const baseImageObject = {
@@ -452,6 +454,7 @@ export default function QuickPhotoEditor() {
       setActiveTool("select");
       setActivePanel("image");
       setToolPopupOpen(true);
+      setColorPickerTarget(null);
       setOutputFormat(getDefaultOutputFormat(file.type));
 
       setSuccessMessage(
@@ -649,7 +652,7 @@ export default function QuickPhotoEditor() {
     };
   }, []);
 
-  function setupBlankCanvas({ width, height }) {
+  function setupBlankCanvas({ width, height, transparent = false }) {
     const workingCanvas = workingCanvasRef.current;
     const originalCanvas = originalCanvasRef.current;
 
@@ -664,11 +667,13 @@ export default function QuickPhotoEditor() {
     workingCtx.clearRect(0, 0, width, height);
     originalCtx.clearRect(0, 0, width, height);
 
-    workingCtx.fillStyle = "#ffffff";
-    workingCtx.fillRect(0, 0, width, height);
+    if (!transparent) {
+      workingCtx.fillStyle = "#ffffff";
+      workingCtx.fillRect(0, 0, width, height);
 
-    originalCtx.fillStyle = "#ffffff";
-    originalCtx.fillRect(0, 0, width, height);
+      originalCtx.fillStyle = "#ffffff";
+      originalCtx.fillRect(0, 0, width, height);
+    }
   }
 
   function commitBaseImageToCanvasIfNeeded({ withHistory = true } = {}) {
@@ -734,6 +739,7 @@ export default function QuickPhotoEditor() {
     setActiveSelection(null);
     setFreeSelectionDraft(null);
     setShowCloneSourceGuide(false);
+    setColorPickerTarget(null);
   }
 
   function openMainFilePicker() {
@@ -1103,6 +1109,38 @@ export default function QuickPhotoEditor() {
     };
   }
 
+  function startColorPicker(target, label) {
+    if (!hasImage) {
+      setErrorMessage("Please upload a photo first.");
+      return;
+    }
+
+    setColorPickerTarget({ target, label });
+    setToolPopupOpen(false);
+    setActiveTool("select");
+    setSuccessMessage(`Color picker ready. Click any point on the image to use it for ${label}.`);
+  }
+
+  function handleColorPick(point) {
+    try {
+      const color = sampleColorAtPoint(renderFinalCanvas({ includeObjects: true }), point);
+
+      if (colorPickerTarget?.target === "textColor") updateTextSetting("color", color);
+      if (colorPickerTarget?.target === "textBackground") updateTextSetting("background", color);
+      if (colorPickerTarget?.target === "brushColor") setBrushColor(color);
+      if (colorPickerTarget?.target === "shapeFill") updateShapeSetting("fill", color);
+      if (colorPickerTarget?.target === "shapeStroke") updateShapeSetting("stroke", color);
+
+      setColorPickerTarget(null);
+      setSuccessMessage(`Picked ${color} from the image.`);
+      setToolPopupOpen(true);
+      clearOutput();
+    } catch {
+      setColorPickerTarget(null);
+      setErrorMessage("Could not pick a color from this point. Please try again.");
+    }
+  }
+
   function handlePointerDown(event) {
     if (!hasImage || showOriginal) return;
 
@@ -1124,10 +1162,17 @@ export default function QuickPhotoEditor() {
       return;
     }
 
+    const point = getCanvasPoint(event);
+
     if (!point) return;
 
     event.preventDefault();
     setErrorMessage("");
+
+    if (colorPickerTarget) {
+      handleColorPick(point);
+      return;
+    }
 
     if (activeTool === "select") {
       handleSelectPointerDown(event, point);
@@ -2339,7 +2384,7 @@ export default function QuickPhotoEditor() {
     originalCanvasRef.current = document.createElement("canvas");
 
     setImageInfo(null);
-    setSelectedSizePreset("facebook-post");
+    setSelectedSizePreset("original");
     setCanvasSize({ width: 1200, height: 630 });
     setDraftSize({ width: 1200, height: 630 });
     setActiveTool("select");
@@ -2377,11 +2422,13 @@ export default function QuickPhotoEditor() {
     setOutputPreviewUrl("");
     setErrorMessage("");
     setSuccessMessage("");
+    setColorPickerTarget(null);
     resetMainFileInput();
     resetAddImageInput();
   }
 
   function activateTool(toolId) {
+    setColorPickerTarget(null);
     setActiveTool(toolId);
     setActivePanel("");
     setToolPopupOpen(true);
@@ -2979,12 +3026,14 @@ export default function QuickPhotoEditor() {
                           label="Text Color"
                           value={textColor}
                           onChange={(value) => updateTextSetting("color", value)}
+                          onPick={() => startColorPicker("textColor", "text color")}
                         />
 
                         <ColorInput
                           label="Background"
                           value={textBackground}
                           onChange={(value) => updateTextSetting("background", value)}
+                          onPick={() => startColorPicker("textBackground", "text background")}
                           disabled={!textHasBackground}
                         />
                       </div>
@@ -3064,7 +3113,7 @@ export default function QuickPhotoEditor() {
                       <InfoCard label="Active Tool" value={activeTool} />
 
                       {settingsMode === "draw" && (
-                        <ColorInput label="Brush Color" value={brushColor} onChange={setBrushColor} />
+                        <ColorInput label="Brush Color" value={brushColor} onChange={setBrushColor} onPick={() => startColorPicker("brushColor", "brush color")} />
                       )}
 
                       <RangeInput
@@ -3174,6 +3223,7 @@ export default function QuickPhotoEditor() {
                           label="Fill Color"
                           value={shapeFillColor}
                           onChange={(value) => updateShapeSetting("fill", value)}
+                          onPick={() => startColorPicker("shapeFill", "shape fill color")}
                           disabled={!shapeFillEnabled || activeTool === "arrow" || selectedObject?.type === "arrow"}
                         />
 
@@ -3181,6 +3231,7 @@ export default function QuickPhotoEditor() {
                           label="Stroke Color"
                           value={shapeStrokeColor}
                           onChange={(value) => updateShapeSetting("stroke", value)}
+                          onPick={() => startColorPicker("shapeStroke", "shape stroke color")}
                           disabled={!shapeStrokeEnabled}
                         />
                       </div>
@@ -3732,10 +3783,23 @@ function IconButton({ children, disabled, title, onClick }) {
   );
 }
 
-function ColorInput({ label, value, onChange, disabled = false }) {
+function ColorInput({ label, value, onChange, disabled = false, onPick = null }) {
   return (
-    <label className={`block ${disabled ? "opacity-50" : ""}`}>
-      <span className="text-sm font-semibold mb-2 block">{label}</span>
+    <div className={`block ${disabled ? "opacity-50" : ""}`}>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="text-sm font-semibold block">{label}</span>
+        {onPick && (
+          <button
+            type="button"
+            onClick={onPick}
+            disabled={disabled}
+            title="Pick color from image"
+            className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white inline-flex items-center justify-center hover:bg-[#f8f4ff] disabled:cursor-not-allowed"
+          >
+            <Eye size={15} />
+          </button>
+        )}
+      </div>
       <input
         type="color"
         value={normalizeColor(value)}
@@ -3743,7 +3807,7 @@ function ColorInput({ label, value, onChange, disabled = false }) {
         disabled={disabled}
         className="w-full h-12 rounded-xl border border-[var(--border)] bg-white p-1 disabled:cursor-not-allowed"
       />
-    </label>
+    </div>
   );
 }
 
@@ -4900,6 +4964,28 @@ function getUploadCanvasSize({ presetId, draftSize, naturalWidth, naturalHeight 
   };
 }
 
+function getImageFitBox({ imageWidth, imageHeight, canvasWidth, canvasHeight }) {
+  const scale = Math.min(
+    canvasWidth / Math.max(1, imageWidth),
+    canvasHeight / Math.max(1, imageHeight),
+    1
+  );
+
+  const width = imageWidth * scale;
+  const height = imageHeight * scale;
+
+  return {
+    x: canvasWidth / 2 - width / 2,
+    y: canvasHeight / 2 - height / 2,
+    w: width,
+    h: height,
+  };
+}
+
+function supportsTransparentFormat(fileType) {
+  return ["image/png", "image/webp", "image/gif", "image/avif"].includes(fileType);
+}
+
 function getImageCoverBox({ imageWidth, imageHeight, canvasWidth, canvasHeight }) {
   const imageRatio = imageWidth / imageHeight;
   const canvasRatio = canvasWidth / canvasHeight;
@@ -5114,6 +5200,21 @@ function getDefaultOutputFormat(fileType) {
   if (fileType === "image/jpeg") return "image/jpeg";
   if (fileType === "image/webp") return "image/webp";
   return "image/png";
+}
+
+function sampleColorAtPoint(canvas, point) {
+  const ctx = canvas.getContext("2d");
+  const x = clampNumber(Math.round(point.x), 0, canvas.width - 1);
+  const y = clampNumber(Math.round(point.y), 0, canvas.height - 1);
+  const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
+
+  return rgbToHex(r, g, b);
+}
+
+function rgbToHex(r, g, b) {
+  return `#${[r, g, b]
+    .map((value) => Number(value).toString(16).padStart(2, "0"))
+    .join("")}`;
 }
 
 function normalizeColor(value) {
