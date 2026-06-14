@@ -224,6 +224,7 @@ export default function QuickPhotoEditor() {
   const [activePanel, setActivePanel] = useState("");
   const [toolPopupOpen, setToolPopupOpen] = useState(false);
   const [colorPickerTarget, setColorPickerTarget] = useState(null);
+  const [imageInputMode, setImageInputMode] = useState("add");
 
   const [objects, setObjects] = useState([]);
   const [draftObject, setDraftObject] = useState(null);
@@ -303,6 +304,10 @@ export default function QuickPhotoEditor() {
     return objects.find((item) => item.id === selectedObjectId) || null;
   }, [objects, selectedObjectId]);
 
+  const selectedObjectBox = useMemo(() => {
+    return selectedObject ? getObjectBox(selectedObject) : null;
+  }, [selectedObject]);
+
   const selectedOutputFormat = useMemo(() => {
     return OUTPUT_FORMATS.find((item) => item.value === outputFormat) || OUTPUT_FORMATS[0];
   }, [outputFormat]);
@@ -333,6 +338,11 @@ export default function QuickPhotoEditor() {
 
     return Math.min(maxWidth, canvasSize.width) * previewZoom;
   }, [canvasSize, previewZoom]);
+
+  const previewHeight = useMemo(() => {
+    if (!canvasSize.width || !previewWidth) return 0;
+    return (canvasSize.height / canvasSize.width) * previewWidth;
+  }, [canvasSize, previewWidth]);
 
   const settingsMode = activePanel || activeTool;
 
@@ -761,12 +771,18 @@ export default function QuickPhotoEditor() {
     mainFileInputRef.current?.click();
   }
 
-  function openAddImagePicker() {
+  function openAddImagePicker(mode = "add") {
     if (!hasImage) {
       setErrorMessage("Please upload a main photo first.");
       return;
     }
 
+    if (mode === "replace" && selectedObject?.type !== "image") {
+      setErrorMessage("Please select an image layer to replace.");
+      return;
+    }
+
+    setImageInputMode(mode);
     addImageInputRef.current?.click();
   }
 
@@ -798,6 +814,29 @@ export default function QuickPhotoEditor() {
       const src = await readFileAsDataUrl(file);
       const imageElement = await loadImage(src);
 
+      if (imageInputMode === "replace" && selectedObject?.type === "image") {
+        const updatedImageObject = {
+          ...selectedObject,
+          src,
+          element: imageElement,
+          name: file.name || selectedObject.name || "replaced-image",
+        };
+
+        pushHistory();
+        setObjects((current) =>
+          current.map((item) =>
+            item.id === selectedObject.id ? updatedImageObject : item
+          )
+        );
+        setGuideInfo(buildGuideInfo(getObjectBox(updatedImageObject), canvasSize, "Image replaced"));
+        setActiveTool("select");
+        setActivePanel("image");
+        setToolPopupOpen(true);
+        clearOutput();
+        setSuccessMessage("Selected image replaced. Size and position were kept.");
+        return;
+      }
+
       const imageWidth = imageElement.naturalWidth || imageElement.width;
       const imageHeight = imageElement.naturalHeight || imageElement.height;
 
@@ -826,12 +865,14 @@ export default function QuickPhotoEditor() {
       setSelectedObjectId(imageObject.id);
       setActiveTool("select");
       setActivePanel("image");
+      setToolPopupOpen(true);
       setGuideInfo(buildGuideInfo(getObjectBox(imageObject), canvasSize, "Image added"));
       clearOutput();
       setSuccessMessage("Image added. Drag it to position. Use Image settings to resize.");
     } catch {
       setErrorMessage("Could not add this image. Please try another file.");
     } finally {
+      setImageInputMode("add");
       resetAddImageInput();
     }
   }
@@ -914,6 +955,13 @@ export default function QuickPhotoEditor() {
 
     setSelectedObjectId(null);
     setDraftObject(null);
+    setActiveSelection(null);
+    setFreeSelectionDraft(null);
+    setPatchTargetBox(null);
+    setPatchTargetSelection(null);
+    setPatchSourcePreviewBox(null);
+    setCloneTargetPreviewBox(null);
+    setShowCloneSourceGuide(false);
     setGuideInfo(null);
     setActivePanel("");
     setToolPopupOpen(false);
@@ -2085,6 +2133,75 @@ export default function QuickPhotoEditor() {
     clearOutput();
   }
 
+  function updateSelectedTransform(updates) {
+    if (!selectedObjectId || !selectedObjectBox) return;
+
+    const nextBox = {
+      x: clampNumber(
+        updates.x ?? selectedObjectBox.x,
+        -canvasSize.width * 2,
+        canvasSize.width * 3
+      ),
+      y: clampNumber(
+        updates.y ?? selectedObjectBox.y,
+        -canvasSize.height * 2,
+        canvasSize.height * 3
+      ),
+      w: clampNumber(
+        updates.w ?? selectedObjectBox.w,
+        1,
+        canvasSize.width * 4
+      ),
+      h: clampNumber(
+        updates.h ?? selectedObjectBox.h,
+        1,
+        canvasSize.height * 4
+      ),
+    };
+
+    const nextObjects = objects.map((item) => {
+      if (item.id !== selectedObjectId) return item;
+      return resizeObjectToBox(item, nextBox);
+    });
+
+    const nextSelected = nextObjects.find((item) => item.id === selectedObjectId);
+
+    setObjects(nextObjects);
+    setGuideInfo(nextSelected ? buildGuideInfo(getObjectBox(nextSelected), canvasSize, "Exact size updated") : null);
+
+    if (nextSelected?.type === "text") {
+      setTextBoxWidth(Math.round(nextSelected.w || nextBox.w));
+      setTextBoxHeight(Math.round(nextSelected.h || nextBox.h));
+      setFontSize(Math.round(nextSelected.fontSize || fontSize));
+    }
+
+    clearOutput();
+  }
+
+  function openSelectedStylePanel() {
+    if (!selectedObject) return;
+
+    if (selectedObject.type === "image") {
+      setActiveTool("select");
+      setActivePanel("image");
+      setToolPopupOpen(true);
+      return;
+    }
+
+    if (selectedObject.type === "text") {
+      setActiveTool("select");
+      setActivePanel("text");
+      setToolPopupOpen(true);
+      return;
+    }
+
+    if (["rectangle", "circle", "arrow"].includes(selectedObject.type)) {
+      setActiveTool(selectedObject.type);
+      setActivePanel("");
+      setToolPopupOpen(true);
+    }
+  }
+
   function updateTextSetting(key, value) {
     if (key === "text") setTextValue(value);
     if (key === "color") setTextColor(value);
@@ -2530,6 +2647,30 @@ export default function QuickPhotoEditor() {
         className="hidden"
       />
 
+      <style>{`
+        .quick-photo-editor-workspace {
+          scrollbar-gutter: stable both-edges;
+          scrollbar-width: thin;
+          scrollbar-color: #9b6ce3 #e5e7eb;
+        }
+        .quick-photo-editor-workspace::-webkit-scrollbar {
+          width: 14px;
+          height: 14px;
+        }
+        .quick-photo-editor-workspace::-webkit-scrollbar-track {
+          background: #e5e7eb;
+          border-radius: 999px;
+        }
+        .quick-photo-editor-workspace::-webkit-scrollbar-thumb {
+          background: #9b6ce3;
+          border: 3px solid #e5e7eb;
+          border-radius: 999px;
+        }
+        .quick-photo-editor-workspace::-webkit-scrollbar-corner {
+          background: #e5e7eb;
+        }
+      `}</style>
+
       <section className="card p-6 sm:p-8">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
           <Sparkles size={28} className="text-[var(--primary)]" />
@@ -2832,6 +2973,74 @@ export default function QuickPhotoEditor() {
                         value={selectedObject ? selectedObject.type : "None"}
                       />
 
+                      {selectedObject && selectedObjectBox ? (
+                        <div className="rounded-2xl border border-[var(--border)] bg-white p-4">
+                          <div className="flex items-center justify-between gap-3 mb-3">
+                            <div>
+                              <p className="font-bold">Exact Position & Size</p>
+                              <p className="text-xs text-[var(--text-secondary)]">
+                                Fix any selected item accurately anytime.
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={openSelectedStylePanel}
+                              className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
+                            >
+                              Edit Style
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <NumberField
+                              label="X"
+                              value={Math.round(selectedObjectBox.x)}
+                              onChange={(value) => updateSelectedTransform({ x: value })}
+                            />
+                            <NumberField
+                              label="Y"
+                              value={Math.round(selectedObjectBox.y)}
+                              onChange={(value) => updateSelectedTransform({ y: value })}
+                            />
+                            <NumberField
+                              label="Width"
+                              value={Math.round(selectedObjectBox.w)}
+                              onChange={(value) => updateSelectedTransform({ w: value })}
+                            />
+                            <NumberField
+                              label="Height"
+                              value={Math.round(selectedObjectBox.h)}
+                              onChange={(value) => updateSelectedTransform({ h: value })}
+                            />
+                          </div>
+
+                          <RangeInput
+                            label={`Opacity: ${Math.round((selectedObject.opacity ?? 1) * 100)}%`}
+                            min={0.05}
+                            max={1}
+                            step={0.01}
+                            value={selectedObject.opacity ?? 1}
+                            onChange={(value) => updateSelectedObject({ opacity: Number(value) })}
+                          />
+
+                          {selectedObject.type === "image" && (
+                            <button
+                              type="button"
+                              onClick={() => openAddImagePicker("replace")}
+                              className="btn-secondary w-full inline-flex items-center justify-center gap-2 mt-3"
+                            >
+                              <Images size={17} />
+                              Replace Selected Image
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[#fafafa] p-4 text-sm text-[var(--text-secondary)]">
+                          Select any image, text, shape, or arrow to change position, replace image, or fix exact size.
+                        </div>
+                      )}
+
                       <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4 text-sm text-[var(--text-secondary)] leading-7">
                         <p className="font-semibold text-[var(--text-primary)] mb-1">Keyboard editing</p>
                         <p>Arrow keys move selected items.</p>
@@ -2902,12 +3111,23 @@ export default function QuickPhotoEditor() {
                     <div className="space-y-4">
                       <button
                         type="button"
-                        onClick={openAddImagePicker}
+                        onClick={() => openAddImagePicker("add")}
                         className="btn-primary w-full inline-flex items-center justify-center gap-2"
                       >
                         <Images size={17} />
                         Add Logo / Image
                       </button>
+
+                      {selectedObject?.type === "image" && (
+                        <button
+                          type="button"
+                          onClick={() => openAddImagePicker("replace")}
+                          className="btn-secondary w-full inline-flex items-center justify-center gap-2"
+                        >
+                          <Images size={17} />
+                          Replace Selected Image
+                        </button>
+                      )}
 
                       <p className="text-xs text-[var(--text-secondary)]">
                         Add logos, product images, stickers, or overlays. Select an image layer to resize and adjust opacity.
@@ -3688,22 +3908,30 @@ export default function QuickPhotoEditor() {
                 </div>
               )}
 
-              <div
-                onPointerDown={handleArtboardPointerDown}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onWheel={handleWorkspaceWheel}
-                className={`flex-1 overflow-auto p-4 sm:p-8 flex items-center justify-center ${
-                  isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
-                }`}
-              >
+              <div className="relative flex-1 min-h-[560px]">
                 <div
-                  style={{
-                    transform: `translate(${artboardPan.x}px, ${artboardPan.y}px)`,
-                    transition: pointerRef.current.mode === "pan-artboard" ? "none" : "transform 120ms ease",
-                  }}
+                  onPointerDown={handleArtboardPointerDown}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onWheel={handleWorkspaceWheel}
+                  className={`quick-photo-editor-workspace absolute inset-0 overflow-auto p-4 sm:p-8 ${
+                    isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
+                  }`}
                 >
+                  <div
+                    className="flex items-center justify-center"
+                    style={{
+                      minWidth: `${Math.max(previewWidth + 180, 640)}px`,
+                      minHeight: `${Math.max(previewHeight + 180, 520)}px`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        transform: `translate(${artboardPan.x}px, ${artboardPan.y}px)`,
+                        transition: pointerRef.current.mode === "pan-artboard" ? "none" : "transform 120ms ease",
+                      }}
+                    >
                   <canvas
                     ref={visibleCanvasRef}
                     onPointerDown={handlePointerDown}
@@ -3724,7 +3952,45 @@ export default function QuickPhotoEditor() {
                               ? "text"
                               : "crosshair",
                     }}
-                  />
+                    />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/95 px-2 py-2 shadow-xl backdrop-blur">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewZoom((current) => clampNumber(current - 0.1, 0.1, 8))}
+                    className="w-10 h-10 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
+                    title="Zoom out"
+                  >
+                    <ZoomOut size={18} />
+                  </button>
+
+                  <span className="min-w-14 text-center text-xs font-bold text-[var(--text-secondary)]">
+                    {Math.round(previewZoom * 100)}%
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setPreviewZoom((current) => clampNumber(current + 0.1, 0.1, 8))}
+                    className="w-10 h-10 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
+                    title="Zoom in"
+                  >
+                    <ZoomIn size={18} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewZoom(1);
+                      setArtboardPan({ x: 0, y: 0 });
+                    }}
+                    className="h-10 rounded-xl border border-[var(--border)] px-3 text-xs font-bold hover:bg-[#f8f4ff]"
+                    title="Reset zoom and artboard position"
+                  >
+                    100%
+                  </button>
                 </div>
               </div>
 
@@ -3799,6 +4065,22 @@ export default function QuickPhotoEditor() {
 
       <SuggestedTools currentToolId="quick-photo-editor" />
     </div>
+  );
+}
+
+function NumberField({ label, value, onChange }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-[var(--text-secondary)] mb-1 block">
+        {label}
+      </span>
+      <input
+        type="number"
+        value={Number.isFinite(Number(value)) ? value : 0}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full border border-[var(--border)] rounded-xl px-3 py-2 bg-white outline-none focus:border-[var(--primary)] text-sm font-semibold"
+      />
+    </label>
   );
 }
 
@@ -4737,7 +5019,7 @@ function scaleBox(box, scaleX, scaleY) {
 function getResizeHandleAtPoint(point, object, zoom = 1) {
   if (!point || !object) return null;
 
-  if (!["image", "text", "rectangle", "circle"].includes(object.type)) {
+  if (!["image", "text", "rectangle", "circle", "arrow"].includes(object.type)) {
     return null;
   }
 
@@ -4867,6 +5149,20 @@ function resizeObjectToBox(object, box) {
       y: box.y,
       w: box.w,
       h: box.h,
+    };
+  }
+
+  if (object.type === "arrow") {
+    const startBox = getObjectBox(object) || box;
+    const scaleX = box.w / Math.max(1, startBox.w || 1);
+    const scaleY = box.h / Math.max(1, startBox.h || 1);
+
+    return {
+      ...object,
+      x1: box.x + (object.x1 - startBox.x) * scaleX,
+      y1: box.y + (object.y1 - startBox.y) * scaleY,
+      x2: box.x + (object.x2 - startBox.x) * scaleX,
+      y2: box.y + (object.y2 - startBox.y) * scaleY,
     };
   }
 
