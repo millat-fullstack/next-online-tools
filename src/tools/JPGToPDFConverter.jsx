@@ -15,6 +15,9 @@ import {
   Archive,
   ArrowUp,
   ArrowDown,
+  ChevronDown,
+  Info,
+  X,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
@@ -79,6 +82,7 @@ export default function JpgToPdfConverter() {
   const [marginMm, setMarginMm] = useState(10);
   const [fitMode, setFitMode] = useState("contain");
   const [imageQuality, setImageQuality] = useState(0.92);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [pdfBlob, setPdfBlob] = useState(null);
   const [pdfUrl, setPdfUrl] = useState("");
@@ -219,7 +223,6 @@ export default function JpgToPdfConverter() {
     });
 
     const messages = [];
-
     messages.push(`${acceptedFiles.length} JPG image(s) added.`);
 
     if (rejectedCount > 0) {
@@ -326,6 +329,7 @@ export default function JpgToPdfConverter() {
     setImages([]);
     setError("");
     setSuccess("");
+    setSettingsOpen(false);
     resetFileInput();
   }
 
@@ -502,6 +506,7 @@ export default function JpgToPdfConverter() {
     setMarginMm(10);
     setFitMode("contain");
     setImageQuality(0.92);
+    setSettingsOpen(false);
 
     setPdfBlob(null);
     setPdfUrl("");
@@ -529,8 +534,9 @@ export default function JpgToPdfConverter() {
         <h1 className="text-3xl font-bold mb-3">JPG to PDF Converter</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Convert JPG images to PDF in seconds. Easily adjust orientation,
-          margins, page size, image fit, and quality before downloading your PDF.
+          Convert JPG images to PDF in seconds. Upload images, arrange their
+          order, keep the default smart settings, or open PDF settings only when
+          you need more control.
         </p>
       </section>
 
@@ -587,143 +593,179 @@ export default function JpgToPdfConverter() {
               </div>
             )}
 
-            {/* SETTINGS */}
+            {/* SETTINGS ACCORDION */}
             {images.length > 0 && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <SlidersHorizontal
-                    size={20}
-                    className="text-[var(--primary)]"
-                  />
-                  <h3 className="font-semibold">PDF Settings</h3>
-                </div>
+              <div className="border border-[var(--border)] rounded-2xl bg-white overflow-visible">
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen((current) => !current)}
+                  className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 text-left hover:bg-[#f8f4ff] transition"
+                  disabled={isProcessing}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#f4edff] flex items-center justify-center shrink-0">
+                      <SlidersHorizontal
+                        size={20}
+                        className="text-[var(--primary)]"
+                      />
+                    </div>
 
-                <div className="grid sm:grid-cols-3 gap-3">
-                  {ORIENTATION_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() =>
-                        handleSettingChange(setOrientation, option.value)
-                      }
-                      disabled={isProcessing}
-                      className={`rounded-2xl border p-4 text-left transition ${
-                        orientation === option.value
-                          ? "border-[var(--primary)] bg-white text-[var(--primary)]"
-                          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                      }`}
-                    >
-                      <p className="font-semibold">{option.label}</p>
-                      <p className="text-xs text-[var(--text-secondary)] mt-1">
-                        {option.description}
+                    <div>
+                      <h3 className="font-semibold">PDF Settings</h3>
+                      <p className="text-sm text-[var(--text-secondary)] mt-1">
+                        Default settings are ready. Open only if you want to
+                        change page size, margin, fit, or quality.
                       </p>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4 mt-5">
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">
-                      Page Size
-                    </label>
-
-                    <select
-                      value={pageSize}
-                      onChange={(event) =>
-                        handleSettingChange(setPageSize, event.target.value)
-                      }
-                      disabled={isProcessing}
-                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
-                    >
-                      {PAGE_SIZES.map((size) => (
-                        <option key={size.value} value={size.value}>
-                          {size.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">
-                      Image Fit
-                    </label>
-
-                    <select
-                      value={fitMode}
-                      onChange={(event) =>
-                        handleSettingChange(setFitMode, event.target.value)
-                      }
-                      disabled={isProcessing}
-                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
-                    >
-                      {FIT_OPTIONS.map((fit) => (
-                        <option key={fit.value} value={fit.value}>
-                          {fit.label} — {fit.description}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <label className="text-sm font-semibold">
-                        Margin: {marginMm}mm
-                      </label>
                     </div>
+                  </div>
 
-                    <input
-                      type="range"
-                      min="0"
-                      max="30"
-                      step="1"
-                      value={marginMm}
-                      onChange={(event) =>
-                        handleSettingChange(setMarginMm, Number(event.target.value))
-                      }
-                      disabled={isProcessing}
-                      className="w-full accent-[var(--primary)]"
+                  <div className="flex items-center gap-2 self-start sm:self-center">
+                    <span className="text-xs font-semibold rounded-full bg-[#f4edff] text-[var(--primary)] px-3 py-1">
+                      {orientation === "auto" ? "Auto" : orientation}
+                    </span>
+                    <span className="text-xs font-semibold rounded-full bg-gray-100 px-3 py-1">
+                      {pageSize.toUpperCase()}
+                    </span>
+                    <ChevronDown
+                      size={20}
+                      className={`text-[var(--primary)] transition-transform ${
+                        settingsOpen ? "rotate-180" : ""
+                      }`}
                     />
                   </div>
+                </button>
 
-                  <div>
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <label className="text-sm font-semibold">
-                        Image Quality: {Math.round(imageQuality * 100)}%
-                      </label>
+                {settingsOpen && (
+                  <div className="border-t border-[var(--border)] bg-[#fafafa] p-5">
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      {ORIENTATION_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            handleSettingChange(setOrientation, option.value)
+                          }
+                          disabled={isProcessing}
+                          className={`rounded-2xl border p-4 text-left transition ${
+                            orientation === option.value
+                              ? "border-[var(--primary)] bg-white text-[var(--primary)]"
+                              : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                          }`}
+                        >
+                          <p className="font-semibold">{option.label}</p>
+                          <p className="text-xs text-[var(--text-secondary)] mt-1">
+                            {option.description}
+                          </p>
+                        </button>
+                      ))}
                     </div>
 
-                    <input
-                      type="range"
-                      min="0.6"
-                      max="1"
-                      step="0.01"
-                      value={imageQuality}
-                      onChange={(event) =>
-                        handleSettingChange(
-                          setImageQuality,
-                          Number(event.target.value)
-                        )
-                      }
-                      disabled={isProcessing}
-                      className="w-full accent-[var(--primary)]"
-                    />
-                  </div>
-                </div>
+                    <div className="grid sm:grid-cols-2 gap-4 mt-5">
+                      <div>
+                        <label className="block text-sm font-semibold mb-2">
+                          Page Size
+                        </label>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5 text-sm">
-                  <InfoBox label="Images" value={images.length} />
-                  <InfoBox label="Total Size" value={formatBytes(totalImageSize)} />
-                  <InfoBox
-                    label="Orientation"
-                    value={
-                      orientation.charAt(0).toUpperCase() + orientation.slice(1)
-                    }
-                  />
-                  <InfoBox
-                    label="Est. Time"
-                    value={`${Math.ceil(estimatedProcessingTime / 1000)}s`}
-                  />
-                </div>
+                        <select
+                          value={pageSize}
+                          onChange={(event) =>
+                            handleSettingChange(setPageSize, event.target.value)
+                          }
+                          disabled={isProcessing}
+                          className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                        >
+                          {PAGE_SIZES.map((size) => (
+                            <option key={size.value} value={size.value}>
+                              {size.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold mb-2">
+                          Image Fit
+                        </label>
+
+                        <select
+                          value={fitMode}
+                          onChange={(event) =>
+                            handleSettingChange(setFitMode, event.target.value)
+                          }
+                          disabled={isProcessing}
+                          className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                        >
+                          {FIT_OPTIONS.map((fit) => (
+                            <option key={fit.value} value={fit.value}>
+                              {fit.label} — {fit.description}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="relative rounded-2xl border border-[var(--border)] bg-white p-4">
+                        <InfoTooltip text="Most documents use 10mm. Use 0mm for full-page images or 10–15mm for a clean professional PDF." />
+
+                        <label className="block text-sm font-semibold mb-3 pr-9">
+                          Margin: {marginMm}mm
+                        </label>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="30"
+                          step="1"
+                          value={marginMm}
+                          onChange={(event) =>
+                            handleSettingChange(
+                              setMarginMm,
+                              Number(event.target.value)
+                            )
+                          }
+                          disabled={isProcessing}
+                          className="w-full accent-[var(--primary)]"
+                        />
+                      </div>
+
+                      <div className="relative rounded-2xl border border-[var(--border)] bg-white p-4">
+                        <InfoTooltip text="90–95% is best for professional PDFs. Lower quality makes smaller files but may reduce image sharpness." />
+
+                        <label className="block text-sm font-semibold mb-3 pr-9">
+                          Image Quality: {Math.round(imageQuality * 100)}%
+                        </label>
+
+                        <input
+                          type="range"
+                          min="0.6"
+                          max="1"
+                          step="0.01"
+                          value={imageQuality}
+                          onChange={(event) =>
+                            handleSettingChange(
+                              setImageQuality,
+                              Number(event.target.value)
+                            )
+                          }
+                          disabled={isProcessing}
+                          className="w-full accent-[var(--primary)]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5 text-sm">
+                      <InfoBox label="Images" value={images.length} />
+                      <InfoBox label="Total Size" value={formatBytes(totalImageSize)} />
+                      <InfoBox
+                        label="Margin"
+                        value={`${marginMm}mm`}
+                      />
+                      <InfoBox
+                        label="Est. Time"
+                        value={`${Math.ceil(estimatedProcessingTime / 1000)}s`}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -796,9 +838,22 @@ export default function JpgToPdfConverter() {
             {/* IMAGE LIST */}
             {images.length > 0 && (
               <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Images size={20} className="text-[var(--primary)]" />
-                  <h3 className="font-semibold">Selected JPG Images</h3>
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Images size={20} className="text-[var(--primary)]" />
+                    <h3 className="font-semibold">Selected JPG Images</h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isProcessing}
+                    className={`text-sm font-semibold text-[var(--primary)] ${
+                      isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    Add more
+                  </button>
                 </div>
 
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -889,10 +944,7 @@ export default function JpgToPdfConverter() {
             <div className="grid grid-cols-2 gap-4">
               <StatCard label="Images" value={images.length || "-"} />
               <StatCard label="Page Size" value={pageSize.toUpperCase()} />
-              <StatCard
-                label="Margin"
-                value={`${marginMm}mm`}
-              />
+              <StatCard label="Margin" value={`${marginMm}mm`} />
               <StatCard
                 label="PDF Size"
                 value={pdfSize ? formatBytes(pdfSize) : "-"}
@@ -951,8 +1003,39 @@ function ImageCard({
   }[image.status];
 
   return (
-    <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white">
+    <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white shadow-sm">
       <div className="relative bg-[#f8f4ff] h-44 flex items-center justify-center">
+        <div className="absolute left-3 top-3 z-10 rounded-full bg-white/95 border border-[var(--border)] px-3 py-1 text-xs font-bold text-[var(--primary)] shadow-sm">
+          Page {index + 1}
+        </div>
+
+        <div className="absolute right-3 top-3 z-10 flex gap-1">
+          <PreviewActionButton
+            title="Move image up"
+            disabled={isProcessing || index === 0}
+            onClick={onMoveUp}
+          >
+            <ArrowUp size={14} />
+          </PreviewActionButton>
+
+          <PreviewActionButton
+            title="Move image down"
+            disabled={isProcessing || index === total - 1}
+            onClick={onMoveDown}
+          >
+            <ArrowDown size={14} />
+          </PreviewActionButton>
+
+          <PreviewActionButton
+            title="Remove image"
+            disabled={isProcessing}
+            onClick={onRemove}
+            danger
+          >
+            <X size={14} />
+          </PreviewActionButton>
+        </div>
+
         <img
           src={image.previewUrl}
           alt={image.name}
@@ -962,7 +1045,7 @@ function ImageCard({
 
       <div className="p-4">
         <p className="font-semibold text-sm truncate" title={image.name}>
-          {index + 1}. {image.name}
+          {image.name}
         </p>
 
         <div className="flex items-center justify-between gap-3 mt-2 text-xs text-[var(--text-secondary)]">
@@ -984,9 +1067,9 @@ function ImageCard({
             className={`btn-secondary inline-flex items-center justify-center gap-1 text-xs ${
               isProcessing || index === 0 ? "opacity-50 cursor-not-allowed" : ""
             }`}
-            title="Move up"
           >
             <ArrowUp size={14} />
+            Up
           </button>
 
           <button
@@ -998,9 +1081,9 @@ function ImageCard({
                 ? "opacity-50 cursor-not-allowed"
                 : ""
             }`}
-            title="Move down"
           >
             <ArrowDown size={14} />
+            Down
           </button>
 
           <button
@@ -1010,11 +1093,51 @@ function ImageCard({
             className={`btn-secondary inline-flex items-center justify-center gap-1 text-xs hover:text-red-600 ${
               isProcessing ? "opacity-50 cursor-not-allowed" : ""
             }`}
-            title="Remove image"
           >
             <Trash2 size={14} />
+            Remove
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewActionButton({ children, title, disabled, onClick, danger = false }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-8 h-8 rounded-lg border border-[var(--border)] bg-white/95 shadow-sm inline-flex items-center justify-center transition ${
+        disabled
+          ? "opacity-40 cursor-not-allowed"
+          : danger
+            ? "hover:bg-red-50 hover:text-red-600"
+            : "hover:bg-[#f4edff] hover:text-[var(--primary)]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function InfoTooltip({ text }) {
+  return (
+    <div className="absolute right-3 top-3 group">
+      <button
+        type="button"
+        className="w-6 h-6 rounded-full border border-[var(--border)] bg-[#f8f4ff] text-[var(--primary)] inline-flex items-center justify-center"
+        aria-label={text}
+        title={text}
+      >
+        <Info size={14} />
+      </button>
+
+      <div className="pointer-events-none absolute right-0 top-8 z-30 hidden w-64 rounded-xl border border-[var(--border)] bg-white p-3 text-xs leading-5 text-[var(--text-secondary)] shadow-xl group-hover:block">
+        {text}
       </div>
     </div>
   );

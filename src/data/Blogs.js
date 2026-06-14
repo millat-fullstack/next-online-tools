@@ -1,5 +1,23 @@
 export const blogs = [
   {
+    "title": "Top Reasons to Add Geotags to Your Photos Online",
+    "slug": "top-reasons-to-add-geotags-to-your-photos-online",
+    "date": "2026-06-06",
+    "category": "Image Tools",
+    "excerpt": "Discover the top reasons to add geotags to your photos online and learn how location data can help organize images for business, travel, real estate, local SEO, and digital records.",
+    "image": "/images/reasons-to-add-geotags-to-photos.png",
+    "pageFile": "top-reasons-to-add-geotags-to-your-photos-online"
+  },
+  {
+    "title": "What Is Google Geotagging and How Does It Work?",
+    "slug": "what-is-google-geotagging-and-how-does-it-work",
+    "date": "2026-06-06",
+    "category": "Image Tools",
+    "excerpt": "Learn what Google geotagging means, how geotags work in photos, and why location data can be useful for images, maps, local business, travel, and digital organization.",
+    "image": "/images/google-geotagging-guide.png",
+    "pageFile": "what-is-google-geotagging-and-how-does-it-work"
+  },
+  {
     "title": "How to Merge and Split PDF Files Online Without Installing Software",
     "slug": "how-to-merge-and-split-pdf-files-online-without-installing-software",
     "date": "2026-06-05",
