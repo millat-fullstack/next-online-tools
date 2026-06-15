@@ -8,6 +8,7 @@ import {
   Table,
   AlertCircle,
   Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -16,24 +17,21 @@ export const toolData = {
   path: "/google-sheet-link-extractor",
   category: "Spreadsheet Tools",
   description:
-    "Extract hidden hyperlinks from copied Google Sheets cells and copy them back with the same row and column format.",
+    "Extract hidden hyperlinks from copied Google Sheets cells and export them as CSV or Excel.",
   metaTitle:
     "Google Sheet Link Extractor - Extract Hidden Links from Cells | Next Online Tools",
   metaDescription:
-    "Free Google Sheet link extractor tool to extract hidden hyperlinks from copied spreadsheet cells. Paste Google Sheets cells, extract links, and copy them back accurately in the same row and column format.",
+    "Free Google Sheet link extractor tool to extract hidden hyperlinks from copied spreadsheet cells. Paste Google Sheets cells, extract links, copy them, or download CSV/Excel files.",
 };
 
 export default function GoogleSheetLinkExtractor() {
   const pasteBoxRef = useRef(null);
 
-  const [sourceData, setSourceData] = useState({
-    html: "",
-    text: "",
-  });
-
+  const [sourceData, setSourceData] = useState({ html: "", text: "" });
   const [copySuccess, setCopySuccess] = useState(false);
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
-  const [extractAllLinks, setExtractAllLinks] = useState(false);
+  const [csvSuccess, setCsvSuccess] = useState(false);
+  const [excelSuccess, setExcelSuccess] = useState(false);
+  const [extractAllLinks, setExtractAllLinks] = useState(true);
   const [preserveLayout, setPreserveLayout] = useState(true);
 
   const parsedResult = useMemo(() => {
@@ -44,19 +42,25 @@ export default function GoogleSheetLinkExtractor() {
     );
   }, [sourceData.html, sourceData.text, extractAllLinks]);
 
-  const outputText = useMemo(() => {
-    if (!parsedResult.matrix.length) return "";
+  const exportMatrix = useMemo(() => {
+    if (!parsedResult.matrix.length) return [];
 
     if (preserveLayout) {
-      return matrixToTsv(parsedResult.matrix);
+      return parsedResult.matrix;
     }
 
-    return parsedResult.matrix
-      .flat()
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .join("\n");
+    return getAllLinksFromMatrix(parsedResult.matrix).map((link) => [link]);
   }, [parsedResult.matrix, preserveLayout]);
+
+  const outputText = useMemo(() => {
+    if (!exportMatrix.length) return "";
+
+    if (preserveLayout) {
+      return matrixToClipboardText(exportMatrix);
+    }
+
+    return exportMatrix.map((row) => row[0]).filter(Boolean).join("\n");
+  }, [exportMatrix, preserveLayout]);
 
   const stats = useMemo(() => {
     const rows = parsedResult.matrix.length;
@@ -64,28 +68,18 @@ export default function GoogleSheetLinkExtractor() {
       (max, row) => Math.max(max, row.length),
       0
     );
-
-    const totalCells = parsedResult.matrix.reduce(
-      (total, row) => total + row.length,
-      0
-    );
-
-    const linksFound = parsedResult.matrix
+    const linksFound = getAllLinksFromMatrix(parsedResult.matrix).length;
+    const cellsWithLinks = parsedResult.matrix
       .flat()
-      .filter((cell) => cell && cell.trim()).length;
+      .filter((cell) => getLinksFromCell(cell).length).length;
 
-    const emptyCells = Math.max(totalCells - linksFound, 0);
-
-    return {
-      rows,
-      columns,
-      totalCells,
-      linksFound,
-      emptyCells,
-    };
+    return { rows, columns, linksFound, cellsWithLinks };
   }, [parsedResult.matrix]);
 
-  const handlePaste = (event) => {
+  const hasOutput = Boolean(outputText);
+  const hasPastedData = Boolean(sourceData.html || sourceData.text);
+
+  function handlePaste(event) {
     event.preventDefault();
 
     const clipboardData = event.clipboardData || window.clipboardData;
@@ -94,61 +88,67 @@ export default function GoogleSheetLinkExtractor() {
 
     setSourceData({ html, text });
     setCopySuccess(false);
-    setDownloadSuccess(false);
+    setCsvSuccess(false);
+    setExcelSuccess(false);
 
     if (pasteBoxRef.current) {
       pasteBoxRef.current.innerText =
         text || "Spreadsheet data pasted successfully.";
     }
-  };
+  }
 
-  const copyToClipboard = async () => {
+  async function copyToClipboard() {
     if (!outputText) return;
 
     try {
       await navigator.clipboard.writeText(outputText);
       setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    } catch (error) {
+      window.setTimeout(() => setCopySuccess(false), 2000);
+    } catch {
       fallbackCopy(outputText);
       setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
+      window.setTimeout(() => setCopySuccess(false), 2000);
     }
-  };
+  }
 
-  const downloadTsvFile = () => {
-    if (!outputText) return;
+  function downloadCsvFile() {
+    if (!exportMatrix.length) return;
 
-    const blob = new Blob([outputText], {
-      type: "text/tab-separated-values;charset=utf-8",
+    const csv = matrixToCsv(exportMatrix);
+    downloadTextFile({
+      content: csv,
+      fileName: "extracted-google-sheet-links.csv",
+      mimeType: "text/csv;charset=utf-8",
     });
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+    setCsvSuccess(true);
+    window.setTimeout(() => setCsvSuccess(false), 2000);
+  }
 
-    link.href = url;
-    link.download = "extracted-google-sheet-links.tsv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  function downloadExcelFile() {
+    if (!exportMatrix.length) return;
 
-    URL.revokeObjectURL(url);
+    const excelHtml = matrixToExcelHtml(exportMatrix);
+    downloadTextFile({
+      content: excelHtml,
+      fileName: "extracted-google-sheet-links.xls",
+      mimeType: "application/vnd.ms-excel;charset=utf-8",
+    });
 
-    setDownloadSuccess(true);
-    setTimeout(() => setDownloadSuccess(false), 2000);
-  };
+    setExcelSuccess(true);
+    window.setTimeout(() => setExcelSuccess(false), 2000);
+  }
 
-  const resetTool = () => {
+  function resetTool() {
     setSourceData({ html: "", text: "" });
     setCopySuccess(false);
-    setDownloadSuccess(false);
+    setCsvSuccess(false);
+    setExcelSuccess(false);
 
     if (pasteBoxRef.current) {
       pasteBoxRef.current.innerText = "";
     }
-  };
-
-  const hasOutput = Boolean(outputText);
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -164,14 +164,14 @@ export default function GoogleSheetLinkExtractor() {
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
           Copy cells from Google Sheets, paste them here, and extract hidden
-          hyperlinks in the same row and column format. Then copy the result and
-          paste it back into Google Sheets with Ctrl + V.
+          hyperlinks accurately. Copy the links back to Sheets or download them
+          as CSV or Excel.
         </p>
       </section>
 
       {/* TOOL BODY */}
       <section className="card p-6 sm:p-8">
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid lg:grid-cols-[1fr_1.05fr] gap-6">
           {/* LEFT COLUMN */}
           <div className="flex flex-col gap-5">
             <div>
@@ -190,14 +190,14 @@ export default function GoogleSheetLinkExtractor() {
                 onPaste={handlePaste}
                 contentEditable
                 suppressContentEditableWarning
-                className="w-full min-h-[300px] p-4 border border-[var(--border)] rounded-2xl outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-white overflow-auto"
+                className="w-full min-h-[320px] p-4 border border-[var(--border)] rounded-2xl outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent bg-white overflow-auto"
                 data-placeholder="Copy cells from Google Sheets and paste here..."
               />
 
-              {!sourceData.text && !sourceData.html && (
+              {!hasPastedData && (
                 <p className="text-xs text-[var(--text-secondary)] mt-2">
-                  Tip: Copy directly from Google Sheets so the hidden links stay
-                  available in the pasted data.
+                  Tip: Copy directly from Google Sheets so hidden cell links stay
+                  available in the rich pasted data.
                 </p>
               )}
             </div>
@@ -208,9 +208,11 @@ export default function GoogleSheetLinkExtractor() {
                 <input
                   type="checkbox"
                   checked={preserveLayout}
-                  onChange={(e) => {
-                    setPreserveLayout(e.target.checked);
+                  onChange={(event) => {
+                    setPreserveLayout(event.target.checked);
                     setCopySuccess(false);
+                    setCsvSuccess(false);
+                    setExcelSuccess(false);
                   }}
                   className="mt-1 accent-[var(--primary)]"
                 />
@@ -220,7 +222,7 @@ export default function GoogleSheetLinkExtractor() {
                     Preserve sheet layout
                   </span>
                   <span className="block text-xs text-[var(--text-secondary)]">
-                    Best for pasting links back into the same cells.
+                    Best when you want links in the same row and column format.
                   </span>
                 </span>
               </label>
@@ -229,9 +231,11 @@ export default function GoogleSheetLinkExtractor() {
                 <input
                   type="checkbox"
                   checked={extractAllLinks}
-                  onChange={(e) => {
-                    setExtractAllLinks(e.target.checked);
+                  onChange={(event) => {
+                    setExtractAllLinks(event.target.checked);
                     setCopySuccess(false);
+                    setCsvSuccess(false);
+                    setExcelSuccess(false);
                   }}
                   className="mt-1 accent-[var(--primary)]"
                 />
@@ -241,18 +245,10 @@ export default function GoogleSheetLinkExtractor() {
                     Extract all links per cell
                   </span>
                   <span className="block text-xs text-[var(--text-secondary)]">
-                    Useful when one cell contains multiple links.
+                    Recommended when one cell contains multiple links.
                   </span>
                 </span>
               </label>
-            </div>
-
-            {/* INPUT STATS */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Rows" value={stats.rows} />
-              <StatCard label="Columns" value={stats.columns} />
-              <StatCard label="Cells" value={stats.totalCells} />
-              <StatCard label="Links" value={stats.linksFound} />
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
@@ -269,9 +265,9 @@ export default function GoogleSheetLinkExtractor() {
               />
 
               <p className="text-sm text-blue-800">
-                This tool works best when you copy cells directly from Google
-                Sheets. It runs only in your browser and does not use any Google
-                API.
+                This tool checks rich HTML, hidden anchor links, pasted text,
+                and embedded URLs. It runs only in your browser and does not use
+                any Google API.
               </p>
             </div>
           </div>
@@ -279,27 +275,24 @@ export default function GoogleSheetLinkExtractor() {
           {/* RIGHT COLUMN */}
           <div className="flex flex-col gap-5">
             <div>
-              <div className="flex justify-between items-start gap-3 mb-3">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-lg">Extracted Links</h3>
                     <Table size={16} className="text-[var(--primary)]" />
                   </div>
 
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    Mode:{" "}
-                    <span className="font-medium text-[var(--primary)]">
-                      {preserveLayout
-                        ? "Spreadsheet-ready format"
-                        : "One link per line"}
-                    </span>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    {stats.linksFound} real link{stats.linksFound === 1 ? "" : "s"} found
+                    {stats.rows ? ` from ${stats.rows} row${stats.rows === 1 ? "" : "s"}` : ""}
+                    {stats.columns ? ` and ${stats.columns} column${stats.columns === 1 ? "" : "s"}` : ""}.
                   </p>
                 </div>
 
                 <button
                   onClick={copyToClipboard}
                   disabled={!hasOutput}
-                  className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+                  className={`inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
                     hasOutput
                       ? copySuccess
                         ? "bg-green-50 text-green-700 border-green-200"
@@ -316,18 +309,10 @@ export default function GoogleSheetLinkExtractor() {
               <textarea
                 value={outputText}
                 readOnly
-                rows="12"
+                rows="13"
                 className="w-full p-4 border border-[var(--border)] rounded-2xl outline-none bg-gray-50 resize-none font-mono text-sm"
                 placeholder="Extracted links will appear here..."
               />
-            </div>
-
-            {/* OUTPUT STATS */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Links Found" value={stats.linksFound} />
-              <StatCard label="Empty Cells" value={stats.emptyCells} />
-              <StatCard label="Output Rows" value={outputText ? outputText.split("\n").length : 0} />
-              <StatCard label="Characters" value={outputText.length} />
             </div>
 
             {!hasOutput && (
@@ -341,12 +326,12 @@ export default function GoogleSheetLinkExtractor() {
 
             {hasOutput && (
               <>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button onClick={copyToClipboard} className="btn-primary flex-1">
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <button onClick={copyToClipboard} className="btn-primary">
                     {copySuccess ? (
                       <>
                         <Check size={18} />
-                        Copied!
+                        Copied
                       </>
                     ) : (
                       <>
@@ -356,22 +341,36 @@ export default function GoogleSheetLinkExtractor() {
                     )}
                   </button>
 
-                  <button onClick={downloadTsvFile} className="btn-secondary flex-1">
-                    {downloadSuccess ? (
+                  <button onClick={downloadCsvFile} className="btn-secondary">
+                    {csvSuccess ? (
                       <>
                         <Check size={18} />
-                        Downloaded
+                        CSV Saved
                       </>
                     ) : (
                       <>
                         <Download size={18} />
-                        Download TSV
+                        Download CSV
+                      </>
+                    )}
+                  </button>
+
+                  <button onClick={downloadExcelFile} className="btn-secondary">
+                    {excelSuccess ? (
+                      <>
+                        <Check size={18} />
+                        Excel Saved
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet size={18} />
+                        Download Excel
                       </>
                     )}
                   </button>
                 </div>
 
-                <PreviewTable matrix={parsedResult.matrix} />
+                <PreviewTable matrix={exportMatrix} />
               </>
             )}
           </div>
@@ -384,15 +383,6 @@ export default function GoogleSheetLinkExtractor() {
 }
 
 /* ---------------- Helper Components ---------------- */
-
-function StatCard({ label, value }) {
-  return (
-    <div className="bg-gray-50 border border-[var(--border)] p-4 rounded-xl text-center">
-      <p className="text-xs text-[var(--text-secondary)]">{label}</p>
-      <p className="text-xl font-bold text-[var(--primary)]">{value}</p>
-    </div>
-  );
-}
 
 function PreviewTable({ matrix }) {
   const previewRows = matrix.slice(0, 8);
@@ -420,7 +410,7 @@ function PreviewTable({ matrix }) {
                 {Array.from({ length: maxColumns }).map((_, colIndex) => (
                   <td
                     key={`cell-${rowIndex}-${colIndex}`}
-                    className="p-3 border-r border-gray-100 max-w-[180px] truncate"
+                    className="p-3 border-r border-gray-100 max-w-[220px] truncate"
                     title={row[colIndex] || ""}
                   >
                     {row[colIndex] ? (
@@ -444,24 +434,39 @@ function PreviewTable({ matrix }) {
 /* ---------------- Extractor Logic ---------------- */
 
 function extractLinksFromClipboard(html, text, extractAllLinks) {
-  let matrix = [];
+  const matrices = [];
 
   if (html) {
     const htmlMatrix = extractLinksFromHtmlTable(html, extractAllLinks);
 
     if (htmlMatrix.length) {
-      matrix = htmlMatrix;
+      matrices.push(htmlMatrix);
     }
   }
 
-  const hasLinks = matrix.flat().some((cell) => cell && cell.trim());
+  if (text) {
+    const textMatrix = extractLinksFromPlainText(text, extractAllLinks);
 
-  if ((!matrix.length || !hasLinks) && text) {
-    matrix = extractLinksFromPlainText(text, extractAllLinks);
+    if (textMatrix.length) {
+      matrices.push(textMatrix);
+    }
   }
 
+  if (!matrices.length) {
+    return { matrix: [] };
+  }
+
+  const bestMatrix = matrices.sort((a, b) => {
+    const bLinks = getAllLinksFromMatrix(b).length;
+    const aLinks = getAllLinksFromMatrix(a).length;
+
+    if (bLinks !== aLinks) return bLinks - aLinks;
+
+    return b.length - a.length;
+  })[0];
+
   return {
-    matrix: normalizeMatrix(matrix),
+    matrix: normalizeMatrix(bestMatrix),
   };
 }
 
@@ -475,66 +480,101 @@ function extractLinksFromHtmlTable(html, extractAllLinks) {
     return links ? [[links]] : [];
   }
 
+  const grid = [];
   const rows = Array.from(table.querySelectorAll("tr"));
 
-  return rows.map((tr) => {
+  rows.forEach((tr, rowIndex) => {
+    if (!grid[rowIndex]) grid[rowIndex] = [];
+
+    let colIndex = 0;
     const cells = Array.from(tr.children).filter((child) =>
       ["TD", "TH"].includes(child.tagName)
     );
 
-    const row = [];
-
     cells.forEach((cell) => {
+      while (grid[rowIndex][colIndex] !== undefined) {
+        colIndex += 1;
+      }
+
       const value = extractLinksFromElement(cell, extractAllLinks);
       const colSpan = Number(cell.getAttribute("colspan")) || 1;
+      const rowSpan = Number(cell.getAttribute("rowspan")) || 1;
 
-      row.push(value);
+      for (let rowOffset = 0; rowOffset < rowSpan; rowOffset += 1) {
+        const targetRow = rowIndex + rowOffset;
+        if (!grid[targetRow]) grid[targetRow] = [];
 
-      for (let index = 1; index < colSpan; index += 1) {
-        row.push("");
+        for (let colOffset = 0; colOffset < colSpan; colOffset += 1) {
+          grid[targetRow][colIndex + colOffset] =
+            rowOffset === 0 && colOffset === 0 ? value : "";
+        }
       }
-    });
 
-    return row;
+      colIndex += colSpan;
+    });
   });
+
+  return grid;
 }
 
 function extractLinksFromElement(element, extractAllLinks) {
-  const anchorLinks = Array.from(element.querySelectorAll("a[href]"))
-    .map((anchor) => cleanUrl(anchor.getAttribute("href")))
-    .filter(Boolean);
+  if (!element) return "";
 
-  const attributeLinks = Array.from(element.attributes || [])
-    .flatMap((attribute) => findUrls(attribute.value))
-    .map(cleanUrl)
-    .filter(Boolean);
+  const candidates = [];
 
-  const textLinks = findUrls(element.textContent || "")
-    .map(cleanUrl)
-    .filter(Boolean);
+  const anchors = Array.from(element.querySelectorAll("a[href]"));
+  anchors.forEach((anchor) => {
+    candidates.push(anchor.getAttribute("href") || "");
+    candidates.push(anchor.textContent || "");
+  });
 
-  const allLinks = uniqueLinks([
-    ...anchorLinks,
-    ...attributeLinks,
-    ...textLinks,
-  ]);
+  const nodes = [element, ...Array.from(element.querySelectorAll("*"))];
+
+  nodes.forEach((node) => {
+    Array.from(node.attributes || []).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value || "";
+
+      if (
+        name.includes("href") ||
+        name.includes("url") ||
+        name.includes("link") ||
+        name.includes("data") ||
+        name.includes("title") ||
+        name.includes("aria") ||
+        value.includes("http") ||
+        value.includes("www.") ||
+        value.includes("mailto:") ||
+        value.includes("tel:")
+      ) {
+        candidates.push(value);
+      }
+    });
+  });
+
+  candidates.push(element.textContent || "");
+
+  const allLinks = uniqueLinks(
+    candidates
+      .flatMap((candidate) => extractLinksFromValue(candidate))
+      .map(cleanUrl)
+      .filter(Boolean)
+  );
 
   if (!allLinks.length) return "";
 
-  if (extractAllLinks) {
-    return allLinks.join(" | ");
-  }
-
-  return allLinks[0];
+  return extractAllLinks ? allLinks.join(" | ") : allLinks[0];
 }
 
 function extractLinksFromPlainText(text, extractAllLinks) {
-  return text
+  return String(text || "")
     .replace(/\r/g, "")
     .split("\n")
     .map((row) =>
       row.split("\t").map((cell) => {
-        const links = uniqueLinks(findUrls(cell).map(cleanUrl).filter(Boolean));
+        const links = uniqueLinks(
+          extractLinksFromValue(cell).map(cleanUrl).filter(Boolean)
+        );
 
         if (!links.length) return "";
 
@@ -543,50 +583,141 @@ function extractLinksFromPlainText(text, extractAllLinks) {
     );
 }
 
+function extractLinksFromValue(value) {
+  if (!value) return [];
+
+  const valuesToCheck = uniqueLinks([
+    String(value),
+    decodeHtmlEntities(String(value)),
+    safeDecodeURIComponent(String(value)),
+    safeDecodeURIComponent(decodeHtmlEntities(String(value))),
+  ]);
+
+  return valuesToCheck.flatMap((item) => findUrls(item));
+}
+
 function findUrls(value) {
   if (!value) return [];
 
   const urlRegex =
-    /((?:https?:\/\/|www\.|mailto:|tel:)[^\s"'<>]+)|([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s"'<>]*)?)/gi;
+    /(?:https?:\/\/|www\.)[^\s"'<>]+|(?:mailto:|tel:)[^\s"'<>]+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s"'<>]*)?/gi;
 
-  const matches = value.match(urlRegex) || [];
+  const matches = String(value).match(urlRegex) || [];
 
   return matches.filter((item) => {
     const lower = item.toLowerCase();
 
-    return (
-      lower.startsWith("http") ||
-      lower.startsWith("www.") ||
-      lower.startsWith("mailto:") ||
-      lower.startsWith("tel:") ||
-      lower.includes("linkedin.") ||
-      lower.includes("facebook.") ||
-      lower.includes("instagram.") ||
-      lower.includes("youtube.") ||
-      lower.includes("x.com") ||
-      lower.includes("twitter.") ||
-      lower.includes(".com") ||
-      lower.includes(".net") ||
-      lower.includes(".org") ||
-      lower.includes(".io") ||
-      lower.includes(".co")
-    );
+    if (lower.includes("@") && !lower.startsWith("mailto:")) return true;
+    if (lower.startsWith("http")) return true;
+    if (lower.startsWith("www.")) return true;
+    if (lower.startsWith("mailto:")) return true;
+    if (lower.startsWith("tel:")) return true;
+
+    return /(?:^|\.)[a-z]{2,}(?:\/|$)/i.test(lower);
   });
 }
 
 function cleanUrl(url) {
   if (!url) return "";
 
-  return url
+  let clean = decodeHtmlEntities(String(url))
     .trim()
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/[),.;\]]+$/g, "");
+
+  clean = safeDecodeURIComponent(clean);
+
+  if (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(clean)) {
+    clean = `mailto:${clean}`;
+  }
+
+  if (clean.startsWith("//")) {
+    clean = `https:${clean}`;
+  }
+
+  if (clean.startsWith("www.")) {
+    clean = `https://${clean}`;
+  }
+
+  if (isBareDomain(clean)) {
+    clean = `https://${clean}`;
+  }
+
+  clean = extractRedirectTarget(clean) || clean;
+
+  if (!isUsefulLink(clean)) return "";
+
+  return clean;
+}
+
+function extractRedirectTarget(url) {
+  try {
+    if (!/^https?:\/\//i.test(url)) return "";
+
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const target =
+      parsed.searchParams.get("q") ||
+      parsed.searchParams.get("url") ||
+      parsed.searchParams.get("u") ||
+      parsed.searchParams.get("target");
+
+    if (
+      target &&
+      (host.includes("google.") ||
+        host.includes("facebook.") ||
+        host.includes("linkedin.") ||
+        host.includes("l.instagram."))
+    ) {
+      const cleanedTarget = cleanUrl(target);
+      return cleanedTarget || "";
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function isUsefulLink(value) {
+  if (!value) return false;
+
+  const lower = value.toLowerCase();
+
+  if (lower.startsWith("http://") || lower.startsWith("https://")) return true;
+  if (lower.startsWith("mailto:")) return true;
+  if (lower.startsWith("tel:")) return true;
+
+  return false;
+}
+
+function isBareDomain(value) {
+  return /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/.*)?$/i.test(value);
+}
+
+function getLinksFromCell(cell) {
+  if (!cell) return [];
+
+  return uniqueLinks(
+    String(cell)
+      .split(" | ")
+      .flatMap((part) => extractLinksFromValue(part))
+      .map(cleanUrl)
+      .filter(Boolean)
+  );
+}
+
+function getAllLinksFromMatrix(matrix) {
+  return uniqueLinks(
+    (matrix || [])
+      .flat()
+      .flatMap((cell) => getLinksFromCell(cell))
+      .filter(Boolean)
+  );
 }
 
 function uniqueLinks(links) {
-  return Array.from(new Set(links.filter(Boolean)));
+  return Array.from(new Set((links || []).filter(Boolean)));
 }
 
 function normalizeMatrix(matrix) {
@@ -605,7 +736,7 @@ function normalizeMatrix(matrix) {
   });
 }
 
-function matrixToTsv(matrix) {
+function matrixToClipboardText(matrix) {
   return matrix
     .map((row) =>
       row
@@ -618,6 +749,81 @@ function matrixToTsv(matrix) {
         .join("\t")
     )
     .join("\n");
+}
+
+function matrixToCsv(matrix) {
+  return matrix
+    .map((row) => row.map((cell) => escapeCsvCell(cell)).join(","))
+    .join("\r\n");
+}
+
+function escapeCsvCell(value) {
+  const text = String(value || "").replace(/\r?\n/g, " ");
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function matrixToExcelHtml(matrix) {
+  const rows = matrix
+    .map(
+      (row) =>
+        `<tr>${row
+          .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+          .join("")}</tr>`
+    )
+    .join("");
+
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+td { mso-number-format:"\\@"; }
+</style>
+</head>
+<body>
+<table>${rows}</table>
+</body>
+</html>`;
+}
+
+function downloadTextFile({ content, fileName, mimeType }) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
+}
+
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch {
+    return String(value || "");
+  }
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function fallbackCopy(text) {
