@@ -21,6 +21,11 @@ import {
   Crop,
   Clock3,
   Eye,
+  ChevronDown,
+  Info,
+  FileImage,
+  PanelTopOpen,
+  Settings2,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -29,10 +34,10 @@ export const toolData = {
   path: "/image-resizer",
   category: "Design Tools",
   description:
-    "Upload and resize images with custom dimensions, smooth zoom, drag positioning, transform guides, processing time, and social media presets.",
+    "Resize images online with a clean smart artboard, presets, drag positioning, zoom, format options, and instant download.",
   metaTitle: "Image Resizer Tool - Resize Images Easily | Next Online Tools",
   metaDescription:
-    "Resize images online with custom width and height, smooth zoom, drag positioning, Photoshop-like transform guides, processing time, background options, and social media presets.",
+    "Resize images online for free. Upload an image, choose dimensions or presets, drag and fit it on the artboard, then download PNG, JPG, or WEBP.",
 };
 
 const MAX_FILE_SIZE_MB = 15;
@@ -52,6 +57,15 @@ const MIN_SCALE = 0.02;
 const MAX_SCALE = 8;
 
 const PRESETS = [
+  {
+    group: "Most Used",
+    items: [
+      { label: "Original Size", width: "original", height: "original" },
+      { label: "Square 1080", width: 1080, height: 1080 },
+      { label: "HD 1280 × 720", width: 1280, height: 720 },
+      { label: "Full HD 1920 × 1080", width: 1920, height: 1080 },
+    ],
+  },
   {
     group: "Instagram",
     items: [
@@ -76,11 +90,11 @@ const PRESETS = [
     ],
   },
   {
-    group: "Common",
+    group: "Documents",
     items: [
       { label: "A4 Portrait", width: 1240, height: 1754 },
-      { label: "Wallpaper", width: 1920, height: 1080 },
-      { label: "Profile", width: 800, height: 800 },
+      { label: "Profile Photo", width: 800, height: 800 },
+      { label: "Product Image", width: 1000, height: 1000 },
     ],
   },
 ];
@@ -89,6 +103,13 @@ const OUTPUT_FORMATS = [
   { value: "image/png", label: "PNG", extension: "png" },
   { value: "image/jpeg", label: "JPG", extension: "jpg" },
   { value: "image/webp", label: "WEBP", extension: "webp" },
+];
+
+const QUICK_ACTIONS = [
+  { id: "fit", label: "Fit", icon: Maximize2 },
+  { id: "fill", label: "Fill", icon: Crop },
+  { id: "center", label: "Center", icon: Move },
+  { id: "rotate", label: "Rotate", icon: RotateCw },
 ];
 
 export default function ImageResizer() {
@@ -106,7 +127,6 @@ export default function ImageResizer() {
   });
 
   const [imageData, setImageData] = useState(null);
-
   const [dimensions, setDimensions] = useState({
     width: 1080,
     height: 1080,
@@ -120,14 +140,14 @@ export default function ImageResizer() {
   });
 
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
+  const [customBackground, setCustomBackground] = useState("#ffffff");
   const [outputFormat, setOutputFormat] = useState("image/png");
   const [quality, setQuality] = useState(0.92);
   const [lockAspectRatio, setLockAspectRatio] = useState(true);
 
   const [showGuides, setShowGuides] = useState(true);
-  const [showSafeArea, setShowSafeArea] = useState(true);
-  const [showRulers, setShowRulers] = useState(true);
-  const [showImageCenter, setShowImageCenter] = useState(true);
+  const [showSafeArea, setShowSafeArea] = useState(false);
+  const [showImageFrame, setShowImageFrame] = useState(true);
 
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -140,6 +160,14 @@ export default function ImageResizer() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  const [openSections, setOpenSections] = useState({
+    resize: true,
+    transform: false,
+    export: false,
+    guides: false,
+    details: false,
+  });
+
   const hasImage = Boolean(imageData?.element);
 
   const selectedOutputFormat = useMemo(() => {
@@ -149,7 +177,12 @@ export default function ImageResizer() {
     );
   }, [outputFormat]);
 
-  const aspectRatio = useMemo(() => {
+  const imageAspectRatio = useMemo(() => {
+    if (!imageData?.width || !imageData?.height) return 1;
+    return imageData.width / imageData.height;
+  }, [imageData]);
+
+  const outputAspectRatio = useMemo(() => {
     if (!dimensions.width || !dimensions.height) return 1;
     return dimensions.width / dimensions.height;
   }, [dimensions]);
@@ -173,14 +206,17 @@ export default function ImageResizer() {
   const outputBackgroundNote =
     backgroundColor === "transparent"
       ? outputFormat === "image/jpeg"
-        ? "JPG does not support transparency. White background will be used."
-        : "Transparent background enabled."
-      : "Solid background enabled.";
+        ? "JPG does not support transparency, so white will be used."
+        : "Transparent background will be preserved."
+      : "Solid background will be used.";
 
   const artboardBackgroundStyle = useMemo(() => {
-    if (backgroundColor !== "transparent") {
+    const finalBackground =
+      backgroundColor === "custom" ? customBackground : backgroundColor;
+
+    if (finalBackground !== "transparent") {
       return {
-        backgroundColor,
+        backgroundColor: finalBackground,
       };
     }
 
@@ -191,14 +227,13 @@ export default function ImageResizer() {
       backgroundSize: "20px 20px",
       backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
     };
-  }, [backgroundColor]);
+  }, [backgroundColor, customBackground]);
 
   const previewArtboardStyle = useMemo(() => {
     const isLandscape = dimensions.width >= dimensions.height;
 
     return {
-      width: isLandscape ? "100%" : "min(100%, 430px)",
-      maxWidth: "800px",
+      width: isLandscape ? "min(100%, 900px)" : "min(100%, 520px)",
       aspectRatio: `${dimensions.width} / ${dimensions.height}`,
       ...artboardBackgroundStyle,
     };
@@ -210,25 +245,15 @@ export default function ImageResizer() {
     const imageWidth = imageData.width * transform.scale;
     const imageHeight = imageData.height * transform.scale;
 
-    const left =
-      ((dimensions.width / 2 + transform.offsetX - imageWidth / 2) /
-        dimensions.width) *
-      100;
-
-    const top =
-      ((dimensions.height / 2 + transform.offsetY - imageHeight / 2) /
-        dimensions.height) *
-      100;
-
-    const width = (imageWidth / dimensions.width) * 100;
-    const height = (imageHeight / dimensions.height) * 100;
+    const centerX = dimensions.width / 2 + transform.offsetX;
+    const centerY = dimensions.height / 2 + transform.offsetY;
 
     return {
-      left: `${left}%`,
-      top: `${top}%`,
-      width: `${width}%`,
-      height: `${height}%`,
-      transform: `rotate(${transform.rotation}deg)`,
+      left: `${(centerX / dimensions.width) * 100}%`,
+      top: `${(centerY / dimensions.height) * 100}%`,
+      width: `${(imageWidth / dimensions.width) * 100}%`,
+      height: `${(imageHeight / dimensions.height) * 100}%`,
+      transform: `translate(-50%, -50%) rotate(${transform.rotation}deg)`,
       transformOrigin: "center center",
       transition: isDraggingImage
         ? "none"
@@ -239,9 +264,7 @@ export default function ImageResizer() {
   const handleImageFile = useCallback(async (file) => {
     setErrorMessage("");
     setSuccessMessage("");
-    setProcessingTimeMs(0);
-    setLastOutputSize(0);
-    setExportProgress(0);
+    clearExportStats();
 
     const validationError = validateImageFile(file);
 
@@ -287,11 +310,16 @@ export default function ImageResizer() {
       });
 
       setOutputFormat(getDefaultOutputFormat(file.type));
-      setBackgroundColor(file.type === "image/png" ? "transparent" : "#ffffff");
+      setBackgroundColor(file.type === "image/png" || file.type === "image/webp" ? "transparent" : "#ffffff");
+      setOpenSections({
+        resize: true,
+        transform: false,
+        export: false,
+        guides: false,
+        details: false,
+      });
 
-      setSuccessMessage(
-        "Image loaded successfully. Use the smart artboard to drag, zoom, align, and export."
-      );
+      setSuccessMessage("Image loaded. Resize, drag to position, then download.");
     } catch {
       setErrorMessage("Failed to load image. Please try another image.");
 
@@ -315,6 +343,59 @@ export default function ImageResizer() {
     };
   }, []);
 
+  useEffect(() => {
+    function isEditableTarget(target) {
+      const tagName = target?.tagName?.toLowerCase();
+
+      return (
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        target?.isContentEditable
+      );
+    }
+
+    function handleKeyDown(event) {
+      if (!hasImage || isEditableTarget(event.target)) return;
+
+      const step = event.shiftKey ? 10 : 1;
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        moveImageBy(-step, 0);
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        moveImageBy(step, 0);
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        moveImageBy(0, -step);
+      }
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        moveImageBy(0, step);
+      }
+
+      if ((event.ctrlKey || event.metaKey) && (event.key === "+" || event.key === "=")) {
+        event.preventDefault();
+        applyScale(transform.scale * 1.08);
+      }
+
+      if ((event.ctrlKey || event.metaKey) && (event.key === "-" || event.key === "_")) {
+        event.preventDefault();
+        applyScale(transform.scale * 0.92);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [hasImage, transform.scale]);
+
   function resetFileInput() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -325,6 +406,13 @@ export default function ImageResizer() {
     setProcessingTimeMs(0);
     setLastOutputSize(0);
     setExportProgress(0);
+  }
+
+  function toggleSection(section) {
+    setOpenSections((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
   }
 
   function handleFileInputChange(event) {
@@ -468,16 +556,23 @@ export default function ImageResizer() {
     });
   }
 
+  function moveImageBy(dx, dy) {
+    clearExportStats();
+
+    setTransform((current) => ({
+      ...current,
+      offsetX: current.offsetX + dx,
+      offsetY: current.offsetY + dy,
+    }));
+  }
+
   function updateDimension(type, value) {
     clearExportStats();
 
     const nextValue = clampNumber(Number(value), MIN_DIMENSION, MAX_DIMENSION);
 
     setDimensions((current) => {
-      const currentRatio =
-        current.width && current.height ? current.width / current.height : 1;
-
-      if (!lockAspectRatio) {
+      if (!lockAspectRatio || !imageData) {
         return {
           ...current,
           [type]: nextValue,
@@ -487,24 +582,44 @@ export default function ImageResizer() {
       if (type === "width") {
         return {
           width: nextValue,
-          height: Math.max(MIN_DIMENSION, Math.round(nextValue / currentRatio)),
+          height: Math.max(MIN_DIMENSION, Math.round(nextValue / imageAspectRatio)),
         };
       }
 
       return {
-        width: Math.max(MIN_DIMENSION, Math.round(nextValue * currentRatio)),
+        width: Math.max(MIN_DIMENSION, Math.round(nextValue * imageAspectRatio)),
         height: nextValue,
       };
     });
   }
 
-  function setPreset(width, height) {
+  function applyPreset(preset) {
+    if (!preset) return;
+
     clearExportStats();
 
-    setDimensions({ width, height });
+    if (preset.width === "original" && imageData) {
+      setDimensions({
+        width: imageData.width,
+        height: imageData.height,
+      });
+
+      setTransform({
+        scale: 1,
+        offsetX: 0,
+        offsetY: 0,
+        rotation: 0,
+      });
+      return;
+    }
+
+    setDimensions({ width: preset.width, height: preset.height });
 
     if (imageData) {
-      const nextScale = getFitScale(imageData, { width, height });
+      const nextScale = getFitScale(imageData, {
+        width: preset.width,
+        height: preset.height,
+      });
 
       setTransform({
         scale: nextScale,
@@ -513,6 +628,15 @@ export default function ImageResizer() {
         rotation: 0,
       });
     }
+  }
+
+  function quickScaleOutput(multiplier) {
+    if (!imageData) return;
+
+    const width = clampNumber(Math.round(imageData.width * multiplier), MIN_DIMENSION, MAX_DIMENSION);
+    const height = clampNumber(Math.round(imageData.height * multiplier), MIN_DIMENSION, MAX_DIMENSION);
+
+    applyPreset({ width, height });
   }
 
   function fitImageToArtboard() {
@@ -591,6 +715,13 @@ export default function ImageResizer() {
     }));
   }
 
+  function handleQuickAction(actionId) {
+    if (actionId === "fit") fitImageToArtboard();
+    if (actionId === "fill") fillArtboard();
+    if (actionId === "center") centerImage();
+    if (actionId === "rotate") rotateImage();
+  }
+
   async function downloadImage() {
     if (!imageData?.element) {
       setErrorMessage("Upload and resize an image first.");
@@ -618,9 +749,12 @@ export default function ImageResizer() {
         throw new Error("Canvas is not supported.");
       }
 
-      if (backgroundColor !== "transparent" || outputFormat === "image/jpeg") {
+      const finalBackground =
+        backgroundColor === "custom" ? customBackground : backgroundColor;
+
+      if (finalBackground !== "transparent" || outputFormat === "image/jpeg") {
         ctx.fillStyle =
-          backgroundColor === "transparent" ? "#ffffff" : backgroundColor;
+          finalBackground === "transparent" ? "#ffffff" : finalBackground;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       } else {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -677,7 +811,7 @@ export default function ImageResizer() {
       setProcessingTimeMs(actualProcessingTime);
       setExportProgress(100);
       setSuccessMessage(
-        `Final image created in ${(actualProcessingTime / 1000).toFixed(1)}s.`
+        `Image created in ${(actualProcessingTime / 1000).toFixed(1)}s.`
       );
     } catch {
       setErrorMessage("Could not export this image. Please try again.");
@@ -708,13 +842,13 @@ export default function ImageResizer() {
       rotation: 0,
     });
     setBackgroundColor("#ffffff");
+    setCustomBackground("#ffffff");
     setOutputFormat("image/png");
     setQuality(0.92);
     setLockAspectRatio(true);
     setShowGuides(true);
-    setShowSafeArea(true);
-    setShowRulers(true);
-    setShowImageCenter(true);
+    setShowSafeArea(false);
+    setShowImageFrame(true);
     setIsDraggingImage(false);
     setIsDraggingFile(false);
     setIsProcessing(false);
@@ -723,6 +857,13 @@ export default function ImageResizer() {
     setLastOutputSize(0);
     setErrorMessage("");
     setSuccessMessage("");
+    setOpenSections({
+      resize: true,
+      transform: false,
+      export: false,
+      guides: false,
+      details: false,
+    });
     resetFileInput();
   }
 
@@ -731,12 +872,11 @@ export default function ImageResizer() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif,image/bmp"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/*"
         onChange={handleFileInputChange}
         className="hidden"
       />
 
-      {/* HEADER */}
       <section className="card p-6 sm:p-8">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
           <Maximize2 size={28} className="text-[var(--primary)]" />
@@ -745,331 +885,436 @@ export default function ImageResizer() {
         <h1 className="text-3xl font-bold mb-3">Image Resizer</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Resize images with a premium smart artboard editor. Drag, zoom,
-          rotate, align with Photoshop-like guides, export with processing time,
-          and download your final image instantly.
+          Upload an image, choose a size, drag or zoom it on the artboard, and download a clean resized image.
+          Advanced options are hidden inside simple dropdown panels.
         </p>
       </section>
 
-      {/* TOOL BODY */}
-      <section className="card p-6 sm:p-8">
-        <div className="grid lg:grid-cols-[0.9fr_1.35fr] gap-6">
-          {/* LEFT PANEL */}
-          <div className="flex flex-col gap-5">
-            {/* UPLOAD */}
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onClick={openFilePicker}
-              className={`border-2 border-dashed rounded-2xl p-7 text-center cursor-pointer transition ${
-                isDraggingFile
-                  ? "border-[var(--primary)] bg-[#f4edff]"
-                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
-              }`}
-            >
-              {isProcessing && !hasImage ? (
-                <Loader2
-                  size={36}
-                  className="mx-auto mb-4 text-[var(--primary)] animate-spin"
-                />
-              ) : (
-                <Upload
-                  size={36}
-                  className="mx-auto mb-4 text-[var(--primary)]"
-                />
+      <section className="card p-4 sm:p-6">
+        {!hasImage ? (
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={openFilePicker}
+            className={`border-2 border-dashed rounded-3xl p-8 sm:p-12 text-center cursor-pointer transition min-h-[420px] flex flex-col items-center justify-center ${
+              isDraggingFile
+                ? "border-[var(--primary)] bg-[#f4edff]"
+                : "border-[var(--border)] bg-gray-50 hover:bg-[#f8f4ff]"
+            }`}
+          >
+            {isProcessing ? (
+              <Loader2
+                size={48}
+                className="mx-auto mb-5 text-[var(--primary)] animate-spin"
+              />
+            ) : (
+              <Upload size={48} className="mx-auto mb-5 text-[var(--primary)]" />
+            )}
+
+            <h2 className="text-2xl font-bold mb-3">
+              Upload image to resize
+            </h2>
+
+            <p className="text-sm text-[var(--text-secondary)] max-w-lg mb-6">
+              Drag and drop an image here, or click to choose one. Supports JPG, PNG, WEBP, GIF, and BMP.
+              Max file size: <strong>{MAX_FILE_SIZE_MB} MB</strong>.
+            </p>
+
+            <button type="button" className="btn-primary inline-flex items-center gap-2">
+              <ImageIcon size={18} />
+              Choose Image
+            </button>
+          </div>
+        ) : (
+          <div className="grid xl:grid-cols-[minmax(0,1.35fr)_390px] gap-6">
+            <div className="min-w-0 flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold">Live Preview</h2>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Drag image to position. Scroll over preview to zoom. Arrow keys move image by 1px.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={openFilePicker}
+                    className="btn-secondary inline-flex items-center justify-center gap-2 px-3 py-2 text-sm"
+                  >
+                    <Upload size={16} />
+                    Change Image
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadImage}
+                    disabled={isProcessing}
+                    className={`btn-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-sm ${
+                      isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    {isProcessing ? (
+                      <Loader2 size={17} className="animate-spin" />
+                    ) : (
+                      <Download size={17} />
+                    )}
+                    {isProcessing ? "Creating..." : "Download"}
+                  </button>
+                </div>
+              </div>
+
+              {(errorMessage || successMessage || isProcessing) && (
+                <div className="grid md:grid-cols-2 gap-3">
+                  {errorMessage && (
+                    <MessageBox type="error" message={errorMessage} />
+                  )}
+
+                  {successMessage && (
+                    <MessageBox type="success" message={successMessage} />
+                  )}
+
+                  {isProcessing && (
+                    <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-4 md:col-span-2">
+                      <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                        <span>Creating final image...</span>
+                        <span>{exportProgress}%</span>
+                      </div>
+
+                      <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                        <div
+                          className="h-full bg-[var(--primary)] transition-all duration-300"
+                          style={{ width: `${exportProgress}%` }}
+                        />
+                      </div>
+
+                      <p className="text-xs text-[var(--text-secondary)] mt-3">
+                        Estimated processing time: {Math.ceil(estimatedProcessingTimeMs / 1000)}s
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
 
-              <h2 className="text-lg font-semibold mb-2">
-                Choose image or drop image here
-              </h2>
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                className={`relative border border-[var(--border)] rounded-3xl bg-[#eef0f5] min-h-[640px] overflow-auto p-5 sm:p-8 flex items-center justify-center ${
+                  isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
+                }`}
+              >
+                <div className="relative p-6">
+                  <div
+                    ref={artboardRef}
+                    onPointerDown={handleArtboardPointerDown}
+                    onPointerMove={handleArtboardPointerMove}
+                    onPointerUp={handleArtboardPointerUp}
+                    onPointerCancel={handleArtboardPointerUp}
+                    onWheel={handleWheelZoom}
+                    className={`relative overflow-hidden shadow-2xl border border-gray-300 select-none ${
+                      isDraggingImage ? "cursor-grabbing" : "cursor-grab"
+                    }`}
+                    style={previewArtboardStyle}
+                  >
+                    {imageBoxStyle && (
+                      <>
+                        <img
+                          src={imageData.url}
+                          alt={imageData.name}
+                          draggable="false"
+                          className="absolute object-fill pointer-events-none select-none"
+                          style={imageBoxStyle}
+                        />
 
-              <p className="text-sm text-[var(--text-secondary)]">
-                JPG, PNG, WEBP, GIF, or BMP. Max {MAX_FILE_SIZE_MB} MB.
-              </p>
+                        {showImageFrame && (
+                          <div
+                            className="absolute pointer-events-none"
+                            style={imageBoxStyle}
+                          >
+                            <div className="absolute inset-0 border-2 border-[var(--primary)] shadow-[0_0_0_1px_rgba(255,255,255,0.95)]">
+                              <TransformHandle position="-top-2 -left-2" />
+                              <TransformHandle position="-top-2 -right-2" />
+                              <TransformHandle position="-bottom-2 -left-2" />
+                              <TransformHandle position="-bottom-2 -right-2" />
+
+                              <span className="absolute -top-8 left-1/2 -translate-x-1/2 rounded-full bg-[var(--primary)] text-white text-[10px] font-semibold px-2 py-1 whitespace-nowrap">
+                                {zoomPercent}% • {transform.rotation}°
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    <GuideOverlay
+                      showGuides={showGuides}
+                      showSafeArea={showSafeArea}
+                      dimensions={dimensions}
+                    />
+
+                    <div className="absolute left-3 bottom-3 bg-black/70 text-white rounded-xl px-3 py-2 text-xs pointer-events-none">
+                      <p>{outputSizeText}</p>
+                      <p>
+                        X {Math.round(transform.offsetX)} / Y{" "}
+                        {Math.round(transform.offsetY)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/95 px-2 py-2 shadow-xl backdrop-blur">
+                  <button
+                    type="button"
+                    onClick={() => applyScale(transform.scale * 0.9)}
+                    className="w-10 h-10 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
+                    title="Zoom out image"
+                  >
+                    <ZoomOut size={18} />
+                  </button>
+
+                  <span className="min-w-14 text-center text-xs font-bold text-[var(--text-secondary)]">
+                    {zoomPercent}%
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => applyScale(transform.scale * 1.1)}
+                    className="w-10 h-10 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
+                    title="Zoom in image"
+                  >
+                    <ZoomIn size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {QUICK_ACTIONS.map((action) => {
+                  const Icon = action.icon;
+
+                  return (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={() => handleQuickAction(action.id)}
+                      className="btn-secondary inline-flex items-center justify-center gap-2"
+                    >
+                      <Icon size={16} />
+                      {action.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* FEEDBACK */}
-            {errorMessage && (
-              <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{errorMessage}</p>
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
-                <CheckCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{successMessage}</p>
-              </div>
-            )}
-
-            {/* EXPORT PROGRESS */}
-            {isProcessing && hasImage && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
-                <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                  <span>Creating final image...</span>
-                  <span>{exportProgress}%</span>
-                </div>
-
-                <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
-                  <div
-                    className="h-full bg-[var(--primary)] transition-all duration-300"
-                    style={{ width: `${exportProgress}%` }}
-                  />
-                </div>
-
-                <p className="text-xs text-[var(--text-secondary)] mt-3">
-                  Estimated processing time:{" "}
-                  {Math.ceil(estimatedProcessingTimeMs / 1000)}s
-                </p>
-              </div>
-            )}
-
-            {/* FILE INFO */}
-            {hasImage && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-4">
+            <aside className="flex flex-col gap-4">
+              <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-white border border-[var(--border)] flex items-center justify-center shrink-0">
-                    <ImageIcon size={22} className="text-[var(--primary)]" />
-                  </div>
-
+                  <FileImage size={22} className="text-[var(--primary)] shrink-0 mt-0.5" />
                   <div className="min-w-0">
-                    <p className="font-semibold truncate" title={imageData.name}>
+                    <p className="font-bold truncate" title={imageData.name}>
                       {imageData.name}
                     </p>
-                    <p className="text-sm text-[var(--text-secondary)] mt-1">
-                      Original: {originalSizeText} • {formatBytes(imageData.size)}
+                    <p className="text-xs text-[var(--text-secondary)] mt-1">
+                      {originalSizeText} • {formatBytes(imageData.size)}
                     </p>
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* DIMENSIONS */}
-            {hasImage && (
-              <div className="border border-[var(--border)] rounded-2xl p-5">
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Crop size={20} className="text-[var(--primary)]" />
-                    <h3 className="font-semibold">Artboard Size</h3>
+              <CollapsiblePanel
+                title="Resize"
+                icon={Crop}
+                open={openSections.resize}
+                onToggle={() => toggleSection("resize")}
+                badge={outputSizeText}
+              >
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <NumberInput
+                      label="Width"
+                      value={dimensions.width}
+                      min={MIN_DIMENSION}
+                      max={MAX_DIMENSION}
+                      onChange={(value) => updateDimension("width", value)}
+                      info="Most professional web images use 1200-1920px width. Social media posts often use 1080px or 1200px."
+                    />
+
+                    <NumberInput
+                      label="Height"
+                      value={dimensions.height}
+                      min={MIN_DIMENSION}
+                      max={MAX_DIMENSION}
+                      onChange={(value) => updateDimension("height", value)}
+                      info="Keep aspect ratio locked for normal resizing. Unlock only when you need an exact custom canvas."
+                    />
                   </div>
 
                   <button
                     type="button"
                     onClick={() => setLockAspectRatio((current) => !current)}
-                    className="btn-secondary inline-flex items-center justify-center gap-2 px-3 py-2 text-sm"
+                    className="btn-secondary w-full inline-flex items-center justify-center gap-2"
                   >
-                    {lockAspectRatio ? <Lock size={15} /> : <Unlock size={15} />}
-                    {lockAspectRatio ? "Locked" : "Free"}
+                    {lockAspectRatio ? <Lock size={16} /> : <Unlock size={16} />}
+                    {lockAspectRatio ? "Aspect Ratio Locked" : "Aspect Ratio Free"}
                   </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-semibold mb-2 block">
-                      Width
-                    </label>
-                    <input
-                      type="number"
-                      min={MIN_DIMENSION}
-                      max={MAX_DIMENSION}
-                      value={dimensions.width}
-                      onChange={(event) =>
-                        updateDimension("width", event.target.value)
-                      }
-                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)]"
-                    />
-                  </div>
 
                   <div>
-                    <label className="text-sm font-semibold mb-2 block">
-                      Height
-                    </label>
-                    <input
-                      type="number"
-                      min={MIN_DIMENSION}
-                      max={MAX_DIMENSION}
-                      value={dimensions.height}
-                      onChange={(event) =>
-                        updateDimension("height", event.target.value)
-                      }
-                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)]"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <button
-                    type="button"
-                    onClick={resetToOriginalSize}
-                    className="btn-secondary inline-flex items-center justify-center gap-2"
-                  >
-                    <RefreshCcw size={16} />
-                    Original Size
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={resetTransform}
-                    className="btn-secondary inline-flex items-center justify-center gap-2"
-                  >
-                    <RotateCcw size={16} />
-                    Reset Transform
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* TRANSFORM */}
-            {hasImage && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <SlidersHorizontal
-                    size={20}
-                    className="text-[var(--primary)]"
-                  />
-                  <h3 className="font-semibold">Transform Controls</h3>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <span className="text-sm font-semibold">
-                    Smooth Zoom: {zoomPercent}%
-                  </span>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => applyScale(transform.scale * 0.9)}
-                      className="btn-secondary px-3 py-2"
-                    >
-                      <ZoomOut size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyScale(transform.scale * 1.1)}
-                      className="btn-secondary px-3 py-2"
-                    >
-                      <ZoomIn size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <input
-                  type="range"
-                  min={MIN_SCALE}
-                  max={MAX_SCALE}
-                  step="0.005"
-                  value={transform.scale}
-                  onChange={(event) => applyScale(Number(event.target.value))}
-                  className="w-full accent-[var(--primary)]"
-                />
-
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <button
-                    type="button"
-                    onClick={fitImageToArtboard}
-                    className="btn-secondary inline-flex items-center justify-center gap-2"
-                  >
-                    <Maximize2 size={16} />
-                    Fit
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={fillArtboard}
-                    className="btn-secondary inline-flex items-center justify-center gap-2"
-                  >
-                    <Crop size={16} />
-                    Fill
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={centerImage}
-                    className="btn-secondary inline-flex items-center justify-center gap-2"
-                  >
-                    <Move size={16} />
-                    Center
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={rotateImage}
-                    className="btn-secondary inline-flex items-center justify-center gap-2"
-                  >
-                    <RotateCw size={16} />
-                    Rotate
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* PRESETS */}
-            {hasImage && (
-              <div className="border border-[var(--border)] rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles size={20} className="text-[var(--primary)]" />
-                  <h3 className="font-semibold">Quick Presets</h3>
-                </div>
-
-                <div className="space-y-4">
-                  {PRESETS.map((group) => (
-                    <div key={group.group}>
-                      <p className="text-xs font-semibold text-[var(--text-secondary)] mb-2">
-                        {group.group}
-                      </p>
-
-                      <div className="flex flex-wrap gap-2">
-                        {group.items.map((preset) => (
-                          <button
-                            key={`${group.group}-${preset.label}`}
-                            type="button"
-                            onClick={() =>
-                              setPreset(preset.width, preset.height)
-                            }
-                            className="text-xs px-3 py-2 rounded-xl bg-gray-50 hover:bg-[#f4edff] hover:text-[var(--primary)] transition border border-[var(--border)]"
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
+                    <p className="text-sm font-semibold mb-2">Quick resize</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button type="button" onClick={() => quickScaleOutput(0.25)} className="small-option-btn">25%</button>
+                      <button type="button" onClick={() => quickScaleOutput(0.5)} className="small-option-btn">50%</button>
+                      <button type="button" onClick={resetToOriginalSize} className="small-option-btn">Original</button>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* EXPORT */}
-            {hasImage && (
-              <div className="border border-[var(--border)] rounded-2xl p-5">
-                <h3 className="font-semibold mb-4">Export Settings</h3>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-semibold mb-2 block">
-                      Format
-                    </label>
-                    <select
-                      value={outputFormat}
-                      onChange={(event) => {
-                        setOutputFormat(event.target.value);
-                        clearExportStats();
-                      }}
-                      className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white"
-                    >
-                      {OUTPUT_FORMATS.map((format) => (
-                        <option key={format.value} value={format.value}>
-                          {format.label}
-                        </option>
-                      ))}
-                    </select>
                   </div>
 
                   <div>
-                    <label className="text-sm font-semibold mb-2 block">
-                      Background
-                    </label>
+                    <p className="text-sm font-semibold mb-2">Size presets</p>
+                    <div className="space-y-3 max-h-[260px] overflow-auto pr-1">
+                      {PRESETS.map((group) => (
+                        <div key={group.group}>
+                          <p className="text-xs font-bold text-[var(--text-secondary)] mb-2">
+                            {group.group}
+                          </p>
+
+                          <div className="flex flex-wrap gap-2">
+                            {group.items.map((preset) => (
+                              <button
+                                key={`${group.group}-${preset.label}`}
+                                type="button"
+                                onClick={() => applyPreset(preset)}
+                                className="text-xs px-3 py-2 rounded-xl bg-white hover:bg-[#f4edff] hover:text-[var(--primary)] transition border border-[var(--border)]"
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CollapsiblePanel>
+
+              <CollapsiblePanel
+                title="Image Position"
+                icon={SlidersHorizontal}
+                open={openSections.transform}
+                onToggle={() => toggleSection("transform")}
+                badge={`${zoomPercent}%`}
+              >
+                <div className="space-y-4">
+                  <RangeInput
+                    label={`Zoom: ${zoomPercent}%`}
+                    min={MIN_SCALE}
+                    max={MAX_SCALE}
+                    step={0.005}
+                    value={transform.scale}
+                    onChange={(value) => applyScale(Number(value))}
+                  />
+
+                  <RangeInput
+                    label={`Rotation: ${transform.rotation}°`}
+                    min={0}
+                    max={359}
+                    step={1}
+                    value={transform.rotation}
+                    onChange={(value) => {
+                      clearExportStats();
+                      setTransform((current) => ({
+                        ...current,
+                        rotation: normalizeRotation(Number(value)),
+                      }));
+                    }}
+                  />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <NumberInput
+                      label="X Position"
+                      value={Math.round(transform.offsetX)}
+                      onChange={(value) => {
+                        clearExportStats();
+                        setTransform((current) => ({ ...current, offsetX: Number(value) }));
+                      }}
+                      info="Use X and Y for exact positioning. Arrow keys also move the image by 1px."
+                    />
+
+                    <NumberInput
+                      label="Y Position"
+                      value={Math.round(transform.offsetY)}
+                      onChange={(value) => {
+                        clearExportStats();
+                        setTransform((current) => ({ ...current, offsetY: Number(value) }));
+                      }}
+                      info="Positive Y moves down. Negative Y moves up."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button type="button" onClick={fitImageToArtboard} className="btn-secondary">Fit Image</button>
+                    <button type="button" onClick={fillArtboard} className="btn-secondary">Fill Canvas</button>
+                    <button type="button" onClick={centerImage} className="btn-secondary">Center</button>
+                    <button type="button" onClick={resetTransform} className="btn-secondary">Reset</button>
+                  </div>
+                </div>
+              </CollapsiblePanel>
+
+              <CollapsiblePanel
+                title="Export"
+                icon={Settings2}
+                open={openSections.export}
+                onToggle={() => toggleSection("export")}
+                badge={selectedOutputFormat.label}
+              >
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-semibold mb-2 block">Format</label>
+                      <select
+                        value={outputFormat}
+                        onChange={(event) => {
+                          setOutputFormat(event.target.value);
+                          clearExportStats();
+                        }}
+                        className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white"
+                      >
+                        {OUTPUT_FORMATS.map((format) => (
+                          <option key={format.value} value={format.value}>
+                            {format.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <label className="text-sm font-semibold block">Quality</label>
+                        <InfoTip text="90-95% is a good professional setting. Lower quality makes smaller files but may reduce sharpness." />
+                      </div>
+
+                      <input
+                        type="range"
+                        min="0.6"
+                        max="1"
+                        step="0.01"
+                        value={quality}
+                        disabled={outputFormat === "image/png"}
+                        onChange={(event) => {
+                          setQuality(Number(event.target.value));
+                          clearExportStats();
+                        }}
+                        className="w-full accent-[var(--primary)] disabled:opacity-40"
+                      />
+
+                      <p className="text-xs text-[var(--text-secondary)] mt-1">
+                        {outputFormat === "image/png" ? "PNG keeps quality automatically." : `${Math.round(quality * 100)}%`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold mb-2 block">Background</label>
                     <select
                       value={backgroundColor}
                       onChange={(event) => {
@@ -1081,317 +1326,213 @@ export default function ImageResizer() {
                       <option value="transparent">Transparent</option>
                       <option value="#ffffff">White</option>
                       <option value="#000000">Black</option>
+                      <option value="custom">Custom Color</option>
                     </select>
-                  </div>
-                </div>
 
-                {(outputFormat === "image/jpeg" ||
-                  outputFormat === "image/webp") && (
-                  <div className="mt-4">
-                    <label className="text-sm font-semibold mb-2 block">
-                      Quality: {Math.round(quality * 100)}%
-                    </label>
-                    <input
-                      type="range"
-                      min="0.6"
-                      max="1"
-                      step="0.01"
-                      value={quality}
-                      onChange={(event) => {
-                        setQuality(Number(event.target.value));
-                        clearExportStats();
-                      }}
-                      className="w-full accent-[var(--primary)]"
-                    />
-                  </div>
-                )}
-
-                <p className="text-xs text-[var(--text-secondary)] mt-3">
-                  {outputBackgroundNote}
-                </p>
-              </div>
-            )}
-
-            {/* ACTIONS */}
-            {hasImage && (
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={downloadImage}
-                  disabled={isProcessing}
-                  className={`btn-primary flex-1 inline-flex items-center justify-center gap-2 ${
-                    isProcessing ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  {isProcessing ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <Download size={18} />
-                  )}
-                  {isProcessing ? "Creating..." : "Create & Download"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={resetTool}
-                  className="btn-secondary inline-flex items-center justify-center gap-2"
-                >
-                  <Trash2 size={18} />
-                  Reset Tool
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT PANEL */}
-          <div className="flex flex-col gap-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold">Smart Artboard</h2>
-                <p className="text-xs text-[var(--text-secondary)] mt-1">
-                  Drag image, scroll to zoom, and align with smart guides.
-                </p>
-              </div>
-
-              {hasImage && (
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowGuides((current) => !current)}
-                    className="btn-secondary px-3 py-2 text-sm"
-                  >
-                    Guides
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowSafeArea((current) => !current)}
-                    className="btn-secondary px-3 py-2 text-sm"
-                  >
-                    Safe
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowRulers((current) => !current)}
-                    className="btn-secondary px-3 py-2 text-sm"
-                  >
-                    Rulers
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-4 bg-[#eef0f5] min-h-[610px] flex items-center justify-center overflow-auto">
-              {!hasImage ? (
-                <div className="text-center">
-                  <ImageIcon
-                    size={58}
-                    className="mx-auto mb-4 text-gray-300"
-                  />
-                  <p className="text-[var(--text-secondary)]">
-                    Upload an image to see the smart artboard.
-                  </p>
-                </div>
-              ) : (
-                <div className="relative p-8">
-                  {showRulers && (
-                    <>
-                      <div className="absolute left-8 right-0 top-2 h-5 rounded bg-white/80 border border-gray-300 overflow-hidden">
-                        <div className="h-full opacity-70 ruler-horizontal" />
-                        <span className="absolute left-2 top-0.5 text-[10px] text-gray-600">
-                          0
-                        </span>
-                        <span className="absolute right-2 top-0.5 text-[10px] text-gray-600">
-                          {dimensions.width}px
-                        </span>
-                      </div>
-
-                      <div className="absolute left-2 top-8 bottom-0 w-5 rounded bg-white/80 border border-gray-300 overflow-hidden">
-                        <div className="w-full h-full opacity-70 ruler-vertical" />
-                        <span className="absolute left-1 top-2 text-[10px] text-gray-600 [writing-mode:vertical-rl]">
-                          {dimensions.height}px
-                        </span>
-                      </div>
-                    </>
-                  )}
-
-                  <div
-                    ref={artboardRef}
-                    onPointerDown={handleArtboardPointerDown}
-                    onPointerMove={handleArtboardPointerMove}
-                    onPointerUp={handleArtboardPointerUp}
-                    onPointerCancel={handleArtboardPointerUp}
-                    onWheel={handleWheelZoom}
-                    className={`relative overflow-hidden rounded-xl shadow-2xl border border-gray-300 select-none ${
-                      isDraggingImage ? "cursor-grabbing" : "cursor-grab"
-                    }`}
-                    style={previewArtboardStyle}
-                  >
-                    {/* Image layer */}
-                    {imageBoxStyle && (
-                      <>
-                        <img
-                          src={imageData.url}
-                          alt={imageData.name}
-                          draggable="false"
-                          className="absolute object-fill pointer-events-none select-none"
-                          style={imageBoxStyle}
-                        />
-
-                        {/* Transform bounding box */}
-                        <div
-                          className="absolute pointer-events-none"
-                          style={imageBoxStyle}
-                        >
-                          <div className="absolute inset-0 border-2 border-[var(--primary)] shadow-[0_0_0_1px_rgba(255,255,255,0.95)]">
-                            <TransformHandle position="-top-2 -left-2" />
-                            <TransformHandle position="-top-2 left-1/2 -translate-x-1/2" />
-                            <TransformHandle position="-top-2 -right-2" />
-                            <TransformHandle position="top-1/2 -left-2 -translate-y-1/2" />
-                            <TransformHandle position="top-1/2 -right-2 -translate-y-1/2" />
-                            <TransformHandle position="-bottom-2 -left-2" />
-                            <TransformHandle position="-bottom-2 left-1/2 -translate-x-1/2" />
-                            <TransformHandle position="-bottom-2 -right-2" />
-
-                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 rounded-full bg-[var(--primary)] text-white text-[10px] font-semibold px-2 py-1 whitespace-nowrap">
-                              {zoomPercent}% • {transform.rotation}°
-                            </span>
-                          </div>
-
-                          {showImageCenter && (
-                            <div className="absolute inset-0 pointer-events-none">
-                              <div className="absolute left-1/2 top-0 bottom-0 border-l border-yellow-300/95" />
-                              <div className="absolute top-1/2 left-0 right-0 border-t border-yellow-300/95" />
-                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-yellow-300 border border-black/30" />
-                            </div>
-                          )}
-                        </div>
-                      </>
+                    {backgroundColor === "custom" && (
+                      <input
+                        type="color"
+                        value={customBackground}
+                        onChange={(event) => {
+                          setCustomBackground(event.target.value);
+                          clearExportStats();
+                        }}
+                        className="w-full h-12 border border-[var(--border)] rounded-xl p-1 bg-white mt-3"
+                      />
                     )}
 
-                    {/* Photoshop-like guide overlay */}
-                    <GuideOverlay
-                      showGuides={showGuides}
-                      showSafeArea={showSafeArea}
-                      dimensions={dimensions}
-                    />
-
-                    {/* Artboard info */}
-                    <div className="absolute left-3 bottom-3 bg-black/70 text-white rounded-xl px-3 py-2 text-xs pointer-events-none">
-                      <p>{outputSizeText}</p>
-                      <p>
-                        X {Math.round(transform.offsetX)} / Y{" "}
-                        {Math.round(transform.offsetY)}
-                      </p>
-                    </div>
-
-                    <div className="absolute right-3 top-3 bg-black/70 text-white rounded-xl px-3 py-2 text-xs pointer-events-none">
-                      <p>Center: {Math.round(dimensions.width / 2)} × {Math.round(dimensions.height / 2)}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {hasImage && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <InfoCard label="Original" value={originalSizeText} />
-                <InfoCard label="Output" value={outputSizeText} />
-                <InfoCard label="Zoom" value={`${zoomPercent}%`} />
-                <InfoCard
-                  label="Process Time"
-                  value={
-                    processingTimeMs
-                      ? `${(processingTimeMs / 1000).toFixed(1)}s`
-                      : `Est. ${Math.ceil(estimatedProcessingTimeMs / 1000)}s`
-                  }
-                  green={Boolean(processingTimeMs)}
-                />
-                <InfoCard
-                  label="Output Size"
-                  value={lastOutputSize ? formatBytes(lastOutputSize) : "-"}
-                />
-                <InfoCard label="Format" value={selectedOutputFormat.label} />
-                <InfoCard label="Ratio" value={aspectRatio.toFixed(2)} />
-                <InfoCard
-                  label="Guide"
-                  value={showGuides ? "On" : "Off"}
-                />
-              </div>
-            )}
-
-            {hasImage && (
-              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-                <div className="flex items-start gap-3">
-                  <Eye size={20} className="text-blue-700 shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="font-semibold text-blue-900 mb-2">
-                      Photoshop-like preview guide
-                    </h3>
-                    <p className="text-sm text-blue-800">
-                      The artboard now shows center guides, rule-of-thirds
-                      guides, safe area, rulers, image center lines, transform
-                      handles, zoom percentage, rotation, and position. These
-                      guides are only for editing and will not appear in the
-                      final downloaded image.
+                    <p className="text-xs text-[var(--text-secondary)] mt-2">
+                      {outputBackgroundNote}
                     </p>
                   </div>
-                </div>
-              </div>
-            )}
 
-            <button
-              type="button"
-              onClick={resetTool}
-              className="btn-secondary w-full inline-flex items-center justify-center gap-2"
-            >
-              <RotateCcw size={18} />
-              Reset Everything
-            </button>
+                  <button
+                    type="button"
+                    onClick={downloadImage}
+                    disabled={isProcessing}
+                    className={`btn-primary w-full inline-flex items-center justify-center gap-2 ${
+                      isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                    {isProcessing ? "Creating..." : "Create & Download"}
+                  </button>
+                </div>
+              </CollapsiblePanel>
+
+              <CollapsiblePanel
+                title="View Guides"
+                icon={Eye}
+                open={openSections.guides}
+                onToggle={() => toggleSection("guides")}
+                badge={showGuides ? "On" : "Off"}
+              >
+                <div className="space-y-3">
+                  <ToggleRow label="Center guides" checked={showGuides} onChange={setShowGuides} />
+                  <ToggleRow label="Safe area" checked={showSafeArea} onChange={setShowSafeArea} />
+                  <ToggleRow label="Image frame" checked={showImageFrame} onChange={setShowImageFrame} />
+                </div>
+              </CollapsiblePanel>
+
+              <CollapsiblePanel
+                title="Details"
+                icon={PanelTopOpen}
+                open={openSections.details}
+                onToggle={() => toggleSection("details")}
+                badge={processingTimeMs ? `${(processingTimeMs / 1000).toFixed(1)}s` : "Info"}
+              >
+                <div className="grid grid-cols-2 gap-3">
+                  <InfoCard label="Original" value={originalSizeText} />
+                  <InfoCard label="Output" value={outputSizeText} />
+                  <InfoCard label="Zoom" value={`${zoomPercent}%`} />
+                  <InfoCard label="Ratio" value={outputAspectRatio.toFixed(2)} />
+                  <InfoCard
+                    label="Process Time"
+                    value={
+                      processingTimeMs
+                        ? `${(processingTimeMs / 1000).toFixed(1)}s`
+                        : `Est. ${Math.ceil(estimatedProcessingTimeMs / 1000)}s`
+                    }
+                    green={Boolean(processingTimeMs)}
+                  />
+                  <InfoCard
+                    label="Output Size"
+                    value={lastOutputSize ? formatBytes(lastOutputSize) : "-"}
+                  />
+                </div>
+              </CollapsiblePanel>
+
+              <button
+                type="button"
+                onClick={resetTool}
+                className="btn-secondary w-full inline-flex items-center justify-center gap-2"
+              >
+                <Trash2 size={18} />
+                Reset Tool
+              </button>
+            </aside>
           </div>
-        </div>
+        )}
       </section>
 
       <style>{`
-        .ruler-horizontal {
-          background-image:
-            repeating-linear-gradient(
-              to right,
-              #9ca3af 0,
-              #9ca3af 1px,
-              transparent 1px,
-              transparent 20px
-            ),
-            repeating-linear-gradient(
-              to right,
-              #6b7280 0,
-              #6b7280 1px,
-              transparent 1px,
-              transparent 100px
-            );
+        .small-option-btn {
+          border: 1px solid var(--border);
+          border-radius: 0.75rem;
+          padding: 0.65rem 0.75rem;
+          font-size: 0.8rem;
+          font-weight: 700;
+          background: white;
         }
-
-        .ruler-vertical {
-          background-image:
-            repeating-linear-gradient(
-              to bottom,
-              #9ca3af 0,
-              #9ca3af 1px,
-              transparent 1px,
-              transparent 20px
-            ),
-            repeating-linear-gradient(
-              to bottom,
-              #6b7280 0,
-              #6b7280 1px,
-              transparent 1px,
-              transparent 100px
-            );
+        .small-option-btn:hover {
+          background: #f4edff;
+          color: var(--primary);
         }
       `}</style>
 
       <SuggestedTools currentToolId="image-resizer" />
+    </div>
+  );
+}
+
+function CollapsiblePanel({ title, icon: Icon, open, onToggle, badge, children }) {
+  return (
+    <div className="border border-[var(--border)] rounded-2xl bg-white overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-[#f8f4ff]"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <Icon size={19} className="text-[var(--primary)] shrink-0" />
+          <span className="font-bold truncate">{title}</span>
+        </span>
+
+        <span className="flex items-center gap-2 shrink-0">
+          {badge && (
+            <span className="text-xs font-semibold text-[var(--primary)] bg-[#f4edff] rounded-full px-2 py-1">
+              {badge}
+            </span>
+          )}
+          <ChevronDown
+            size={18}
+            className={`transition ${open ? "rotate-180" : ""}`}
+          />
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-[var(--border)] p-4">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NumberInput({ label, value, min, max, onChange, info }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <label className="text-sm font-semibold block">{label}</label>
+        {info && <InfoTip text={info} />}
+      </div>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={Number.isFinite(Number(value)) ? value : 0}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full border border-[var(--border)] rounded-xl px-4 py-3 outline-none focus:border-[var(--primary)] bg-white"
+      />
+    </div>
+  );
+}
+
+function InfoTip({ text }) {
+  return (
+    <span className="relative group inline-flex">
+      <span className="w-6 h-6 rounded-full border border-[var(--border)] bg-white inline-flex items-center justify-center text-[var(--primary)] cursor-help">
+        <Info size={14} />
+      </span>
+      <span className="pointer-events-none absolute right-0 top-8 z-30 hidden w-64 rounded-xl bg-[#111827] text-white text-xs leading-5 p-3 shadow-xl group-hover:block">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function ToggleRow({ label, checked, onChange }) {
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-gray-50 px-4 py-3 cursor-pointer">
+      <span className="text-sm font-semibold">{label}</span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="w-4 h-4 accent-[var(--primary)]"
+      />
+    </label>
+  );
+}
+
+function MessageBox({ type, message }) {
+  const isError = type === "error";
+
+  return (
+    <div
+      className={`flex items-start gap-3 text-sm p-4 rounded-xl border ${
+        isError
+          ? "text-red-700 bg-red-50 border-red-100"
+          : "text-green-700 bg-green-50 border-green-100"
+      }`}
+    >
+      {isError ? (
+        <AlertCircle size={18} className="shrink-0 mt-0.5" />
+      ) : (
+        <CheckCircle size={18} className="shrink-0 mt-0.5" />
+      )}
+      <p>{message}</p>
     </div>
   );
 }
@@ -1401,32 +1542,15 @@ function GuideOverlay({ showGuides, showSafeArea, dimensions }) {
     <div className="absolute inset-0 pointer-events-none">
       {showGuides && (
         <>
-          {/* Rule of thirds */}
+          <div className="absolute left-1/2 top-0 bottom-0 border-l-2 border-[var(--primary)]/85" />
+          <div className="absolute top-1/2 left-0 right-0 border-t-2 border-[var(--primary)]/85" />
           <div className="absolute left-1/3 top-0 bottom-0 border-l border-white/70" />
           <div className="absolute left-2/3 top-0 bottom-0 border-l border-white/70" />
           <div className="absolute top-1/3 left-0 right-0 border-t border-white/70" />
           <div className="absolute top-2/3 left-0 right-0 border-t border-white/70" />
-
-          {/* Center guides */}
-          <div className="absolute left-1/2 top-0 bottom-0 border-l-2 border-[var(--primary)]/85" />
-          <div className="absolute top-1/2 left-0 right-0 border-t-2 border-[var(--primary)]/85" />
-
-          {/* Diagonal guides */}
-          <div className="absolute left-0 top-0 w-full h-full">
-            <div className="absolute left-0 top-0 w-[141.5%] border-t border-white/40 origin-left rotate-45" />
-            <div className="absolute right-0 top-0 w-[141.5%] border-t border-white/40 origin-right -rotate-45" />
-          </div>
-
-          {/* Center point */}
           <div className="absolute left-1/2 top-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[var(--primary)] shadow" />
-
-          {/* Center labels */}
           <span className="absolute left-1/2 top-2 -translate-x-1/2 rounded-full bg-[var(--primary)] text-white text-[10px] font-semibold px-2 py-1">
-            X Center {Math.round(dimensions.width / 2)}px
-          </span>
-
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-[var(--primary)] text-white text-[10px] font-semibold px-2 py-1">
-            Y {Math.round(dimensions.height / 2)}px
+            {Math.round(dimensions.width / 2)}px center
           </span>
         </>
       )}
@@ -1439,7 +1563,6 @@ function GuideOverlay({ showGuides, showSafeArea, dimensions }) {
         </div>
       )}
 
-      {/* Outer artboard edge glow */}
       <div className="absolute inset-0 border border-white/60" />
     </div>
   );
@@ -1450,6 +1573,23 @@ function TransformHandle({ position }) {
     <span
       className={`absolute ${position} w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)] shadow`}
     />
+  );
+}
+
+function RangeInput({ label, min, max, step, value, onChange }) {
+  return (
+    <div>
+      <label className="text-sm font-semibold mb-2 block">{label}</label>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full accent-[var(--primary)]"
+      />
+    </div>
   );
 }
 
@@ -1471,7 +1611,10 @@ function InfoCard({ label, value, green = false }) {
 function validateImageFile(file) {
   if (!file) return "Please upload an image file.";
 
-  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+  const lowerName = String(file.name || "").toLowerCase();
+  const hasValidExtension = /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(lowerName);
+
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type) && !hasValidExtension) {
     return "Please upload a valid JPG, PNG, WEBP, GIF, or BMP image.";
   }
 
