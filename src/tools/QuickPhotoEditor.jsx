@@ -34,6 +34,8 @@ import {
   Move,
   PanelLeft,
   Scissors,
+  Shapes,
+  Pipette,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -65,9 +67,6 @@ const TOOLS = [
   { id: "patch", label: "Patch", icon: Sparkles },
   { id: "clone", label: "Clone", icon: Copy },
   { id: "restore", label: "Restore", icon: RotateCcw },
-  { id: "rectangle", label: "Rectangle", icon: Square },
-  { id: "circle", label: "Circle", icon: CircleIcon },
-  { id: "arrow", label: "Arrow", icon: ArrowUpRight },
 ];
 
 const SIZE_PRESETS = [
@@ -362,6 +361,7 @@ export default function QuickPhotoEditor() {
     "size",
     "export",
     "shape",
+    "color",
     "freeSelect",
   ].includes(settingsMode);
 
@@ -2197,7 +2197,7 @@ export default function QuickPhotoEditor() {
 
     if (["rectangle", "circle", "arrow"].includes(selectedObject.type)) {
       setActiveTool(selectedObject.type);
-      setActivePanel("");
+      setActivePanel("shape");
       setToolPopupOpen(true);
     }
   }
@@ -2858,6 +2858,44 @@ export default function QuickPhotoEditor() {
                   );
                 })}
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isShapePanelOpen = toolPopupOpen && settingsMode === "shape";
+                    setActiveTool(isShapePanelOpen ? "select" : shapeType);
+                    setActivePanel(isShapePanelOpen ? "" : "shape");
+                    setToolPopupOpen(!isShapePanelOpen);
+                    setShowOriginal(false);
+                  }}
+                  title="Shape Tool"
+                  className={`w-12 h-12 rounded-xl inline-flex items-center justify-center transition ${
+                    (settingsMode === "shape" || ["rectangle", "circle", "arrow"].includes(activeTool)) && toolPopupOpen
+                      ? "bg-white text-[#111827]"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Shapes size={20} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isColorPanelOpen = toolPopupOpen && settingsMode === "color";
+                    setActiveTool("select");
+                    setActivePanel(isColorPanelOpen ? "" : "color");
+                    setToolPopupOpen(!isColorPanelOpen);
+                    setShowOriginal(false);
+                  }}
+                  title="Color Picker"
+                  className={`w-12 h-12 rounded-xl inline-flex items-center justify-center transition ${
+                    settingsMode === "color" && toolPopupOpen
+                      ? "bg-white text-[#111827]"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Pipette size={20} />
+                </button>
+
                 <div className="h-px bg-white/15 my-1" />
 
                 <button
@@ -2958,7 +2996,7 @@ export default function QuickPhotoEditor() {
                     <PanelLeft size={18} className="text-[var(--primary)]" />
                     <div>
                       <p className="font-bold capitalize">
-                        {settingsMode === "shape" ? "Shape" : settingsMode === "freeSelect" ? "Free Select" : settingsMode} Options
+                        {settingsMode === "shape" ? "Shape" : settingsMode === "freeSelect" ? "Free Select" : settingsMode === "color" ? "Color Picker" : settingsMode} Options
                       </p>
                       <p className="text-xs text-[var(--text-secondary)]">
                         Click the same tool again or click outside the artboard to hide this panel.
@@ -3405,6 +3443,61 @@ export default function QuickPhotoEditor() {
                     </div>
                   )}
 
+                  {settingsMode === "color" && (
+                    <div className="space-y-4">
+                      <p className="text-sm text-[var(--text-secondary)] leading-7">
+                        Pick a color source first, then click anywhere on the artboard image. It helps you match text, brush, and shape colors quickly.
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => startColorPicker("textColor", "text color")}
+                          className="px-4 py-3 rounded-xl border border-[var(--border)] bg-white text-left hover:bg-[#f8f4ff]"
+                        >
+                          <p className="font-semibold text-sm">Pick Text Color</p>
+                          <p className="text-xs text-[var(--text-secondary)] mt-1">Match text with your image.</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => startColorPicker("textBackground", "text background")}
+                          className="px-4 py-3 rounded-xl border border-[var(--border)] bg-white text-left hover:bg-[#f8f4ff]"
+                        >
+                          <p className="font-semibold text-sm">Pick Text Background</p>
+                          <p className="text-xs text-[var(--text-secondary)] mt-1">Use image colors behind text.</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => startColorPicker("brushColor", "brush color")}
+                          className="px-4 py-3 rounded-xl border border-[var(--border)] bg-white text-left hover:bg-[#f8f4ff]"
+                        >
+                          <p className="font-semibold text-sm">Pick Brush Color</p>
+                          <p className="text-xs text-[var(--text-secondary)] mt-1">Great for drawing and retouch marks.</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => startColorPicker("shapeFill", "shape fill color")}
+                          className="px-4 py-3 rounded-xl border border-[var(--border)] bg-white text-left hover:bg-[#f8f4ff]"
+                        >
+                          <p className="font-semibold text-sm">Pick Shape Fill</p>
+                          <p className="text-xs text-[var(--text-secondary)] mt-1">Fill shapes with an exact sampled color.</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => startColorPicker("shapeStroke", "shape stroke color")}
+                          className="px-4 py-3 rounded-xl border border-[var(--border)] bg-white text-left hover:bg-[#f8f4ff] sm:col-span-2"
+                        >
+                          <p className="font-semibold text-sm">Pick Shape Stroke</p>
+                          <p className="text-xs text-[var(--text-secondary)] mt-1">Useful for borders, arrows, and outlines.</p>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {["rectangle", "circle", "arrow", "shape"].includes(settingsMode) && (
                     <div className="space-y-4">
                       <p className="text-sm text-[var(--text-secondary)] leading-7">
@@ -3802,59 +3895,15 @@ export default function QuickPhotoEditor() {
 
                 <div className="h-8 w-px bg-[var(--border)]" />
 
-                <button
-                  type="button"
-                  onClick={() => setPreviewZoom((current) => clampNumber(current - 0.1, 0.1, 8))}
-                  className="w-9 h-9 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
-                  title="Zoom out"
-                >
-                  <ZoomOut size={17} />
-                </button>
-
-                <input
-                  type="range"
-                  min="0.1"
-                  max="8"
-                  step="0.01"
-                  value={previewZoom}
-                  onChange={(event) => setPreviewZoom(Number(event.target.value))}
-                  className="w-36 accent-[var(--primary)]"
-                  title="Artboard zoom"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setPreviewZoom((current) => clampNumber(current + 0.1, 0.1, 8))}
-                  className="w-9 h-9 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
-                  title="Zoom in"
-                >
-                  <ZoomIn size={17} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPreviewZoom(1)}
-                  className="h-9 rounded-xl border border-[var(--border)] px-3 text-sm font-semibold hover:bg-[#f8f4ff]"
-                >
-                  100%
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPreviewZoom(0.75);
-                    setArtboardPan({ x: 0, y: 0 });
-                  }}
-                  className="h-9 rounded-xl border border-[var(--border)] px-3 text-sm font-semibold hover:bg-[#f8f4ff]"
-                >
-                  Fit
-                </button>
+                <div className="rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)]">
+                  Zoom from the bottom-right controls for precise editing
+                </div>
 
                 <div className="flex-1" />
 
                 <div className="hidden md:flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                   <Move size={15} />
-                  <span>Hand drags artboard • Alt + corner scales from center • Delete removes</span>
+                  <span>Arrow keys nudge items • Alt + corner scales from center • Delete removes</span>
                 </div>
 
                 <button
@@ -3994,36 +4043,6 @@ export default function QuickPhotoEditor() {
                 </div>
               </div>
 
-              {outputPreviewUrl && (
-                <div className="m-4 mt-0 border border-[var(--border)] rounded-2xl p-5 bg-white">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                      <h3 className="font-semibold">Final Preview</h3>
-                      <p className="text-sm text-[var(--text-secondary)] mt-1">
-                        Created in {(processingTimeMs / 1000).toFixed(1)}s •{" "}
-                        {formatBytes(lastOutputSize)}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => downloadBlob()}
-                      className="btn-primary inline-flex items-center justify-center gap-2"
-                    >
-                      <Download size={18} />
-                      Download Again
-                    </button>
-                  </div>
-
-                  <div className="mt-4 flex justify-center bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-4 overflow-auto">
-                    <img
-                      src={outputPreviewUrl}
-                      alt="Final edited preview"
-                      className="max-w-[280px] rounded-xl"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -4113,7 +4132,7 @@ function ColorInput({ label, value, onChange, disabled = false, onPick = null })
             title="Pick color from image"
             className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white inline-flex items-center justify-center hover:bg-[#f8f4ff] disabled:cursor-not-allowed"
           >
-            <Eye size={15} />
+            <Pipette size={15} />
           </button>
         )}
       </div>
