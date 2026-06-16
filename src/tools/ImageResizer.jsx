@@ -229,15 +229,33 @@ export default function ImageResizer() {
     };
   }, [backgroundColor, customBackground]);
 
-  const previewArtboardStyle = useMemo(() => {
-    const isLandscape = dimensions.width >= dimensions.height;
+  const previewSize = useMemo(() => {
+    const maxPreviewWidth = 900;
+    const maxPreviewHeight = 620;
+
+    const safeWidth = Math.max(1, Number(dimensions.width) || 1);
+    const safeHeight = Math.max(1, Number(dimensions.height) || 1);
+
+    const scale = clampNumber(
+      Math.min(maxPreviewWidth / safeWidth, maxPreviewHeight / safeHeight),
+      0.05,
+      8
+    );
 
     return {
-      width: isLandscape ? "min(100%, 900px)" : "min(100%, 520px)",
-      aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+      width: Math.max(120, Math.round(safeWidth * scale)),
+      height: Math.max(120, Math.round(safeHeight * scale)),
+    };
+  }, [dimensions]);
+
+  const previewArtboardStyle = useMemo(() => {
+    return {
+      width: `${previewSize.width}px`,
+      height: `${previewSize.height}px`,
+      maxWidth: "100%",
       ...artboardBackgroundStyle,
     };
-  }, [dimensions, artboardBackgroundStyle]);
+  }, [previewSize, artboardBackgroundStyle]);
 
   const imageBoxStyle = useMemo(() => {
     if (!imageData) return null;
@@ -319,7 +337,7 @@ export default function ImageResizer() {
         details: false,
       });
 
-      setSuccessMessage("Image loaded. Resize, drag to position, then download.");
+      setSuccessMessage("Image loaded and preview is ready. Resize, drag to position, then download.");
     } catch {
       setErrorMessage("Failed to load image. Please try another image.");
 
@@ -1024,6 +1042,7 @@ export default function ImageResizer() {
                           src={imageData.url}
                           alt={imageData.name}
                           draggable="false"
+                          onError={() => setErrorMessage("Preview could not display this image. Please try another image format.")}
                           className="absolute object-fill pointer-events-none select-none"
                           style={imageBoxStyle}
                         />
