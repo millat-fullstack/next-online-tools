@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Image as ImageIcon,
   Upload,
@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   Clock3,
   FileImage,
+  Loader2,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -301,6 +302,9 @@ export default function MotivationalQuoteImageMaker() {
   const [brandText, setBrandText] = useState("");
   const [brandColor, setBrandColor] = useState("#ffffff");
 
+  const [livePreviewDataUrl, setLivePreviewDataUrl] = useState("");
+  const [isPreviewRendering, setIsPreviewRendering] = useState(false);
+
   const [pngDataUrl, setPngDataUrl] = useState("");
   const [jpgDataUrl, setJpgDataUrl] = useState("");
   const [createdWidth, setCreatedWidth] = useState(0);
@@ -348,6 +352,68 @@ export default function MotivationalQuoteImageMaker() {
   const wordCount = useMemo(() => {
     return quoteText.trim() ? quoteText.trim().split(/\s+/).length : 0;
   }, [quoteText]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function renderLivePreview() {
+      if (!quoteText.trim()) {
+        setLivePreviewDataUrl("");
+        return;
+      }
+
+      setIsPreviewRendering(true);
+
+      try {
+        const result = await createQuoteImage();
+        if (!cancelled) {
+          setLivePreviewDataUrl(result.pngDataUrl);
+        }
+      } catch {
+        if (!cancelled) {
+          setLivePreviewDataUrl("");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsPreviewRendering(false);
+        }
+      }
+    }
+
+    const timer = window.setTimeout(renderLivePreview, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    quoteText,
+    authorText,
+    brandText,
+    brandColor,
+    selectedSize.width,
+    selectedSize.height,
+    backgroundMode,
+    gradientId,
+    solidColor,
+    backgroundImageDataUrl,
+    overlayColor,
+    overlayOpacity,
+    fontFamily,
+    fontWeight,
+    fontSize,
+    authorSize,
+    lineHeight,
+    textColor,
+    authorColor,
+    textAlign,
+    textPosition,
+    textShadow,
+    quoteMarks,
+    textBoxEnabled,
+    textBoxColor,
+    textBoxOpacity,
+  ]);
 
   const previewStyle = useMemo(() => {
     if (backgroundMode === "solid") {
@@ -724,16 +790,54 @@ export default function MotivationalQuoteImageMaker() {
     ctx.restore();
   }
 
-  function handleDownload(format) {
-    const dataUrl = format === "jpg" ? jpgDataUrl : pngDataUrl;
+  async function handleDownload(format) {
+    setError("");
+    setSuccess("");
+    setProgress(0);
+    setProcessingTimeMs(0);
 
-    if (!dataUrl) {
-      setError("Please create the final image first.");
+    if (!quoteText.trim()) {
+      setError("Please enter a motivational quote first.");
       return;
     }
 
-    const filename = `motivational-quote-${createdWidth}x${createdHeight}.${format}`;
-    downloadDataUrl(dataUrl, filename);
+    setIsCreating(true);
+
+    const processingDelay = getProcessingDelayMs(
+      selectedSize.width,
+      selectedSize.height,
+      Boolean(backgroundImageDataUrl)
+    );
+
+    setLastEstimatedTimeMs(processingDelay);
+
+    const startTime = performance.now();
+
+    try {
+      const processingDelayPromise = startSmartProgress(processingDelay);
+      const result = await createQuoteImage();
+      await processingDelayPromise;
+
+      setProgress(100);
+      setPngDataUrl(result.pngDataUrl);
+      setJpgDataUrl(result.jpgDataUrl);
+      setCreatedWidth(result.width);
+      setCreatedHeight(result.height);
+      setPngSize(result.pngSize);
+      setJpgSize(result.jpgSize);
+
+      const dataUrl = format === "jpg" ? result.jpgDataUrl : result.pngDataUrl;
+      const filename = `motivational-quote-${result.width}x${result.height}.${format}`;
+      downloadDataUrl(dataUrl, filename);
+
+      const actualTime = Math.max(1, Math.round(performance.now() - startTime));
+      setProcessingTimeMs(actualTime);
+      setSuccess(`Final ${format.toUpperCase()} image downloaded in ${(actualTime / 1000).toFixed(1)}s.`);
+    } catch {
+      setError("Could not create the final image. Please try again.");
+    } finally {
+      window.setTimeout(() => setIsCreating(false), 350);
+    }
   }
 
   function handleReset() {
@@ -772,6 +876,7 @@ export default function MotivationalQuoteImageMaker() {
     setBrandText("");
     setBrandColor("#ffffff");
 
+    setLivePreviewDataUrl("");
     setPngDataUrl("");
     setJpgDataUrl("");
     setCreatedWidth(0);
@@ -809,10 +914,10 @@ export default function MotivationalQuoteImageMaker() {
       </section>
 
       {/* TOOL BODY */}
-      <section className="card p-6 sm:p-8">
-        <div className="grid lg:grid-cols-2 gap-6">
+      <section className="card p-4 sm:p-6">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_430px] gap-5 lg:gap-6">
           {/* LEFT COLUMN */}
-          <div className="flex flex-col gap-5">
+          <div className="order-2 lg:order-1 flex flex-col gap-5">
             {/* TEXT INPUT */}
             <div className="border border-[var(--border)] rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -1297,7 +1402,7 @@ export default function MotivationalQuoteImageMaker() {
           </div>
 
           {/* RIGHT COLUMN */}
-          <div className="flex flex-col gap-5">
+          <div className="order-1 lg:order-2 lg:sticky lg:top-4 h-fit flex flex-col gap-5">
             {/* PREVIEW */}
             <div>
               <div className="flex justify-between items-start gap-3 mb-3">
@@ -1319,94 +1424,43 @@ export default function MotivationalQuoteImageMaker() {
                 </div>
               </div>
 
-              <div className="border border-[var(--border)] rounded-2xl p-5 bg-gray-50 min-h-[520px] flex items-center justify-center">
-                {pngDataUrl ? (
+              <div className="border border-[var(--border)] rounded-2xl p-3 sm:p-4 bg-gray-50 min-h-[320px] sm:min-h-[520px] flex items-center justify-center overflow-auto relative">
+                {isPreviewRendering && (
+                  <div className="absolute top-3 right-3 z-10 rounded-full bg-white/90 border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--primary)] shadow-sm">
+                    Updating...
+                  </div>
+                )}
+
+                {livePreviewDataUrl ? (
                   <div className="w-full text-center">
-                    <div className="inline-block bg-white rounded-2xl border border-[var(--border)] p-3 shadow-sm">
+                    <div className="inline-block bg-white rounded-2xl border border-[var(--border)] p-2 sm:p-3 shadow-sm">
                       <img
-                        src={pngDataUrl}
-                        alt="Created motivational quote"
+                        src={livePreviewDataUrl}
+                        alt="Live motivational quote preview"
                         className="max-w-full h-auto rounded-xl"
-                        style={{
-                          maxHeight: 440,
-                        }}
+                        style={{ maxHeight: "min(68vh, 520px)" }}
                       />
                     </div>
 
                     <p className="text-sm text-[var(--text-secondary)] mt-4">
-                      Final image is ready to download.
+                      This live preview uses the same renderer as the exported image.
                     </p>
                   </div>
                 ) : (
-                  <div className="w-full max-w-[360px] text-center">
-                    <div
-                      className="relative mx-auto rounded-2xl overflow-hidden border border-[var(--border)] shadow-sm aspect-square flex items-center justify-center p-8"
-                      style={previewStyle}
-                    >
-                      <div
-                        className={`w-full ${
-                          textAlign === "left"
-                            ? "text-left"
-                            : textAlign === "right"
-                              ? "text-right"
-                              : "text-center"
-                        }`}
-                      >
-                        <p
-                          className="font-bold leading-tight"
-                          style={{
-                            color: textColor,
-                            fontFamily,
-                            textShadow: textShadow
-                              ? "0 3px 18px rgba(0,0,0,0.45)"
-                              : "none",
-                          }}
-                        >
-                          {quoteMarks ? "“" : ""}
-                          {quoteText || "Your quote will appear here"}
-                          {quoteMarks ? "”" : ""}
-                        </p>
-
-                        {authorText && (
-                          <p
-                            className="mt-5 text-sm font-semibold"
-                            style={{
-                              color: authorColor,
-                              fontFamily,
-                            }}
-                          >
-                            — {authorText}
-                          </p>
-                        )}
-
-                        {brandText && (
-                          <p
-                            className="mt-6 text-xs font-semibold"
-                            style={{ color: brandColor }}
-                          >
-                            {brandText}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <p className="text-sm text-[var(--text-secondary)] mt-4">
-                      Click “Create Final Image” to generate the downloadable
-                      version.
-                    </p>
+                  <div className="text-center text-sm text-[var(--text-secondary)] px-4">
+                    Enter a quote to prepare the live preview.
                   </div>
                 )}
-              </div>
-            </div>
+              </div>            </div>
 
             {/* DOWNLOAD BUTTONS */}
             <div className="grid sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => handleDownload("png")}
-                disabled={!pngDataUrl || isCreating}
+                disabled={isCreating}
                 className={`btn-primary inline-flex items-center justify-center gap-2 ${
-                  !pngDataUrl || isCreating ? "opacity-50 cursor-not-allowed" : ""
+                  isCreating ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
                 <Download size={18} />
@@ -1416,9 +1470,9 @@ export default function MotivationalQuoteImageMaker() {
               <button
                 type="button"
                 onClick={() => handleDownload("jpg")}
-                disabled={!jpgDataUrl || isCreating}
+                disabled={isCreating}
                 className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                  !jpgDataUrl || isCreating ? "opacity-50 cursor-not-allowed" : ""
+                  isCreating ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
                 <Download size={18} />

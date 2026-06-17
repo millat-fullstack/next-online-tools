@@ -1,5 +1,14 @@
 export const blogs = [
   {
+    "title": "How to Extract Links from Google Sheets Online for Free",
+    "slug": "how-to-extract-links-from-google-sheets-online-for-free",
+    "date": "2026-06-06",
+    "category": "SEO Tools",
+    "excerpt": "Step-by-step guide on how to extract links from Google Sheets online for free using simple tools without any software installation.",
+    "image": "/images/extract-links-google-sheets.png",
+    "pageFile": "how-to-extract-links-from-google-sheets-online-for-free"
+  },
+  {
     "title": "Top Reasons to Add Geotags to Your Photos Online",
     "slug": "top-reasons-to-add-geotags-to-your-photos-online",
     "date": "2026-06-06",
@@ -7,6 +16,15 @@ export const blogs = [
     "excerpt": "Discover the top reasons to add geotags to your photos online and learn how location data can help organize images for business, travel, real estate, local SEO, and digital records.",
     "image": "/images/reasons-to-add-geotags-to-photos.png",
     "pageFile": "top-reasons-to-add-geotags-to-your-photos-online"
+  },
+  {
+    "title": "What Is a Google Sheet Link Extractor and How Does It Work?",
+    "slug": "what-is-a-google-sheet-link-extractor-and-how-does-it-work",
+    "date": "2026-06-06",
+    "category": "SEO Tools",
+    "excerpt": "Learn what a Google Sheet Link Extractor is, how it works, and how it helps you quickly extract URLs from spreadsheets for SEO, marketing, and data analysis.",
+    "image": "/images/google-sheet-link-extractor.png",
+    "pageFile": "what-is-a-google-sheet-link-extractor-and-how-does-it-work"
   },
   {
     "title": "What Is Google Geotagging and How Does It Work?",
@@ -23,7 +41,7 @@ export const blogs = [
     "date": "2026-06-05",
     "category": "PDF Tools",
     "excerpt": "Learn how to merge and split PDF files online without installing software. Combine multiple PDFs or separate PDF pages easily using free browser-based tools.",
-    "image": "/images/merge-split-pdf-online.png",
+    "image": "/images/how-to-merge-and-split-pdf-files-online-without-installing-software.png",
     "pageFile": "how-to-merge-and-split-pdf-files-online-without-installing-software"
   },
   {
@@ -41,7 +59,7 @@ export const blogs = [
     "date": "2026-06-05",
     "category": "Online Tools",
     "excerpt": "Discover why NextOnlineTools is a simple, fast, and free platform for everyday digital tasks like image editing, PDF conversion, text tools, and more.",
-    "image": "/images/why-choose-nextonlinetools.png",
+    "image": "/images/why-choose-nextonlinetools-for-your-digital-works.png",
     "pageFile": "why-choose-nextonlinetools-for-your-digital-works"
   },
   {
@@ -59,7 +77,7 @@ export const blogs = [
     "date": "2026-06-03",
     "category": "Image Tools",
     "excerpt": "Learn how to crop an image online for Facebook, Instagram, LinkedIn, Pinterest, YouTube, TikTok, and other social media platforms.",
-    "image": "/images/crop-image-social-media.png",
+    "image": "/images/how-to-crop-an-image-online-for-social-media.png",
     "pageFile": "how-to-crop-an-image-online-for-social-media"
   },
   {
@@ -68,7 +86,7 @@ export const blogs = [
     "date": "2026-06-03",
     "category": "Image Tools",
     "excerpt": "Learn how to remove the background from an image online quickly for product photos, profile pictures, social media posts, and designs.",
-    "image": "/images/remove-background-online.png",
+    "image": "/images/how-to-remove-background-from-an-image-online.png",
     "pageFile": "how-to-remove-background-from-an-image-online"
   },
   {
@@ -131,7 +149,7 @@ export const blogs = [
     "date": "2026-05-29",
     "category": "Productivity Tools",
     "excerpt": "Compare online tools and downloadable software to choose the best option for quick tasks, safety, privacy, offline use, and productivity.",
-    "image": "/images/online-tools-vs-downloadable-software.jpg",
+    "image": "/images/online-tools-vs-downloadable-software.png",
     "pageFile": "OnlineToolsVsDownloadableSoftware"
   },
   {
@@ -140,7 +158,7 @@ export const blogs = [
     "date": "2026-05-12",
     "category": "Image Tools",
     "excerpt": "Create passport size photos online for visa, ID, job application, school forms, and documents using the free Passport Size Photo Maker by Next Online Tools.",
-    "image": "/images/passport-photo-maker.jpg",
+    "image": "/images/passport-photo-maker.png",
     "pageFile": "best-free-online-passport-photo-maker"
   },
   {
