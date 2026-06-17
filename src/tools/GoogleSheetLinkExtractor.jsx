@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Link2,
   Copy,
@@ -9,8 +9,13 @@ import {
   AlertCircle,
   Download,
   FileSpreadsheet,
+  Clock3,
+  Loader2,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
+
+const MIN_PROCESSING_TIME_MS = 700;
+const MAX_PROCESSING_TIME_MS = 9000;
 
 export const toolData = {
   title: "Google Sheet Link Extractor",
@@ -34,12 +39,95 @@ export default function GoogleSheetLinkExtractor() {
   const [extractAllLinks, setExtractAllLinks] = useState(true);
   const [preserveLayout, setPreserveLayout] = useState(true);
 
-  const parsedResult = useMemo(() => {
-    return extractLinksFromClipboard(
-      sourceData.html,
-      sourceData.text,
-      extractAllLinks
-    );
+  const [parsedResult, setParsedResult] = useState({
+    matrix: [],
+    diagnostics: { htmlLinks: 0, textLinks: 0, mergedLinks: 0 },
+  });
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingTimeMs, setProcessingTimeMs] = useState(0);
+  const [estimatedProcessingTimeMs, setEstimatedProcessingTimeMs] = useState(0);
+
+  useEffect(() => {
+    if (!sourceData.html && !sourceData.text) {
+      setParsedResult({
+        matrix: [],
+        diagnostics: { htmlLinks: 0, textLinks: 0, mergedLinks: 0 },
+      });
+      setIsProcessing(false);
+      setProcessingProgress(0);
+      setProcessingTimeMs(0);
+      setEstimatedProcessingTimeMs(0);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let finishTimer = null;
+    const startTime = performance.now();
+    const estimate = estimateProcessingTimeMs(sourceData);
+
+    setIsProcessing(true);
+    setProcessingProgress(6);
+    setProcessingTimeMs(0);
+    setEstimatedProcessingTimeMs(estimate);
+    setParsedResult({
+      matrix: [],
+      diagnostics: { htmlLinks: 0, textLinks: 0, mergedLinks: 0 },
+    });
+
+    const progressTimer = window.setInterval(() => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(92, Math.round((elapsed / estimate) * 92));
+      setProcessingProgress(Math.max(6, progress));
+    }, 90);
+
+    const parseTimer = window.setTimeout(() => {
+      try {
+        const result = extractLinksFromClipboard(
+          sourceData.html,
+          sourceData.text,
+          extractAllLinks
+        );
+
+        const elapsed = performance.now() - startTime;
+        const remaining = Math.max(0, estimate - elapsed);
+
+        finishTimer = window.setTimeout(() => {
+          if (cancelled) return;
+
+          const actualTime = Math.max(
+            MIN_PROCESSING_TIME_MS,
+            Math.round(performance.now() - startTime)
+          );
+
+          setParsedResult(result);
+          setProcessingTimeMs(actualTime);
+          setProcessingProgress(100);
+          setIsProcessing(false);
+
+          window.setTimeout(() => {
+            if (!cancelled) setProcessingProgress(0);
+          }, 800);
+        }, remaining);
+      } catch {
+        if (cancelled) return;
+
+        setParsedResult({
+          matrix: [],
+          diagnostics: { htmlLinks: 0, textLinks: 0, mergedLinks: 0 },
+        });
+        setProcessingTimeMs(Math.round(performance.now() - startTime));
+        setProcessingProgress(0);
+        setIsProcessing(false);
+      }
+    }, 30);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(progressTimer);
+      window.clearTimeout(parseTimer);
+      if (finishTimer) window.clearTimeout(finishTimer);
+    };
   }, [sourceData.html, sourceData.text, extractAllLinks]);
 
   const exportMatrix = useMemo(() => {
@@ -76,7 +164,7 @@ export default function GoogleSheetLinkExtractor() {
     return { rows, columns, linksFound, cellsWithLinks };
   }, [parsedResult.matrix]);
 
-  const hasOutput = Boolean(outputText);
+  const hasOutput = Boolean(outputText) && !isProcessing;
   const hasPastedData = Boolean(sourceData.html || sourceData.text);
 
   function handlePaste(event) {
@@ -90,6 +178,14 @@ export default function GoogleSheetLinkExtractor() {
     setCopySuccess(false);
     setCsvSuccess(false);
     setExcelSuccess(false);
+    setParsedResult({
+      matrix: [],
+      diagnostics: { htmlLinks: 0, textLinks: 0, mergedLinks: 0 },
+    });
+    setIsProcessing(false);
+    setProcessingProgress(0);
+    setProcessingTimeMs(0);
+    setEstimatedProcessingTimeMs(0);
 
     if (pasteBoxRef.current) {
       pasteBoxRef.current.innerText =
@@ -144,6 +240,14 @@ export default function GoogleSheetLinkExtractor() {
     setCopySuccess(false);
     setCsvSuccess(false);
     setExcelSuccess(false);
+    setParsedResult({
+      matrix: [],
+      diagnostics: { htmlLinks: 0, textLinks: 0, mergedLinks: 0 },
+    });
+    setIsProcessing(false);
+    setProcessingProgress(0);
+    setProcessingTimeMs(0);
+    setEstimatedProcessingTimeMs(0);
 
     if (pasteBoxRef.current) {
       pasteBoxRef.current.innerText = "";
@@ -251,6 +355,45 @@ export default function GoogleSheetLinkExtractor() {
               </label>
             </div>
 
+            {(isProcessing || processingTimeMs > 0) && (
+              <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    {isProcessing ? (
+                      <Loader2 size={18} className="animate-spin text-[var(--primary)]" />
+                    ) : (
+                      <Clock3 size={18} className="text-[var(--primary)]" />
+                    )}
+                    <p className="font-semibold text-sm">
+                      {isProcessing ? "Processing pasted data..." : "Processing completed"}
+                    </p>
+                  </div>
+
+                  <span className="text-xs font-bold text-[var(--primary)]">
+                    {isProcessing
+                      ? `Est. ${(estimatedProcessingTimeMs / 1000).toFixed(1)}s`
+                      : `${(processingTimeMs / 1000).toFixed(1)}s`}
+                  </span>
+                </div>
+
+                {isProcessing && (
+                  <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                    <div
+                      className="h-full bg-[var(--primary)] transition-all duration-200"
+                      style={{ width: `${processingProgress}%` }}
+                    />
+                  </div>
+                )}
+
+                {!isProcessing && (
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Processed {stats.rows} row{stats.rows === 1 ? "" : "s"} and
+                    detected {stats.linksFound} real link{stats.linksFound === 1 ? "" : "s"}.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={resetTool} className="btn-secondary flex-1">
                 <RotateCcw size={18} />
@@ -265,7 +408,8 @@ export default function GoogleSheetLinkExtractor() {
               />
 
               <p className="text-sm text-blue-800">
-                This tool checks rich HTML, hidden anchor links, pasted text,
+                This tool checks rich HTML, Google Sheets table cells, anchor tags,
+                data attributes, HYPERLINK formulas, redirect links, pasted text,
                 and embedded URLs. It runs only in your browser and does not use
                 any Google API.
               </p>
@@ -291,9 +435,9 @@ export default function GoogleSheetLinkExtractor() {
 
                 <button
                   onClick={copyToClipboard}
-                  disabled={!hasOutput}
+                  disabled={!hasOutput || isProcessing}
                   className={`inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
-                    hasOutput
+                    hasOutput && !isProcessing
                       ? copySuccess
                         ? "bg-green-50 text-green-700 border-green-200"
                         : "bg-white text-[var(--primary)] border-[var(--primary)] hover:bg-[var(--primary)]/5"
@@ -307,15 +451,19 @@ export default function GoogleSheetLinkExtractor() {
               </div>
 
               <textarea
-                value={outputText}
+                value={isProcessing ? "" : outputText}
                 readOnly
                 rows="13"
                 className="w-full p-4 border border-[var(--border)] rounded-2xl outline-none bg-gray-50 resize-none font-mono text-sm"
-                placeholder="Extracted links will appear here..."
+                placeholder={
+                  isProcessing
+                    ? "Processing pasted Google Sheets links..."
+                    : "Extracted links will appear here..."
+                }
               />
             </div>
 
-            {!hasOutput && (
+            {!hasOutput && !isProcessing && (
               <div className="text-center py-8 border border-dashed border-[var(--border)] rounded-2xl bg-gray-50">
                 <ClipboardPaste size={36} className="mx-auto mb-3 text-gray-300" />
                 <p className="text-[var(--text-secondary)]">
@@ -324,7 +472,7 @@ export default function GoogleSheetLinkExtractor() {
               </div>
             )}
 
-            {hasOutput && (
+            {hasOutput && !isProcessing && (
               <>
                 <div className="grid sm:grid-cols-3 gap-3">
                   <button onClick={copyToClipboard} className="btn-primary">
@@ -433,41 +581,79 @@ function PreviewTable({ matrix }) {
 
 /* ---------------- Extractor Logic ---------------- */
 
+function estimateProcessingTimeMs({ html, text }) {
+  const raw = `${html || ""}\n${text || ""}`;
+  const characters = raw.length;
+  const rows = Math.max(1, (text || "").split(/\r?\n/).filter(Boolean).length);
+  const possibleLinks =
+    (raw.match(/https?:\/\/|www\.|mailto:|tel:|HYPERLINK\s*\(/gi) || []).length;
+
+  const estimated =
+    MIN_PROCESSING_TIME_MS +
+    characters * 0.035 +
+    rows * 12 +
+    possibleLinks * 40;
+
+  return clampNumber(
+    Math.round(estimated),
+    MIN_PROCESSING_TIME_MS,
+    MAX_PROCESSING_TIME_MS
+  );
+}
+
 function extractLinksFromClipboard(html, text, extractAllLinks) {
-  const matrices = [];
+  const htmlMatrix = html ? extractLinksFromHtmlTable(html, extractAllLinks) : [];
+  const textMatrix = text ? extractLinksFromPlainText(text, extractAllLinks) : [];
 
-  if (html) {
-    const htmlMatrix = extractLinksFromHtmlTable(html, extractAllLinks);
+  const htmlLinks = getAllLinksFromMatrix(htmlMatrix).length;
+  const textLinks = getAllLinksFromMatrix(textMatrix).length;
 
-    if (htmlMatrix.length) {
-      matrices.push(htmlMatrix);
-    }
-  }
-
-  if (text) {
-    const textMatrix = extractLinksFromPlainText(text, extractAllLinks);
-
-    if (textMatrix.length) {
-      matrices.push(textMatrix);
-    }
-  }
-
-  if (!matrices.length) {
-    return { matrix: [] };
-  }
-
-  const bestMatrix = matrices.sort((a, b) => {
-    const bLinks = getAllLinksFromMatrix(b).length;
-    const aLinks = getAllLinksFromMatrix(a).length;
-
-    if (bLinks !== aLinks) return bLinks - aLinks;
-
-    return b.length - a.length;
-  })[0];
+  const mergedMatrix = mergeMatricesByCell(
+    htmlMatrix,
+    textMatrix,
+    extractAllLinks
+  );
+  const normalizedMatrix = normalizeMatrix(mergedMatrix);
+  const mergedLinks = getAllLinksFromMatrix(normalizedMatrix).length;
 
   return {
-    matrix: normalizeMatrix(bestMatrix),
+    matrix: normalizedMatrix,
+    diagnostics: {
+      htmlLinks,
+      textLinks,
+      mergedLinks,
+    },
   };
+}
+
+function mergeMatricesByCell(htmlMatrix, textMatrix, extractAllLinks) {
+  if (!htmlMatrix.length && !textMatrix.length) return [];
+
+  const maxRows = Math.max(htmlMatrix.length, textMatrix.length);
+  const output = [];
+
+  for (let rowIndex = 0; rowIndex < maxRows; rowIndex += 1) {
+    const htmlRow = htmlMatrix[rowIndex] || [];
+    const textRow = textMatrix[rowIndex] || [];
+    const maxColumns = Math.max(htmlRow.length, textRow.length);
+    const row = [];
+
+    for (let colIndex = 0; colIndex < maxColumns; colIndex += 1) {
+      const htmlLinks = getLinksFromCell(htmlRow[colIndex] || "");
+      const textLinks = getLinksFromCell(textRow[colIndex] || "");
+      const mergedLinks = uniqueLinks([...htmlLinks, ...textLinks]);
+
+      row.push(formatCellLinks(mergedLinks, extractAllLinks));
+    }
+
+    output.push(row);
+  }
+
+  const totalLinks = getAllLinksFromMatrix(output).length;
+
+  if (totalLinks > 0) return output;
+
+  return htmlMatrix.length ? htmlMatrix : textMatrix;
 }
 
 function extractLinksFromHtmlTable(html, extractAllLinks) {
@@ -521,11 +707,13 @@ function extractLinksFromElement(element, extractAllLinks) {
   if (!element) return "";
 
   const candidates = [];
-
   const anchors = Array.from(element.querySelectorAll("a[href]"));
+
   anchors.forEach((anchor) => {
     candidates.push(anchor.getAttribute("href") || "");
     candidates.push(anchor.textContent || "");
+    candidates.push(anchor.getAttribute("title") || "");
+    candidates.push(anchor.getAttribute("aria-label") || "");
   });
 
   const nodes = [element, ...Array.from(element.querySelectorAll("*"))];
@@ -539,31 +727,45 @@ function extractLinksFromElement(element, extractAllLinks) {
         name.includes("href") ||
         name.includes("url") ||
         name.includes("link") ||
+        name.includes("formula") ||
         name.includes("data") ||
         name.includes("title") ||
         name.includes("aria") ||
-        value.includes("http") ||
-        value.includes("www.") ||
-        value.includes("mailto:") ||
-        value.includes("tel:")
+        hasLinkSignal(value)
       ) {
         candidates.push(value);
       }
     });
   });
 
+  if (typeof document !== "undefined" && typeof NodeFilter !== "undefined") {
+    try {
+      const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_COMMENT
+      );
+
+      let comment = walker.nextNode();
+
+      while (comment) {
+        candidates.push(comment.nodeValue || "");
+        comment = walker.nextNode();
+      }
+    } catch {
+      // Browser may not allow comment scanning in pasted fragments.
+    }
+  }
+
   candidates.push(element.textContent || "");
 
   const allLinks = uniqueLinks(
     candidates
       .flatMap((candidate) => extractLinksFromValue(candidate))
-      .map(cleanUrl)
+      .map((item) => cleanUrl(item))
       .filter(Boolean)
   );
 
-  if (!allLinks.length) return "";
-
-  return extractAllLinks ? allLinks.join(" | ") : allLinks[0];
+  return formatCellLinks(allLinks, extractAllLinks);
 }
 
 function extractLinksFromPlainText(text, extractAllLinks) {
@@ -573,12 +775,12 @@ function extractLinksFromPlainText(text, extractAllLinks) {
     .map((row) =>
       row.split("\t").map((cell) => {
         const links = uniqueLinks(
-          extractLinksFromValue(cell).map(cleanUrl).filter(Boolean)
+          extractLinksFromValue(cell)
+            .map((item) => cleanUrl(item))
+            .filter(Boolean)
         );
 
-        if (!links.length) return "";
-
-        return extractAllLinks ? links.join(" | ") : links[0];
+        return formatCellLinks(links, extractAllLinks);
       })
     );
 }
@@ -586,46 +788,119 @@ function extractLinksFromPlainText(text, extractAllLinks) {
 function extractLinksFromValue(value) {
   if (!value) return [];
 
-  const valuesToCheck = uniqueLinks([
-    String(value),
-    decodeHtmlEntities(String(value)),
-    safeDecodeURIComponent(String(value)),
-    safeDecodeURIComponent(decodeHtmlEntities(String(value))),
+  const raw = String(value);
+
+  const variants = uniqueLinks([
+    raw,
+    normalizeEscapedText(raw),
+    decodeHtmlEntities(raw),
+    decodeHtmlEntities(normalizeEscapedText(raw)),
+    safeDecodeRepeated(raw),
+    safeDecodeRepeated(decodeHtmlEntities(raw)),
+    safeDecodeRepeated(normalizeEscapedText(raw)),
   ]);
 
-  return valuesToCheck.flatMap((item) => findUrls(item));
+  const collected = [];
+
+  variants.forEach((variant) => {
+    collected.push(...extractHyperlinkFormulaTargets(variant));
+    collected.push(...extractStringsFromJsonLike(variant));
+    collected.push(...findUrls(variant));
+  });
+
+  return uniqueLinks(collected);
+}
+
+function extractHyperlinkFormulaTargets(value) {
+  const text = String(value || "");
+  const links = [];
+
+  const hyperlinkRegex =
+    /HYPERLINK\s*\(\s*(?:"([^"]+)"|'([^']+)'|([^,;)]+))/gi;
+
+  let match = hyperlinkRegex.exec(text);
+
+  while (match) {
+    const target = match[1] || match[2] || match[3] || "";
+    links.push(target.trim());
+    match = hyperlinkRegex.exec(text);
+  }
+
+  return links;
+}
+
+function extractStringsFromJsonLike(value) {
+  const text = String(value || "").trim();
+
+  if (!text || (!text.startsWith("{") && !text.startsWith("["))) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    const strings = [];
+
+    function walk(item) {
+      if (typeof item === "string") {
+        if (hasLinkSignal(item)) strings.push(item);
+        return;
+      }
+
+      if (Array.isArray(item)) {
+        item.forEach(walk);
+        return;
+      }
+
+      if (item && typeof item === "object") {
+        Object.values(item).forEach(walk);
+      }
+    }
+
+    walk(parsed);
+
+    return strings.flatMap((item) => findUrls(item));
+  } catch {
+    return [];
+  }
 }
 
 function findUrls(value) {
   if (!value) return [];
 
-  const urlRegex =
-    /(?:https?:\/\/|www\.)[^\s"'<>]+|(?:mailto:|tel:)[^\s"'<>]+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s"'<>]*)?/gi;
+  const text = String(value);
 
-  const matches = String(value).match(urlRegex) || [];
+  const urlRegex =
+    /(?:https?:\/\/|ftp:\/\/|www\.|mailto:|tel:)[^\s"'<>]+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/[^\s"'<>]*)?/gi;
+
+  const matches = text.match(urlRegex) || [];
 
   return matches.filter((item) => {
     const lower = item.toLowerCase();
 
-    if (lower.includes("@") && !lower.startsWith("mailto:")) return true;
-    if (lower.startsWith("http")) return true;
+    if (lower.startsWith("http://")) return true;
+    if (lower.startsWith("https://")) return true;
+    if (lower.startsWith("ftp://")) return true;
     if (lower.startsWith("www.")) return true;
     if (lower.startsWith("mailto:")) return true;
     if (lower.startsWith("tel:")) return true;
+    if (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(item)) return true;
 
-    return /(?:^|\.)[a-z]{2,}(?:\/|$)/i.test(lower);
+    return isBareDomain(item);
   });
 }
 
-function cleanUrl(url) {
+function cleanUrl(url, depth = 0) {
   if (!url) return "";
 
-  let clean = decodeHtmlEntities(String(url))
+  let clean = normalizeEscapedText(decodeHtmlEntities(String(url)))
     .trim()
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .replace(/[),.;\]]+$/g, "");
+    .replace(/^[<("'[\s]+/g, "")
+    .replace(/[>)"'\]\s]+$/g, "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "");
 
-  clean = safeDecodeURIComponent(clean);
+  clean = fixEncodedProtocol(clean);
+  clean = safeDecodeRepeated(clean);
+  clean = trimTrailingUrlPunctuation(clean);
 
   if (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(clean)) {
     clean = `mailto:${clean}`;
@@ -643,7 +918,13 @@ function cleanUrl(url) {
     clean = `https://${clean}`;
   }
 
-  clean = extractRedirectTarget(clean) || clean;
+  if (depth < 2) {
+    const redirectTarget = extractRedirectTarget(clean);
+
+    if (redirectTarget && redirectTarget !== clean) {
+      clean = cleanUrl(redirectTarget, depth + 1);
+    }
+  }
 
   if (!isUsefulLink(clean)) return "";
 
@@ -656,21 +937,25 @@ function extractRedirectTarget(url) {
 
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
+
     const target =
       parsed.searchParams.get("q") ||
       parsed.searchParams.get("url") ||
       parsed.searchParams.get("u") ||
-      parsed.searchParams.get("target");
+      parsed.searchParams.get("target") ||
+      parsed.searchParams.get("redirect") ||
+      parsed.searchParams.get("to");
 
     if (
       target &&
       (host.includes("google.") ||
         host.includes("facebook.") ||
         host.includes("linkedin.") ||
-        host.includes("l.instagram."))
+        host.includes("instagram.") ||
+        host.includes("l.facebook.") ||
+        host.includes("lnkd.in"))
     ) {
-      const cleanedTarget = cleanUrl(target);
-      return cleanedTarget || "";
+      return target;
     }
   } catch {
     return "";
@@ -679,12 +964,38 @@ function extractRedirectTarget(url) {
   return "";
 }
 
+function hasLinkSignal(value) {
+  const text = String(value || "");
+
+  return (
+    /https?:\/\//i.test(text) ||
+    /https?:%2f%2f/i.test(text) ||
+    /www\./i.test(text) ||
+    /mailto:/i.test(text) ||
+    /tel:/i.test(text) ||
+    /HYPERLINK\s*\(/i.test(text) ||
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text)
+  );
+}
+
 function isUsefulLink(value) {
   if (!value) return false;
 
   const lower = value.toLowerCase();
 
-  if (lower.startsWith("http://") || lower.startsWith("https://")) return true;
+  if (
+    lower.startsWith("javascript:") ||
+    lower.startsWith("data:") ||
+    lower.startsWith("file:") ||
+    lower.startsWith("blob:") ||
+    lower.startsWith("chrome:")
+  ) {
+    return false;
+  }
+
+  if (lower.startsWith("http://")) return true;
+  if (lower.startsWith("https://")) return true;
+  if (lower.startsWith("ftp://")) return true;
   if (lower.startsWith("mailto:")) return true;
   if (lower.startsWith("tel:")) return true;
 
@@ -692,7 +1003,16 @@ function isUsefulLink(value) {
 }
 
 function isBareDomain(value) {
-  return /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/.*)?$/i.test(value);
+  const text = String(value || "").trim();
+
+  if (!/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/.*)?$/i.test(text)) {
+    return false;
+  }
+
+  if (/^\d+\.\d+$/.test(text)) return false;
+  if (text.includes("..")) return false;
+
+  return true;
 }
 
 function getLinksFromCell(cell) {
@@ -702,7 +1022,7 @@ function getLinksFromCell(cell) {
     String(cell)
       .split(" | ")
       .flatMap((part) => extractLinksFromValue(part))
-      .map(cleanUrl)
+      .map((item) => cleanUrl(item))
       .filter(Boolean)
   );
 }
@@ -716,8 +1036,34 @@ function getAllLinksFromMatrix(matrix) {
   );
 }
 
+function formatCellLinks(links, extractAllLinks) {
+  const cleanLinks = uniqueLinks(
+    (links || []).map((item) => cleanUrl(item)).filter(Boolean)
+  );
+
+  if (!cleanLinks.length) return "";
+
+  return extractAllLinks ? cleanLinks.join(" | ") : cleanLinks[0];
+}
+
 function uniqueLinks(links) {
-  return Array.from(new Set((links || []).filter(Boolean)));
+  const seen = new Set();
+  const output = [];
+
+  (links || []).forEach((link) => {
+    const value = String(link || "").trim();
+
+    if (!value) return;
+
+    const key = value.toLowerCase();
+
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    output.push(value);
+  });
+
+  return output;
 }
 
 function normalizeMatrix(matrix) {
@@ -800,21 +1146,76 @@ function downloadTextFile({ content, fileName, mimeType }) {
   URL.revokeObjectURL(url);
 }
 
-function decodeHtmlEntities(value) {
+function normalizeEscapedText(value) {
   return String(value || "")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+    .replace(/\\u0026/gi, "&")
+    .replace(/\\u003d/gi, "=")
+    .replace(/\\u003c/gi, "<")
+    .replace(/\\u003e/gi, ">")
+    .replace(/\\\//g, "/")
+    .replace(/&amp;/g, "&");
 }
 
-function safeDecodeURIComponent(value) {
-  try {
-    return decodeURIComponent(String(value || ""));
-  } catch {
-    return String(value || "");
+function fixEncodedProtocol(value) {
+  return String(value || "")
+    .replace(/^https:%2f%2f/i, "https://")
+    .replace(/^http:%2f%2f/i, "http://")
+    .replace(/^ftp:%2f%2f/i, "ftp://");
+}
+
+function trimTrailingUrlPunctuation(value) {
+  let output = String(value || "");
+
+  while (/[),.;\]}]$/.test(output)) {
+    const last = output.slice(-1);
+
+    if (last === ")" && countCharacter(output, "(") >= countCharacter(output, ")")) break;
+    if (last === "]" && countCharacter(output, "[") >= countCharacter(output, "]")) break;
+    if (last === "}" && countCharacter(output, "{") >= countCharacter(output, "}")) break;
+
+    output = output.slice(0, -1);
   }
+
+  return output;
+}
+
+function countCharacter(value, character) {
+  return String(value || "").split(character).length - 1;
+}
+
+function decodeHtmlEntities(value) {
+  if (!value) return "";
+
+  const map = {
+    "&amp;": "&",
+    "&quot;": '"',
+    "&#39;": "'",
+    "&#x27;": "'",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&nbsp;": " ",
+  };
+
+  return String(value).replace(
+    /&(amp|quot|lt|gt|nbsp);|&#39;|&#x27;/g,
+    (match) => map[match] || match
+  );
+}
+
+function safeDecodeRepeated(value) {
+  let output = String(value || "");
+
+  for (let index = 0; index < 2; index += 1) {
+    try {
+      const decoded = decodeURIComponent(output);
+      if (decoded === output) break;
+      output = decoded;
+    } catch {
+      break;
+    }
+  }
+
+  return output;
 }
 
 function escapeHtml(value) {
@@ -824,6 +1225,14 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function clampNumber(value, min, max) {
+  const number = Number(value);
+
+  if (Number.isNaN(number)) return min;
+
+  return Math.min(max, Math.max(min, number));
 }
 
 function fallbackCopy(text) {
