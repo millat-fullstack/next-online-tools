@@ -8,7 +8,7 @@ export const blogData = {
   category: "Online Tools",
   excerpt:
     "Discover why NextOnlineTools is a simple, fast, and free platform for everyday digital tasks like image editing, PDF conversion, text tools, and more.",
-  image: "/images/why-choose-nextonlinetools.png",
+  image: "/images/why-choose-nextonlinetools-for-your-digital-works.png",
 };
 
 export default function WhyChooseNextOnlineToolsForYourDigitalWorks() {

@@ -8,7 +8,7 @@ export const blogData = {
   category: "Productivity Tools",
   excerpt:
     "Compare online tools and downloadable software to choose the best option for quick tasks, safety, privacy, offline use, and productivity.",
-  image: "/images/online-tools-vs-downloadable-software.jpg"
+  image: "/images/online-tools-vs-downloadable-software.png"
 };
 
 export default function OnlineToolsVsDownloadableSoftware() {

@@ -7,7 +7,7 @@ export const blogData = {
   category: "Image Tools",
   excerpt:
     "Learn how to remove the background from an image online quickly for product photos, profile pictures, social media posts, and designs.",
-  image: "/images/remove-background-online.png",
+  image: "/images/how-to-remove-background-from-an-image-online.png",
 };
 
 export default function HowToRemoveBackgroundFromAnImageOnline() {

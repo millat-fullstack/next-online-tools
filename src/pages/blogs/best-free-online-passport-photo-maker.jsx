@@ -8,7 +8,7 @@ export const blogData = {
   category: "Image Tools",
   excerpt:
     "Create passport size photos online for visa, ID, job application, school forms, and documents using the free Passport Size Photo Maker by Next Online Tools.",
-  image: "/images/passport-photo-maker.jpg"
+  image: "/images/passport-photo-maker.png"
 };
 
 export default function BestFreeOnlinePassportPhotoMaker() {

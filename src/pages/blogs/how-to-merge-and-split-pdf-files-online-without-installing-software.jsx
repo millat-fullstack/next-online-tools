@@ -8,7 +8,7 @@ export const blogData = {
   category: "PDF Tools",
   excerpt:
     "Learn how to merge and split PDF files online without installing software. Combine multiple PDFs or separate PDF pages easily using free browser-based tools.",
-  image: "/images/merge-split-pdf-online.png",
+  image: "/images/how-to-merge-and-split-pdf-files-online-without-installing-software.png",
 };
 
 export default function HowToMergeAndSplitPDFFilesOnlineWithoutInstallingSoftware() {

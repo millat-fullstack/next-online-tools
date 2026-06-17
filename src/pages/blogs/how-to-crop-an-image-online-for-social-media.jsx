@@ -7,7 +7,7 @@ export const blogData = {
   category: "Image Tools",
   excerpt:
     "Learn how to crop an image online for Facebook, Instagram, LinkedIn, Pinterest, YouTube, TikTok, and other social media platforms.",
-  image: "/images/crop-image-social-media.png",
+  image: "/images/how-to-crop-an-image-online-for-social-media.png",
 };
 
 export default function HowToCropAnImageOnlineForSocialMedia() {
