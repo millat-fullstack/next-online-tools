@@ -32,7 +32,7 @@ export const toolData = {
 export default function GoogleSheetLinkExtractor() {
   const pasteBoxRef = useRef(null);
 
-  const [sourceData, setSourceData] = useState({ html: "", text: "" });
+  const [sourceData, setSourceData] = useState({ html: "", text: "", rtf: "", uriList: "", extraText: "" });
   const [copySuccess, setCopySuccess] = useState(false);
   const [csvSuccess, setCsvSuccess] = useState(false);
   const [excelSuccess, setExcelSuccess] = useState(false);
@@ -49,7 +49,7 @@ export default function GoogleSheetLinkExtractor() {
   const [estimatedProcessingTimeMs, setEstimatedProcessingTimeMs] = useState(0);
 
   useEffect(() => {
-    if (!sourceData.html && !sourceData.text) {
+    if (!sourceData.html && !sourceData.text && !sourceData.rtf && !sourceData.uriList && !sourceData.extraText) {
       setParsedResult({
         matrix: [],
         diagnostics: { htmlLinks: 0, textLinks: 0, mergedLinks: 0 },
@@ -86,7 +86,10 @@ export default function GoogleSheetLinkExtractor() {
         const result = extractLinksFromClipboard(
           sourceData.html,
           sourceData.text,
-          extractAllLinks
+          extractAllLinks,
+          sourceData.rtf,
+          sourceData.uriList,
+          sourceData.extraText
         );
 
         const elapsed = performance.now() - startTime;
@@ -128,7 +131,7 @@ export default function GoogleSheetLinkExtractor() {
       window.clearTimeout(parseTimer);
       if (finishTimer) window.clearTimeout(finishTimer);
     };
-  }, [sourceData.html, sourceData.text, extractAllLinks]);
+  }, [sourceData.html, sourceData.text, sourceData.rtf, sourceData.uriList, sourceData.extraText, extractAllLinks]);
 
   const exportMatrix = useMemo(() => {
     if (!parsedResult.matrix.length) return [];
@@ -165,7 +168,7 @@ export default function GoogleSheetLinkExtractor() {
   }, [parsedResult.matrix]);
 
   const hasOutput = Boolean(outputText) && !isProcessing;
-  const hasPastedData = Boolean(sourceData.html || sourceData.text);
+  const hasPastedData = Boolean(sourceData.html || sourceData.text || sourceData.rtf || sourceData.uriList || sourceData.extraText);
 
   function handlePaste(event) {
     event.preventDefault();
@@ -173,23 +176,78 @@ export default function GoogleSheetLinkExtractor() {
     const clipboardData = event.clipboardData || window.clipboardData;
     const html = clipboardData.getData("text/html") || "";
     const text = clipboardData.getData("text/plain") || "";
+    const rtf = clipboardData.getData("text/rtf") || "";
+    const uriList = clipboardData.getData("text/uri-list") || "";
 
-    setSourceData({ html, text });
-    setCopySuccess(false);
-    setCsvSuccess(false);
-    setExcelSuccess(false);
-    setParsedResult({
-      matrix: [],
-      diagnostics: { htmlLinks: 0, textLinks: 0, mergedLinks: 0 },
-    });
-    setIsProcessing(false);
-    setProcessingProgress(0);
-    setProcessingTimeMs(0);
-    setEstimatedProcessingTimeMs(0);
+    const extraText = Array.from(clipboardData.types || [])
+      .filter((type) => /^text\//i.test(type))
+      .map((type) => {
+        try {
+          return clipboardData.getData(type) || "";
+        } catch {
+          return "";
+        }
+      })
+      .filter(Boolean)
+      .join("\n");
+
+    setSourceData({ html, text, rtf, uriList, extraText });
+    resetActionStates();
 
     if (pasteBoxRef.current) {
       pasteBoxRef.current.innerText =
-        text || "Spreadsheet data pasted successfully.";
+        text || stripHtmlToText(html) || "Spreadsheet data pasted successfully.";
+    }
+  }
+
+  async function smartPasteFromClipboard() {
+    if (!navigator.clipboard?.read) {
+      setErrorMessageForPasteBox(
+        "Smart Paste is not available in this browser. Click inside the paste box and press Ctrl + V."
+      );
+      return;
+    }
+
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      const parts = {
+        html: "",
+        text: "",
+        rtf: "",
+        uriList: "",
+        extraText: "",
+      };
+
+      for (const item of clipboardItems) {
+        for (const type of item.types) {
+          const blob = await item.getType(type);
+          const value = await blob.text();
+
+          if (type === "text/html") parts.html += value;
+          else if (type === "text/plain") parts.text += value;
+          else if (type === "text/rtf") parts.rtf += value;
+          else if (type === "text/uri-list") parts.uriList += value;
+          else if (/^text\//i.test(type)) parts.extraText += `\n${value}`;
+        }
+      }
+
+      setSourceData(parts);
+      resetActionStates();
+
+      if (pasteBoxRef.current) {
+        pasteBoxRef.current.innerText =
+          parts.text || stripHtmlToText(parts.html) || "Clipboard data pasted successfully.";
+      }
+    } catch {
+      setErrorMessageForPasteBox(
+        "Could not read clipboard automatically. Click inside the paste box and press Ctrl + V."
+      );
+    }
+  }
+
+  function setErrorMessageForPasteBox(message) {
+    if (pasteBoxRef.current) {
+      pasteBoxRef.current.innerText = message;
     }
   }
 
@@ -236,7 +294,7 @@ export default function GoogleSheetLinkExtractor() {
   }
 
   function resetTool() {
-    setSourceData({ html: "", text: "" });
+    setSourceData({ html: "", text: "", rtf: "", uriList: "", extraText: "" });
     setCopySuccess(false);
     setCsvSuccess(false);
     setExcelSuccess(false);
@@ -395,6 +453,11 @@ export default function GoogleSheetLinkExtractor() {
             )}
 
             <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={smartPasteFromClipboard} className="btn-primary flex-1">
+                <ClipboardPaste size={18} />
+                Smart Paste from Clipboard
+              </button>
+
               <button onClick={resetTool} className="btn-secondary flex-1">
                 <RotateCcw size={18} />
                 Clear All
@@ -467,7 +530,7 @@ export default function GoogleSheetLinkExtractor() {
               <div className="text-center py-8 border border-dashed border-[var(--border)] rounded-2xl bg-gray-50">
                 <ClipboardPaste size={36} className="mx-auto mb-3 text-gray-300" />
                 <p className="text-[var(--text-secondary)]">
-                  Paste copied Google Sheets cells to extract hidden links.
+                  Paste copied Google Sheets cells or use Smart Paste to extract hidden links.
                 </p>
               </div>
             )}
@@ -601,16 +664,18 @@ function estimateProcessingTimeMs({ html, text }) {
   );
 }
 
-function extractLinksFromClipboard(html, text, extractAllLinks) {
+function extractLinksFromClipboard(html, text, extractAllLinks, rtf = "", uriList = "", extraText = "") {
   const htmlMatrix = html ? extractLinksFromHtmlTable(html, extractAllLinks) : [];
   const textMatrix = text ? extractLinksFromPlainText(text, extractAllLinks) : [];
+  const rtfMatrix = rtf ? extractLinksFromRtf(rtf, extractAllLinks) : [];
+  const uriMatrix = uriList ? extractLinksFromPlainText(uriList, extractAllLinks) : [];
+  const extraMatrix = extraText ? extractLinksFromPlainText(extraText, extractAllLinks) : [];
 
   const htmlLinks = getAllLinksFromMatrix(htmlMatrix).length;
   const textLinks = getAllLinksFromMatrix(textMatrix).length;
 
-  const mergedMatrix = mergeMatricesByCell(
-    htmlMatrix,
-    textMatrix,
+  const mergedMatrix = mergeMultipleMatricesByCell(
+    [htmlMatrix, textMatrix, rtfMatrix, uriMatrix, extraMatrix],
     extractAllLinks
   );
   const normalizedMatrix = normalizeMatrix(mergedMatrix);
@@ -624,6 +689,42 @@ function extractLinksFromClipboard(html, text, extractAllLinks) {
       mergedLinks,
     },
   };
+}
+
+function mergeMultipleMatricesByCell(matrices, extractAllLinks) {
+  const validMatrices = (matrices || []).filter((matrix) => matrix?.length);
+
+  if (!validMatrices.length) return [];
+
+  const maxRows = validMatrices.reduce(
+    (max, matrix) => Math.max(max, matrix.length),
+    0
+  );
+  const output = [];
+
+  for (let rowIndex = 0; rowIndex < maxRows; rowIndex += 1) {
+    const maxColumns = validMatrices.reduce(
+      (max, matrix) => Math.max(max, (matrix[rowIndex] || []).length),
+      0
+    );
+    const row = [];
+
+    for (let colIndex = 0; colIndex < maxColumns; colIndex += 1) {
+      const mergedLinks = uniqueLinks(
+        validMatrices.flatMap((matrix) =>
+          getLinksFromCell((matrix[rowIndex] || [])[colIndex] || "")
+        )
+      );
+
+      row.push(formatCellLinks(mergedLinks, extractAllLinks));
+    }
+
+    output.push(row);
+  }
+
+  if (getAllLinksFromMatrix(output).length > 0) return output;
+
+  return validMatrices[0] || [];
 }
 
 function mergeMatricesByCell(htmlMatrix, textMatrix, extractAllLinks) {
@@ -766,6 +867,28 @@ function extractLinksFromElement(element, extractAllLinks) {
   );
 
   return formatCellLinks(allLinks, extractAllLinks);
+}
+
+function extractLinksFromRtf(rtf, extractAllLinks) {
+  const text = String(rtf || "");
+  const links = [];
+
+  const fieldRegex = /HYPERLINK\s+"([^"]+)"/gi;
+  let match = fieldRegex.exec(text);
+
+  while (match) {
+    links.push(match[1]);
+    match = fieldRegex.exec(text);
+  }
+
+  links.push(...extractLinksFromValue(text));
+
+  const cleanLinks = uniqueLinks(
+    links.map((item) => cleanUrl(item)).filter(Boolean)
+  );
+
+  const formatted = formatCellLinks(cleanLinks, extractAllLinks);
+  return formatted ? [[formatted]] : [];
 }
 
 function extractLinksFromPlainText(text, extractAllLinks) {
@@ -1233,6 +1356,18 @@ function clampNumber(value, min, max) {
   if (Number.isNaN(number)) return min;
 
   return Math.min(max, Math.max(min, number));
+}
+
+function stripHtmlToText(html) {
+  if (!html) return "";
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(String(html), "text/html");
+    return doc.body?.innerText || "";
+  } catch {
+    return String(html).replace(/<[^>]+>/g, " ");
+  }
 }
 
 function fallbackCopy(text) {
