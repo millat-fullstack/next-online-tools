@@ -443,7 +443,7 @@ export default function GoogleSheetHyperlinkExtractor() {
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
                   {isProcessing
                     ? "Processing hyperlinks..."
-                    : `${outputStats.linksFound} link${outputStats.linksFound === 1 ? "" : "s"} ready to copy.`}
+                    : `${outputStats.linksFound} link${outputStats.linksFound === 1 ? "" : "s"} ready in ${outputStats.rows} row${outputStats.rows === 1 ? "" : "s"}.`}
                 </p>
               </div>
 
@@ -452,8 +452,8 @@ export default function GoogleSheetHyperlinkExtractor() {
                 onChange={(event) => setOutputMode(event.target.value)}
                 className="border border-[var(--border)] rounded-xl px-3 py-2 text-sm bg-white outline-none focus:border-[var(--primary)]"
               >
-                <option value="linked-text">Linked text result</option>
-                <option value="same-layout">Same layout</option>
+                <option value="linked-text">Same cells - blanks if no link</option>
+                <option value="same-layout">Same layout with original text</option>
                 <option value="text-url">Text + URL columns</option>
               </select>
             </div>
@@ -496,7 +496,7 @@ export default function GoogleSheetHyperlinkExtractor() {
               emptyText={
                 isProcessing
                   ? "Reading links and creating formatted output..."
-                  : "Formatted clickable result will appear here."
+                  : "Formatted result will appear here with the same rows and columns. Cells without links stay empty."
               }
               stats={{
                 rows: outputStats.rows,
@@ -874,19 +874,17 @@ function buildOutputCells(inputCells, outputMode) {
 }
 
 function buildLinkedTextRows(inputCells) {
-  return trimEmptyMatrix(
-    (inputCells || []).map((row) => {
-      const paired = pairNameAndUrlCells(row);
+  return preserveMatrixShape(
+    (inputCells || []).map((row) =>
+      (row || []).map((cell) => {
+        if (!cell?.links?.length) {
+          return makeCell("", [], cell?.style || {});
+        }
 
-      if (paired.length) return paired;
-
-      return row
-        .map((cell) => {
-          if (!cell?.links?.length) return null;
-          return makeCell(cell.text || cell.links[0], cell.links, cell.style, cell.html);
-        })
-        .filter(Boolean);
-    })
+        return makeCell(cell.text || cell.links[0], cell.links, cell.style, cell.html);
+      })
+    ),
+    inputCells
   );
 }
 
@@ -1025,6 +1023,22 @@ function trimEmptyMatrix(matrix) {
   return trimmedRows.map((row) =>
     Array.from({ length: lastColumnIndex + 1 }).map(
       (_, index) => row[index] || makeCell("", [], {})
+    )
+  );
+}
+
+function preserveMatrixShape(matrix, referenceMatrix) {
+  const rowCount = Math.max(matrix?.length || 0, referenceMatrix?.length || 0);
+  const columnCount = Math.max(
+    1,
+    maxColumns(matrix || []),
+    maxColumns(referenceMatrix || [])
+  );
+
+  return Array.from({ length: rowCount }).map((_, rowIndex) =>
+    Array.from({ length: columnCount }).map((__, colIndex) =>
+      matrix?.[rowIndex]?.[colIndex] ||
+      makeCell("", [], referenceMatrix?.[rowIndex]?.[colIndex]?.style || {})
     )
   );
 }
