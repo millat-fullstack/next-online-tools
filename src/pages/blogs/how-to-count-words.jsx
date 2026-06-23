@@ -2,7 +2,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "How to Count Words and Characters Online Easily",
-  slug: "HowToCountWordsAndCharactersOnlineEasily",
+  slug: "how-to-count-words",
   date: "2026-06-03",
   category: "Text Tools",
   excerpt:

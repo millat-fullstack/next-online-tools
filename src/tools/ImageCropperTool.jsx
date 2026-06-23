@@ -33,7 +33,7 @@ export const toolData = {
 
 const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const MIN_PROCESSING_TIME_MS = 6000;
+const MIN_PROCESSING_TIME_MS = 350;
 
 const CROP_PRESETS = [
   {
@@ -165,8 +165,9 @@ export default function ImageCropperTool() {
   const [image, setImage] = useState(null);
   const [imageInfo, setImageInfo] = useState(null);
 
-  const [presetId, setPresetId] = useState("instagram-square");
+  const [presetId, setPresetId] = useState("free");
   const [cropperKey, setCropperKey] = useState(0);
+  const [dragMode, setDragMode] = useState("crop");
 
   const [outputFormat, setOutputFormat] = useState("image/png");
   const [quality, setQuality] = useState(0.94);
@@ -204,7 +205,7 @@ export default function ImageCropperTool() {
   const isFixedSize = Boolean(selectedPreset.width && selectedPreset.height);
 
   const estimatedText = useMemo(() => {
-    return `${Math.ceil(MIN_PROCESSING_TIME_MS / 1000)}s minimum`;
+    return "Instant crop";
   }, []);
 
   const outputDimensionText = isFixedSize
@@ -363,6 +364,19 @@ export default function ImageCropperTool() {
     clearOutput();
   }
 
+  function handleDragModeChange(nextMode) {
+    setDragMode(nextMode);
+
+    const cropper = cropperRef.current?.cropper;
+
+    if (cropper) {
+      cropper.setDragMode(nextMode);
+    }
+
+    clearOutput();
+    setSuccess(nextMode === "crop" ? "Crop mode active. Drag to select any area." : "Move mode active. Drag image to position it.");
+  }
+
   function resetCropBox() {
     const cropper = cropperRef.current?.cropper;
 
@@ -372,9 +386,8 @@ export default function ImageCropperTool() {
     cropper.clear();
     cropper.crop();
 
-    if (Number.isFinite(aspectRatio)) {
-      cropper.setAspectRatio(aspectRatio);
-    }
+    cropper.setAspectRatio(Number.isFinite(aspectRatio) ? aspectRatio : NaN);
+    cropper.setDragMode(dragMode);
 
     clearOutput();
     setSuccess("Crop area reset. Drag and zoom again to adjust perfectly.");
@@ -414,8 +427,8 @@ export default function ImageCropperTool() {
     const startTime = performance.now();
 
     try {
-      await wait(150);
-      setProgress(15);
+      await wait(40);
+      setProgress(20);
 
       const canvasOptions = {
         imageSmoothingEnabled: true,
@@ -441,7 +454,7 @@ export default function ImageCropperTool() {
 
       const blob = await canvasToBlob(canvas, outputFormat, quality);
 
-      setProgress(55);
+      setProgress(75);
 
       await ensureMinimumProcessingTime({
         startTime,
@@ -457,7 +470,7 @@ export default function ImageCropperTool() {
       outputUrlRef.current = nextOutputUrl;
 
       const actualProcessingTime = Math.max(
-        MIN_PROCESSING_TIME_MS,
+        1,
         Math.round(performance.now() - startTime)
       );
 
@@ -518,8 +531,9 @@ export default function ImageCropperTool() {
 
     setImage(null);
     setImageInfo(null);
-    setPresetId("instagram-square");
+    setPresetId("free");
     setCropperKey((current) => current + 1);
+    setDragMode("crop");
     setOutputFormat("image/png");
     setQuality(0.94);
     setCroppedImageUrl("");
@@ -554,9 +568,8 @@ export default function ImageCropperTool() {
         <h1 className="text-3xl font-bold mb-3">Image Cropper Tool</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Choose a ready-made size for Facebook, Instagram, YouTube, LinkedIn,
-          Pinterest, or profile photos. Then drag, zoom, and adjust the crop
-          until it looks perfect before exporting.
+          Crop any part of an image smoothly. Use free crop, fixed social sizes,
+          zoom, move, preview, and download the cropped image instantly.
         </p>
       </section>
 
@@ -637,6 +650,40 @@ export default function ImageCropperTool() {
               </select>
             </div>
 
+            <div className="inline-flex rounded-xl border border-[var(--border)] bg-white overflow-hidden">
+              <button
+                type="button"
+                onClick={() => handleDragModeChange("crop")}
+                disabled={!image}
+                className={`h-10 px-3 text-sm font-semibold ${
+                  dragMode === "crop"
+                    ? "bg-[var(--primary)] text-white"
+                    : !image
+                      ? "text-gray-400 cursor-not-allowed"
+                      : "hover:bg-[#f8f4ff]"
+                }`}
+                title="Drag to create or adjust crop area"
+              >
+                Crop
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDragModeChange("move")}
+                disabled={!image}
+                className={`h-10 px-3 text-sm font-semibold border-l border-[var(--border)] ${
+                  dragMode === "move"
+                    ? "bg-[var(--primary)] text-white"
+                    : !image
+                      ? "text-gray-400 cursor-not-allowed"
+                      : "hover:bg-[#f8f4ff]"
+                }`}
+                title="Drag to move the image inside crop area"
+              >
+                Move
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => zoomCropper(0.08)}
@@ -700,7 +747,19 @@ export default function ImageCropperTool() {
               ) : (
                 <Sparkles size={17} />
               )}
-              {isProcessing ? "Processing..." : "Create Crop"}
+              {isProcessing ? "Processing..." : "Crop Preview"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => createCrop({ downloadAfterCreate: true })}
+              disabled={!image || isProcessing}
+              className={`btn-secondary inline-flex items-center justify-center gap-2 px-4 py-2 text-sm ${
+                !image || isProcessing ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              <Download size={17} />
+              Download Crop
             </button>
           </div>
 
@@ -754,7 +813,7 @@ export default function ImageCropperTool() {
                 </div>
 
                 <p className="text-xs text-[var(--text-secondary)] mt-3">
-                  Premium processing time: minimum 6 seconds for final output.
+                  Creating your crop with high-quality image smoothing.
                 </p>
               </div>
             )}
@@ -793,7 +852,8 @@ export default function ImageCropperTool() {
                   ref={cropperRef}
                   src={image}
                   style={{
-                    height: 560,
+                    height: "min(68vh, 620px)",
+                    minHeight: 430,
                     width: "100%",
                   }}
                   aspectRatio={aspectRatio}
@@ -801,10 +861,10 @@ export default function ImageCropperTool() {
                   guides={true}
                   center={true}
                   highlight={true}
-                  viewMode={1}
+                  viewMode={0}
                   autoCrop={true}
-                  autoCropArea={0.88}
-                  dragMode="move"
+                  autoCropArea={0.82}
+                  dragMode={dragMode}
                   movable={true}
                   zoomable={true}
                   scalable={true}
@@ -818,11 +878,14 @@ export default function ImageCropperTool() {
                   ready={() => {
                     const cropper = cropperRef.current?.cropper;
 
-                    if (cropper && Number.isFinite(aspectRatio)) {
-                      cropper.setAspectRatio(aspectRatio);
+                    if (cropper) {
+                      cropper.setAspectRatio(Number.isFinite(aspectRatio) ? aspectRatio : NaN);
+                      cropper.setDragMode(dragMode);
                     }
                   }}
                   cropstart={() => clearOutput()}
+                  cropmove={() => clearOutput()}
+                  cropend={() => clearOutput()}
                   zoom={() => clearOutput()}
                 />
               </div>
@@ -833,7 +896,7 @@ export default function ImageCropperTool() {
                     How to crop
                   </p>
                   <p className="text-sm font-semibold">
-                    Choose size → drag image → create crop
+                    Free crop → drag area → download
                   </p>
                 </div>
 
@@ -842,7 +905,7 @@ export default function ImageCropperTool() {
                     Drag mode
                   </p>
                   <p className="text-sm font-semibold">
-                    Drag image to position inside crop box
+                    Use Crop or Move mode as needed
                   </p>
                 </div>
 
@@ -851,7 +914,7 @@ export default function ImageCropperTool() {
                     Output quality
                   </p>
                   <p className="text-sm font-semibold">
-                    Exact size export with high smoothing
+                    Fast export with high smoothing
                   </p>
                 </div>
               </div>
@@ -936,7 +999,7 @@ export default function ImageCropperTool() {
                     />
                   ) : (
                     <p className="text-center text-sm text-[var(--text-secondary)] px-4">
-                      No final crop yet. Adjust the crop and click Create Crop.
+                      No final crop yet. Adjust the crop and click Crop Preview or Download Crop.
                     </p>
                   )}
                 </div>
@@ -1002,9 +1065,9 @@ export default function ImageCropperTool() {
           </p>
 
           <p>
-            Choose a size preset, drag the image until the crop looks right, and
-            export the final cropped image in PNG, JPG, or WEBP. The tool runs
-            directly in your browser.
+            Choose free crop to crop any part, or select a social media size preset.
+            Drag the crop box, move or zoom the image, then download the final cropped
+            image in PNG, JPG, or WEBP. The tool runs directly in your browser.
           </p>
         </div>
       </section>

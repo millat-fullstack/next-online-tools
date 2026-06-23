@@ -8,7 +8,7 @@ export const blogData = {
   category: "Productivity Tools",
   excerpt:
     "Discover the best free online tools for everyday digital tasks, including image editing, PDF conversion, text formatting, color tools, and quick productivity work.",
-  image: "/images/best-free-online-tools-everyday-digital-tasks.jpg"
+  image: "/images/best-free-online-tools-everyday-digital-tasks.png"
 };
 
 export default function BestFreeOnlineToolsForEverydayDigitalTasks() {

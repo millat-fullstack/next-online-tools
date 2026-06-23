@@ -3,7 +3,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "How to Extract Hidden Links from Google Sheets Easily",
-  slug: "HowToExtractGoogleSheetLinks",
+  slug: "how-to-extract-google-sheet-links",
   date: "2026-05-11",
   category: "Spreadsheet Tools",
   excerpt:
@@ -18,7 +18,7 @@ export default function HowToExtractGoogleSheetLinks() {
     headline: "How to Extract Hidden Links from Google Sheets Easily",
     description:
       "Learn how to extract hidden hyperlinks from Google Sheets cells quickly using the Google Sheet Link Extractor by Next Online Tools.",
-    image: "https://nextonlinetools.com/images/google-sheet-link-extractor.jpg",
+    image: "/images/google-sheet-link-extractor.png",
     author: {
       "@type": "Organization",
       name: "Next Online Tools"

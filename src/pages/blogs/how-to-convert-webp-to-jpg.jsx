@@ -2,7 +2,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "How to Convert WEBP to JPG Online",
-  slug: "HowToConvertWebpToJpg",
+  slug: "how-to-convert-webp-to-jpg",
   date: "2026-04-24",
   category: "Image Tools",
   excerpt:

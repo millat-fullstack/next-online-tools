@@ -3,7 +3,7 @@ import SharePost from "../../components/ui/SharePost";
 
 export const blogData = {
   title: "Essential Online Image Tools to Optimize, Resize, and Convert Images Easily",
-  slug: "ImageToolsGuide",
+  slug: "image-tools-guide",
   date: "2026-04-26",
   category: "Image Tools",
   excerpt: "Learn how online image tools like resizers, compressors, and converters can help you optimize images for speed, quality, and better SEO performance.",
