@@ -36,6 +36,9 @@ import {
   Scissors,
   Shapes,
   Pipette,
+  Triangle,
+  Star,
+  Hexagon,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -188,6 +191,16 @@ const TEXT_ALIGN_OPTIONS = [
 ];
 
 
+const SHAPE_TYPES = [
+  { id: "rectangle", label: "Rectangle", icon: Square },
+  { id: "triangle", label: "Triangle", icon: Triangle },
+  { id: "circle", label: "Circle", icon: CircleIcon },
+  { id: "star", label: "Star", icon: Star },
+  { id: "hexagon", label: "Hexagon", icon: Hexagon },
+  { id: "arrow", label: "Arrow", icon: ArrowUpRight },
+];
+
+
 
 export default function QuickPhotoEditor() {
   const mainFileInputRef = useRef(null);
@@ -223,6 +236,8 @@ export default function QuickPhotoEditor() {
   const [activePanel, setActivePanel] = useState("");
   const [toolPopupOpen, setToolPopupOpen] = useState(false);
   const [popupTop, setPopupTop] = useState(12);
+  const [popupLeft, setPopupLeft] = useState(88);
+  const [popupMaxHeight, setPopupMaxHeight] = useState(560);
   const [colorPickerTarget, setColorPickerTarget] = useState(null);
   const [imageInputMode, setImageInputMode] = useState("add");
 
@@ -389,7 +404,10 @@ export default function QuickPhotoEditor() {
     "blur",
     "restore",
     "rectangle",
+    "triangle",
     "circle",
+    "star",
+    "hexagon",
     "arrow",
     "patch",
     "clone",
@@ -1316,7 +1334,7 @@ export default function QuickPhotoEditor() {
       return;
     }
 
-    if (["rectangle", "circle", "arrow"].includes(activeTool)) {
+    if (SHAPE_TYPES.some((shape) => shape.id === activeTool)) {
       handleShapePointerDown(event, point);
       return;
     }
@@ -1398,7 +1416,7 @@ export default function QuickPhotoEditor() {
       setActivePanel("text");
     } else if (selected.type === "image") {
       setActivePanel("image");
-    } else if (["rectangle", "circle", "arrow"].includes(selected.type)) {
+    } else if (SHAPE_TYPES.some((shape) => shape.id === selected.type)) {
       setActivePanel("shape");
     } else {
       setActivePanel("");
@@ -2476,7 +2494,7 @@ export default function QuickPhotoEditor() {
       return;
     }
 
-    if (["rectangle", "circle", "arrow"].includes(selectedObject.type)) {
+    if (SHAPE_TYPES.map((shape) => shape.id).includes(selectedObject.type)) {
       setActiveTool(selectedObject.type);
       setActivePanel("shape");
       setToolPopupOpen(true);
@@ -2525,10 +2543,79 @@ export default function QuickPhotoEditor() {
 
     if (
       selectedObject &&
-      ["rectangle", "circle", "arrow"].includes(selectedObject.type)
+      SHAPE_TYPES.some((shape) => shape.id === selectedObject.type)
     ) {
       updateSelectedObject({ [key]: value });
     }
+  }
+
+  function getActiveSelectedIds() {
+    return selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
+  }
+
+  function reorderSelectedObjects(action) {
+    const activeIds = getActiveSelectedIds();
+
+    if (!activeIds.length) return;
+
+    pushHistory();
+
+    setObjects((current) => {
+      const selectedSet = new Set(activeIds);
+
+      if (action === "front") {
+        return [
+          ...current.filter((item) => !selectedSet.has(item.id)),
+          ...current.filter((item) => selectedSet.has(item.id)),
+        ];
+      }
+
+      if (action === "back") {
+        return [
+          ...current.filter((item) => selectedSet.has(item.id)),
+          ...current.filter((item) => !selectedSet.has(item.id)),
+        ];
+      }
+
+      const next = [...current];
+
+      if (action === "up") {
+        for (let index = next.length - 2; index >= 0; index -= 1) {
+          if (selectedSet.has(next[index].id) && !selectedSet.has(next[index + 1].id)) {
+            [next[index], next[index + 1]] = [next[index + 1], next[index]];
+          }
+        }
+      }
+
+      if (action === "down") {
+        for (let index = 1; index < next.length; index += 1) {
+          if (selectedSet.has(next[index].id) && !selectedSet.has(next[index - 1].id)) {
+            [next[index], next[index - 1]] = [next[index - 1], next[index]];
+          }
+        }
+      }
+
+      return next;
+    });
+
+    setGuideInfo(
+      buildGuideInfo(
+        selectedGroupBox,
+        canvasSize,
+        action === "front"
+          ? "Brought to front"
+          : action === "back"
+            ? "Sent to back"
+            : action === "up"
+              ? "Brought up"
+              : "Sent down"
+      )
+    );
+    clearOutput();
   }
 
   function deleteSelectedObject() {
@@ -2919,13 +3006,33 @@ export default function QuickPhotoEditor() {
   }
 
   function updatePopupPositionFromEvent(event) {
-    const toolbarRect = toolbarRef.current?.getBoundingClientRect?.();
     const buttonRect = event?.currentTarget?.getBoundingClientRect?.();
 
-    if (!toolbarRect || !buttonRect) return;
+    if (!buttonRect || typeof window === "undefined") {
+      setPopupTop(12);
+      setPopupLeft(88);
+      setPopupMaxHeight(560);
+      return;
+    }
 
-    const nextTop = clampNumber(buttonRect.top - toolbarRect.top, 12, Math.max(12, toolbarRect.height - 160));
+    const viewportWidth = window.innerWidth || 1280;
+    const viewportHeight = window.innerHeight || 800;
+    const panelWidth = Math.min(440, Math.max(280, viewportWidth - 96));
+    const desiredHeight = Math.min(640, viewportHeight - 32);
+    const nextTop = clampNumber(
+      buttonRect.top - 24,
+      12,
+      Math.max(12, viewportHeight - desiredHeight - 12)
+    );
+    const nextLeft = clampNumber(
+      buttonRect.right + 16,
+      72,
+      Math.max(72, viewportWidth - panelWidth - 12)
+    );
+
     setPopupTop(nextTop);
+    setPopupLeft(nextLeft);
+    setPopupMaxHeight(Math.max(260, viewportHeight - nextTop - 16));
   }
 
   function activateTool(toolId, event = null) {
@@ -2946,11 +3053,11 @@ export default function QuickPhotoEditor() {
 
     setToolPopupOpen(true);
 
-    if (["rectangle", "circle", "arrow"].includes(toolId)) {
+    if (SHAPE_TYPES.map((shape) => shape.id).includes(toolId)) {
       setShapeType(toolId);
     }
 
-    if (["draw", "blur", "restore", "patch", "clone", "text", "rectangle", "circle", "arrow", "freeSelect"].includes(toolId)) {
+    if (["draw", "blur", "restore", "patch", "clone", "text", ...SHAPE_TYPES.map((shape) => shape.id), "freeSelect"].includes(toolId)) {
       commitBaseImageToCanvasIfNeeded({ withHistory: true });
     }
 
@@ -2991,8 +3098,15 @@ export default function QuickPhotoEditor() {
 
   function activateShapeTool(nextShape) {
     setShapeType(nextShape);
-    activateTool(nextShape);
-    setActivePanel("");
+    setActiveTool(nextShape);
+    setActivePanel("shape");
+    setToolPopupOpen(true);
+    setShowOriginal(false);
+    setGuideInfo(null);
+
+    if (hasImage) {
+      commitBaseImageToCanvasIfNeeded({ withHistory: true });
+    }
   }
 
   return (
@@ -3236,14 +3350,14 @@ export default function QuickPhotoEditor() {
                   onClick={(event) => {
                     updatePopupPositionFromEvent(event);
                     const isShapePanelOpen = toolPopupOpen && settingsMode === "shape";
-                    setActiveTool(isShapePanelOpen ? "select" : shapeType);
+                    setActiveTool(isShapePanelOpen ? "select" : "select");
                     setActivePanel(isShapePanelOpen ? "" : "shape");
                     setToolPopupOpen(!isShapePanelOpen);
                     setShowOriginal(false);
                   }}
                   title="Shape Tool"
                   className={`w-12 h-12 rounded-xl inline-flex items-center justify-center transition ${
-                    (settingsMode === "shape" || ["rectangle", "circle", "arrow"].includes(activeTool)) && toolPopupOpen
+                    (settingsMode === "shape" || SHAPE_TYPES.some((shape) => shape.id === activeTool)) && toolPopupOpen
                       ? "bg-white text-[#111827]"
                       : "bg-white/10 text-white hover:bg-white/20"
                   }`}
@@ -3368,8 +3482,16 @@ export default function QuickPhotoEditor() {
               </div>
 
               {shouldShowSettings && (
-                <div ref={optionsPanelRef} className="absolute left-[72px] w-[min(440px,calc(100vw-96px))] max-h-[calc(100vh-120px)] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
-                  style={{ top: `${popupTop}px` }}>
+                <div
+                  ref={optionsPanelRef}
+                  className="fixed w-[min(440px,calc(100vw-96px))] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
+                  style={{
+                    top: `${popupTop}px`,
+                    left: `${popupLeft}px`,
+                    maxHeight: `${popupMaxHeight}px`,
+                    zIndex: 80,
+                  }}
+                >
                   <div className="flex items-center gap-2 mb-4">
                     <PanelLeft size={18} className="text-[var(--primary)]" />
                     <div>
@@ -3876,48 +3998,32 @@ export default function QuickPhotoEditor() {
                     </div>
                   )}
 
-                  {["rectangle", "circle", "arrow", "shape"].includes(settingsMode) && (
+                  {[...SHAPE_TYPES.map((shape) => shape.id), "shape"].includes(settingsMode) && (
                     <div className="space-y-4">
                       <p className="text-sm text-[var(--text-secondary)] leading-7">
                         Choose a shape, then drag on the artboard. Hold Shift while drawing for a straight line or perfect square/circle.
                       </p>
 
-                      <div className="grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => activateShapeTool("rectangle")}
-                          className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
-                            activeTool === "rectangle"
-                              ? "border-[var(--primary)] bg-[#f4edff]"
-                              : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                          }`}
-                        >
-                          Rectangle
-                        </button>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {SHAPE_TYPES.map((shape) => {
+                          const ShapeIcon = shape.icon;
 
-                        <button
-                          type="button"
-                          onClick={() => activateShapeTool("circle")}
-                          className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
-                            activeTool === "circle"
-                              ? "border-[var(--primary)] bg-[#f4edff]"
-                              : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                          }`}
-                        >
-                          Circle
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => activateShapeTool("arrow")}
-                          className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
-                            activeTool === "arrow"
-                              ? "border-[var(--primary)] bg-[#f4edff]"
-                              : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                          }`}
-                        >
-                          Arrow
-                        </button>
+                          return (
+                            <button
+                              key={shape.id}
+                              type="button"
+                              onClick={() => activateShapeTool(shape.id)}
+                              className={`px-3 py-3 rounded-xl border text-sm font-semibold inline-flex items-center justify-center gap-2 ${
+                                activeTool === shape.id
+                                  ? "border-[var(--primary)] bg-[#f4edff]"
+                                  : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                              }`}
+                            >
+                              <ShapeIcon size={16} />
+                              {shape.label}
+                            </button>
+                          );
+                        })}
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -4336,6 +4442,67 @@ export default function QuickPhotoEditor() {
               )}
 
               <div className="relative flex-1 min-h-[560px]">
+                {(selectedObjectId || selectedObjectIds.length > 0) && (
+                  <div className="absolute top-4 left-4 z-30 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/95 p-2 shadow-xl backdrop-blur">
+                    <button
+                      type="button"
+                      onClick={copyEditorSelection}
+                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={pasteEditorClipboard}
+                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
+                    >
+                      Paste
+                    </button>
+                    <button
+                      type="button"
+                      onClick={duplicateSelectedObjects}
+                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reorderSelectedObjects("up")}
+                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
+                    >
+                      Bring Up
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reorderSelectedObjects("down")}
+                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
+                    >
+                      Bring Down
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reorderSelectedObjects("front")}
+                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
+                    >
+                      Front
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reorderSelectedObjects("back")}
+                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deleteSelectedObject}
+                      className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+
                 <div
                   onPointerDown={handleArtboardPointerDown}
                   onDrop={handleDrop}
@@ -4384,37 +4551,21 @@ export default function QuickPhotoEditor() {
                   </div>
                 </div>
 
-                {(errorMessage || successMessage || isExporting) && (
-                  <div className="absolute bottom-20 left-4 right-4 z-30 grid gap-3 md:grid-cols-2 pointer-events-none">
-                    {errorMessage && (
-                      <div className="pointer-events-auto flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl shadow-lg">
-                        <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                        <p>{errorMessage}</p>
+                {isExporting && (
+                  <div className="absolute bottom-20 left-4 right-4 z-30 pointer-events-none">
+                    <div className="pointer-events-auto bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 shadow-lg">
+                      <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                        <span>Creating final edited photo...</span>
+                        <span>{exportProgress}%</span>
                       </div>
-                    )}
 
-                    {successMessage && (
-                      <div className="pointer-events-auto flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl shadow-lg">
-                        <CheckCircle size={18} className="shrink-0 mt-0.5" />
-                        <p>{successMessage}</p>
+                      <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                        <div
+                          className="h-full bg-[var(--primary)] transition-all duration-300"
+                          style={{ width: `${exportProgress}%` }}
+                        />
                       </div>
-                    )}
-
-                    {isExporting && (
-                      <div className="pointer-events-auto bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 shadow-lg md:col-span-2">
-                        <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                          <span>Creating final edited photo...</span>
-                          <span>{exportProgress}%</span>
-                        </div>
-
-                        <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
-                          <div
-                            className="h-full bg-[var(--primary)] transition-all duration-300"
-                            style={{ width: `${exportProgress}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 )}
 
@@ -4600,7 +4751,10 @@ function drawObject(ctx, object) {
   if (object.type === "image") drawImageObject(ctx, object);
   if (object.type === "text") drawTextObject(ctx, object);
   if (object.type === "rectangle") drawRectangleObject(ctx, object);
+  if (object.type === "triangle") drawTriangleObject(ctx, object);
   if (object.type === "circle") drawCircleObject(ctx, object);
+  if (object.type === "star") drawStarObject(ctx, object);
+  if (object.type === "hexagon") drawHexagonObject(ctx, object);
   if (object.type === "arrow") drawArrowObject(ctx, object);
   if (object.type === "patch-target") drawAreaBox(ctx, normalizeBox(object), "#ef4444", "Patch Target");
   if (object.type === "clone-source") drawAreaBox(ctx, normalizeBox(object), "#9b6ce3", "Clone Source");
@@ -4739,6 +4893,80 @@ function drawArrowObject(ctx, object) {
   ctx.closePath();
   ctx.fill();
 }
+
+function drawTriangleObject(ctx, object) {
+  const box = normalizeBox(object);
+  const points = [
+    { x: box.x + box.w / 2, y: box.y },
+    { x: box.x + box.w, y: box.y + box.h },
+    { x: box.x, y: box.y + box.h },
+  ];
+
+  drawPolygonShape(ctx, object, points);
+}
+
+function drawStarObject(ctx, object) {
+  const box = normalizeBox(object);
+  const centerX = box.x + box.w / 2;
+  const centerY = box.y + box.h / 2;
+  const outerRadius = Math.max(1, Math.min(box.w, box.h) / 2);
+  const innerRadius = outerRadius * 0.45;
+  const points = [];
+
+  for (let index = 0; index < 10; index += 1) {
+    const radius = index % 2 === 0 ? outerRadius : innerRadius;
+    const angle = -Math.PI / 2 + (index * Math.PI) / 5;
+
+    points.push({
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    });
+  }
+
+  drawPolygonShape(ctx, object, points);
+}
+
+function drawHexagonObject(ctx, object) {
+  const box = normalizeBox(object);
+  const centerX = box.x + box.w / 2;
+  const centerY = box.y + box.h / 2;
+  const radiusX = Math.max(1, box.w / 2);
+  const radiusY = Math.max(1, box.h / 2);
+  const points = [];
+
+  for (let index = 0; index < 6; index += 1) {
+    const angle = Math.PI / 6 + (index * Math.PI) / 3;
+
+    points.push({
+      x: centerX + Math.cos(angle) * radiusX,
+      y: centerY + Math.sin(angle) * radiusY,
+    });
+  }
+
+  drawPolygonShape(ctx, object, points);
+}
+
+function drawPolygonShape(ctx, object, points) {
+  if (!points.length) return;
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+
+  points.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
+  ctx.closePath();
+
+  if (object.fillEnabled !== false) {
+    ctx.fillStyle = object.fill || "#ef4444";
+    ctx.fill();
+  }
+
+  if (object.strokeEnabled !== false) {
+    ctx.strokeStyle = object.stroke || "#ef4444";
+    ctx.lineWidth = object.strokeWidth || 6;
+    ctx.stroke();
+  }
+}
+
 
 function drawBrushLine(ctx, fromPoint, toPoint, { color, size, opacity }) {
   ctx.save();
@@ -5166,7 +5394,7 @@ function getObjectBox(object) {
     };
   }
 
-  if (object.type === "rectangle" || object.type === "circle") {
+  if (["rectangle", "triangle", "circle", "star", "hexagon"].includes(object.type)) {
     return normalizeBox(object);
   }
 
@@ -5254,7 +5482,10 @@ function normalizeObject(object) {
 
   if (
     object.type === "rectangle" ||
+    object.type === "triangle" ||
     object.type === "circle" ||
+    object.type === "star" ||
+    object.type === "hexagon" ||
     object.type === "patch-target" ||
     object.type === "clone-source"
   ) {
@@ -5475,10 +5706,14 @@ function scaleBox(box, scaleX, scaleY) {
   };
 }
 
+function isShapeObjectType(type) {
+  return ["rectangle", "triangle", "circle", "star", "hexagon", "arrow"].includes(type);
+}
+
 function getResizeHandleAtPoint(point, object, zoom = 1, canvasSize = null) {
   if (!point || !object) return null;
 
-  if (!["image", "text", "rectangle", "circle", "arrow"].includes(object.type)) {
+  if (!["image", "text", "rectangle", "triangle", "circle", "star", "hexagon", "arrow"].includes(object.type)) {
     return null;
   }
 
@@ -5652,7 +5887,7 @@ function resizeObjectToBox(object, box) {
     };
   }
 
-  if (object.type === "rectangle" || object.type === "circle") {
+  if (["rectangle", "triangle", "circle", "star", "hexagon"].includes(object.type)) {
     return {
       ...object,
       x: box.x,
@@ -5826,7 +6061,7 @@ function buildGuideInfo(box, canvasSize, message = "", snapResult = null) {
 function isValidObject(object) {
   if (!object) return false;
 
-  if (object.type === "rectangle" || object.type === "circle") {
+  if (["rectangle", "triangle", "circle", "star", "hexagon"].includes(object.type)) {
     return object.w > 8 && object.h > 8;
   }
 

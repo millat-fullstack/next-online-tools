@@ -1,14 +1,5 @@
 export const blogs = [
   {
-    "title": "How to Extract Links from Google Sheets Online for Free",
-    "slug": "how-to-extract-links-from-google-sheets-online-for-free",
-    "date": "2026-06-06",
-    "category": "SEO Tools",
-    "excerpt": "Step-by-step guide on how to extract links from Google Sheets online for free using simple tools without any software installation.",
-    "image": "/images/extract-links-google-sheets.png",
-    "pageFile": "how-to-extract-links-from-google-sheets-online-for-free"
-  },
-  {
     "title": "Top Reasons to Add Geotags to Your Photos Online",
     "slug": "top-reasons-to-add-geotags-to-your-photos-online",
     "date": "2026-06-06",
@@ -16,15 +7,6 @@ export const blogs = [
     "excerpt": "Discover the top reasons to add geotags to your photos online and learn how location data can help organize images for business, travel, real estate, local SEO, and digital records.",
     "image": "/images/reasons-to-add-geotags-to-photos.png",
     "pageFile": "top-reasons-to-add-geotags-to-your-photos-online"
-  },
-  {
-    "title": "What Is a Google Sheet Link Extractor and How Does It Work?",
-    "slug": "what-is-a-google-sheet-link-extractor-and-how-does-it-work",
-    "date": "2026-06-06",
-    "category": "SEO Tools",
-    "excerpt": "Learn what a Google Sheet Link Extractor is, how it works, and how it helps you quickly extract URLs from spreadsheets for SEO, marketing, and data analysis.",
-    "image": "/images/google-sheet-link-extractor.png",
-    "pageFile": "what-is-a-google-sheet-link-extractor-and-how-does-it-work"
   },
   {
     "title": "What Is Google Geotagging and How Does It Work?",
@@ -72,6 +54,15 @@ export const blogs = [
     "pageFile": "how-to-convert-jpg-to-pdf-online-for-free"
   },
   {
+    "title": "How to Count Words and Characters Online Easily",
+    "slug": "how-to-count-words",
+    "date": "2026-06-03",
+    "category": "Text Tools",
+    "excerpt": "Learn how to count words, characters, sentences, and paragraphs online quickly using a simple word counter tool.",
+    "image": "/images/word-character-counter.png",
+    "pageFile": "how-to-count-words"
+  },
+  {
     "title": "How to Crop an Image Online for Social Media",
     "slug": "how-to-crop-an-image-online-for-social-media",
     "date": "2026-06-03",
@@ -90,15 +81,6 @@ export const blogs = [
     "pageFile": "how-to-remove-background-from-an-image-online"
   },
   {
-    "title": "How to Count Words and Characters Online Easily",
-    "slug": "HowToCountWordsAndCharactersOnlineEasily",
-    "date": "2026-06-03",
-    "category": "Text Tools",
-    "excerpt": "Learn how to count words, characters, sentences, and paragraphs online quickly using a simple word counter tool.",
-    "image": "/images/word-character-counter.png",
-    "pageFile": "HowToCountWordsAndCharactersOnlineEasily"
-  },
-  {
     "title": "Social Media Image Size Guide",
     "slug": "social-media-image-size-guide",
     "date": "2026-06-03",
@@ -113,7 +95,7 @@ export const blogs = [
     "date": "2026-06-02",
     "category": "Productivity Tools",
     "excerpt": "Discover the best free online tools for everyday digital tasks, including image editing, PDF conversion, text formatting, color tools, and quick productivity work.",
-    "image": "/images/best-free-online-tools-everyday-digital-tasks.jpg",
+    "image": "/images/best-free-online-tools-everyday-digital-tasks.png",
     "pageFile": "best-free-online-tools-for-digital-tasks"
   },
   {
@@ -141,7 +123,7 @@ export const blogs = [
     "category": "Image Tools",
     "excerpt": "Learn how to resize an image for a Facebook post using the best Facebook post image sizes, simple editing tips, and a free online image resizer.",
     "image": "/images/resize-image-for-facebook-post.jpg",
-    "pageFile": "HowToResizeImageForFacebookPost"
+    "pageFile": "how-to-resize-an-image-for-facebook-post"
   },
   {
     "title": "Online Tools vs Downloadable Software",
@@ -150,7 +132,7 @@ export const blogs = [
     "category": "Productivity Tools",
     "excerpt": "Compare online tools and downloadable software to choose the best option for quick tasks, safety, privacy, offline use, and productivity.",
     "image": "/images/online-tools-vs-downloadable-software.png",
-    "pageFile": "OnlineToolsVsDownloadableSoftware"
+    "pageFile": "online-tools-vs-downloadable-software"
   },
   {
     "title": "Best Free Online Passport Photo Maker for Visa, ID, and Documents",
@@ -172,12 +154,12 @@ export const blogs = [
   },
   {
     "title": "How to Extract Hidden Links from Google Sheets Easily",
-    "slug": "HowToExtractGoogleSheetLinks",
+    "slug": "how-to-extract-google-sheet-links",
     "date": "2026-05-11",
     "category": "Spreadsheet Tools",
     "excerpt": "Learn how to extract hidden hyperlinks from Google Sheets cells quickly using the Google Sheet Link Extractor by Next Online Tools.",
     "image": "/images/google-sheet-link-extractor.jpg",
-    "pageFile": "HowToExtractGoogleSheetLinks"
+    "pageFile": "how-to-extract-google-sheet-links"
   },
   {
     "title": "10 Best Free Online Image Compressor Tools to Reduce/Compress File Size",
@@ -190,12 +172,12 @@ export const blogs = [
   },
   {
     "title": "Essential Online Image Tools to Optimize, Resize, and Convert Images Easily",
-    "slug": "ImageToolsGuide",
+    "slug": "image-tools-guide",
     "date": "2026-04-26",
     "category": "Image Tools",
     "excerpt": "Learn how online image tools like resizers, compressors, and converters can help you optimize images for speed, quality, and better SEO performance.",
     "image": "/images/image-tools-guide.jpg",
-    "pageFile": "ImageToolsGuide"
+    "pageFile": "image-tools-guide"
   },
   {
     "title": "Best Free Online Tools for Daily Work",
@@ -208,11 +190,11 @@ export const blogs = [
   },
   {
     "title": "How to Convert WEBP to JPG Online",
-    "slug": "HowToConvertWebpToJpg",
+    "slug": "how-to-convert-webp-to-jpg",
     "date": "2026-04-24",
     "category": "Image Tools",
     "excerpt": "Learn how to convert WEBP images to JPG format online easily and quickly.",
     "image": "/images/webp-to-jpg.png",
-    "pageFile": "HowToConvertWebpToJpg"
+    "pageFile": "how-to-convert-webp-to-jpg"
   }
 ];
