@@ -39,6 +39,8 @@ import {
   Triangle,
   Star,
   Hexagon,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -238,6 +240,7 @@ export default function QuickPhotoEditor() {
   const [popupTop, setPopupTop] = useState(12);
   const [popupLeft, setPopupLeft] = useState(88);
   const [popupMaxHeight, setPopupMaxHeight] = useState(560);
+  const [topBarOpen, setTopBarOpen] = useState(true);
   const [colorPickerTarget, setColorPickerTarget] = useState(null);
   const [imageInputMode, setImageInputMode] = useState("add");
 
@@ -337,6 +340,33 @@ export default function QuickPhotoEditor() {
   const selectedGroupBox = useMemo(() => {
     return selectedObjects.length > 1 ? getGroupBox(selectedObjects) : selectedObjectBox;
   }, [selectedObjects, selectedObjectBox]);
+
+  const quickSelectedOpacity = useMemo(() => {
+    if (!selectedObjects.length) return 100;
+
+    const opacityValue = selectedObjects[0]?.opacity ?? 1;
+    return Math.round(clampNumber(opacityValue, 0, 1) * 100);
+  }, [selectedObjects]);
+
+  const quickSelectedColor = useMemo(() => {
+    if (!selectedObjects.length) return shapeFillColor;
+
+    const item = selectedObjects[0];
+
+    if (item?.type === "text") return item.color || textColor;
+    if (item?.type === "arrow") return item.stroke || shapeStrokeColor;
+    if (SHAPE_TYPES.some((shape) => shape.id === item?.type)) {
+      return item.fill || shapeFillColor;
+    }
+
+    return shapeFillColor;
+  }, [selectedObjects, shapeFillColor, shapeStrokeColor, textColor]);
+
+  const quickSelectedFontSize = selectedObject?.type === "text"
+    ? Math.round(Number(selectedObject.fontSize || fontSize))
+    : fontSize;
+
+  const quickSelectedStrokeWidth = selectedObject?.strokeWidth || shapeStrokeWidth;
 
   const selectedOutputFormat = useMemo(() => {
     return OUTPUT_FORMATS.find((item) => item.value === outputFormat) || OUTPUT_FORMATS[0];
@@ -523,9 +553,7 @@ export default function QuickPhotoEditor() {
       setColorPickerTarget(null);
       setOutputFormat(getDefaultOutputFormat(file.type));
 
-      setSuccessMessage(
-        "Photo loaded on your selected artboard. Drag the image to adjust it before editing."
-      );
+      setSuccessMessage("");
     } catch {
       setErrorMessage("Could not load this photo. Please try another image.");
 
@@ -2394,6 +2422,115 @@ export default function QuickPhotoEditor() {
     }
   }
 
+  function updateSelectedItems(updater, message = "Updated") {
+    const activeIds = getActiveSelectedIds();
+
+    if (!activeIds.length) return;
+
+    const updatesById = {};
+
+    setObjects((current) =>
+      current.map((item) => {
+        if (!activeIds.includes(item.id)) return item;
+
+        const nextUpdates =
+          typeof updater === "function" ? updater(item) : updater;
+
+        updatesById[item.id] = {
+          ...item,
+          ...nextUpdates,
+        };
+
+        return updatesById[item.id];
+      })
+    );
+
+    const nextSelected = selectedObjectId ? updatesById[selectedObjectId] : null;
+
+    if (nextSelected?.type === "text") {
+      if (nextSelected.color) setTextColor(nextSelected.color);
+      if (nextSelected.fontSize) setFontSize(Math.round(nextSelected.fontSize));
+      if (nextSelected.fontWeight) setFontWeight(Number(nextSelected.fontWeight));
+    }
+
+    if (nextSelected && SHAPE_TYPES.some((shape) => shape.id === nextSelected.type)) {
+      if (nextSelected.fill) setShapeFillColor(nextSelected.fill);
+      if (nextSelected.stroke) setShapeStrokeColor(nextSelected.stroke);
+      if (nextSelected.strokeWidth) setShapeStrokeWidth(Number(nextSelected.strokeWidth));
+    }
+
+    if (nextSelected?.type === "arrow") {
+      if (nextSelected.stroke) setShapeStrokeColor(nextSelected.stroke);
+      if (nextSelected.strokeWidth) setShapeStrokeWidth(Number(nextSelected.strokeWidth));
+    }
+
+    setGuideInfo(
+      buildGuideInfo(
+        selectedGroupBox,
+        canvasSize,
+        activeIds.length > 1 ? `${activeIds.length} items ${message.toLowerCase()}` : message
+      )
+    );
+    clearOutput();
+  }
+
+  function updateQuickColor(value) {
+    if (!selectedObjects.length) {
+      setTextColor(value);
+      setShapeFillColor(value);
+      setShapeStrokeColor(value);
+      setBrushColor(value);
+      return;
+    }
+
+    updateSelectedItems((item) => {
+      if (item.type === "text") return { color: value };
+      if (item.type === "arrow") return { stroke: value };
+      if (SHAPE_TYPES.some((shape) => shape.id === item.type)) {
+        return { fill: value, stroke: item.stroke || value };
+      }
+
+      return {};
+    }, "Color updated");
+  }
+
+  function updateQuickOpacity(percentValue) {
+    const nextOpacity = clampNumber(Number(percentValue) / 100, 0, 1);
+
+    if (!selectedObjects.length) {
+      setBrushOpacity(nextOpacity);
+      return;
+    }
+
+    updateSelectedItems({ opacity: nextOpacity }, "Transparency updated");
+  }
+
+  function updateQuickFontSize(value) {
+    const nextSize = clampNumber(Number(value), 8, 220);
+
+    if (selectedObject?.type !== "text") {
+      setFontSize(nextSize);
+      return;
+    }
+
+    updateSelectedItems({ fontSize: nextSize }, "Text size updated");
+  }
+
+  function updateQuickStrokeWidth(value) {
+    const nextWidth = clampNumber(Number(value), 1, 80);
+
+    if (!selectedObjects.length) {
+      setShapeStrokeWidth(nextWidth);
+      return;
+    }
+
+    updateSelectedItems((item) =>
+      SHAPE_TYPES.some((shape) => shape.id === item.type) || item.type === "arrow"
+        ? { strokeWidth: nextWidth }
+        : {}
+    , "Stroke updated");
+  }
+
   function updateSelectedObject(updates) {
     if (!selectedObjectId) return;
 
@@ -3009,30 +3146,34 @@ export default function QuickPhotoEditor() {
     const buttonRect = event?.currentTarget?.getBoundingClientRect?.();
 
     if (!buttonRect || typeof window === "undefined") {
-      setPopupTop(12);
+      setPopupTop(96);
       setPopupLeft(88);
-      setPopupMaxHeight(560);
+      setPopupMaxHeight(520);
       return;
     }
 
     const viewportWidth = window.innerWidth || 1280;
     const viewportHeight = window.innerHeight || 800;
     const panelWidth = Math.min(440, Math.max(280, viewportWidth - 96));
-    const desiredHeight = Math.min(640, viewportHeight - 32);
+    const safeTop = viewportWidth < 768 ? 72 : 96;
+    const desiredHeight = Math.min(560, viewportHeight - safeTop - 20);
+    const rawTop = buttonRect.top - 12;
     const nextTop = clampNumber(
-      buttonRect.top - 24,
-      12,
-      Math.max(12, viewportHeight - desiredHeight - 12)
+      rawTop,
+      safeTop,
+      Math.max(safeTop, viewportHeight - desiredHeight - 12)
     );
-    const nextLeft = clampNumber(
-      buttonRect.right + 16,
-      72,
-      Math.max(72, viewportWidth - panelWidth - 12)
-    );
+    const nextLeft = viewportWidth < 768
+      ? 12
+      : clampNumber(
+          buttonRect.right + 16,
+          72,
+          Math.max(72, viewportWidth - panelWidth - 12)
+        );
 
     setPopupTop(nextTop);
     setPopupLeft(nextLeft);
-    setPopupMaxHeight(Math.max(260, viewportHeight - nextTop - 16));
+    setPopupMaxHeight(Math.max(240, viewportHeight - nextTop - 16));
   }
 
   function activateTool(toolId, event = null) {
@@ -3484,7 +3625,7 @@ export default function QuickPhotoEditor() {
               {shouldShowSettings && (
                 <div
                   ref={optionsPanelRef}
-                  className="fixed w-[min(440px,calc(100vw-96px))] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
+                  className="fixed w-[min(440px,calc(100vw-24px))] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
                   style={{
                     top: `${popupTop}px`,
                     left: `${popupLeft}px`,
@@ -4407,6 +4548,99 @@ export default function QuickPhotoEditor() {
                 </button>
               </div>
 
+              <div className="border-b border-[var(--border)] bg-white/95 backdrop-blur px-4">
+                <button
+                  type="button"
+                  onClick={() => setTopBarOpen((current) => !current)}
+                  className="w-full py-2 flex items-center justify-between gap-3 text-left"
+                >
+                  <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">
+                    Quick editing bar
+                  </span>
+
+                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--primary)]">
+                    {topBarOpen ? "Hide" : "Show"}
+                    {topBarOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </span>
+                </button>
+
+                {topBarOpen && (
+                  <div className="pb-3 flex flex-wrap items-center gap-3">
+                    <div className="rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)]">
+                      {selectedObjects.length > 1
+                        ? `${selectedObjects.length} items selected`
+                        : selectedObject
+                          ? `${selectedObject.type} selected`
+                          : "Select an item to edit quickly"}
+                    </div>
+
+                    <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
+                      Color
+                      <input
+                        type="color"
+                        value={quickSelectedColor}
+                        onChange={(event) => updateQuickColor(event.target.value)}
+                        className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white"
+                      />
+                    </label>
+
+                    <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold min-w-[190px]">
+                      Transparency
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={quickSelectedOpacity}
+                        onChange={(event) => updateQuickOpacity(event.target.value)}
+                        className="w-24 accent-[var(--primary)]"
+                      />
+                      <span className="w-9 text-right">{quickSelectedOpacity}%</span>
+                    </label>
+
+                    {selectedObject?.type === "text" && (
+                      <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
+                        Text size
+                        <input
+                          type="number"
+                          value={quickSelectedFontSize}
+                          min="8"
+                          max="220"
+                          onChange={(event) => updateQuickFontSize(event.target.value)}
+                          className="w-20 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
+                        />
+                      </label>
+                    )}
+
+                    {(selectedObject && (SHAPE_TYPES.some((shape) => shape.id === selectedObject.type) || selectedObject.type === "arrow")) && (
+                      <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
+                        Stroke
+                        <input
+                          type="number"
+                          value={quickSelectedStrokeWidth}
+                          min="1"
+                          max="80"
+                          onChange={(event) => updateQuickStrokeWidth(event.target.value)}
+                          className="w-20 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
+                        />
+                      </label>
+                    )}
+
+                    {(selectedObjectId || selectedObjectIds.length > 0) && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" onClick={copyEditorSelection} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Copy</button>
+                        <button type="button" onClick={pasteEditorClipboard} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Paste</button>
+                        <button type="button" onClick={duplicateSelectedObjects} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Duplicate</button>
+                        <button type="button" onClick={() => reorderSelectedObjects("up")} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Bring Up</button>
+                        <button type="button" onClick={() => reorderSelectedObjects("down")} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Bring Down</button>
+                        <button type="button" onClick={() => reorderSelectedObjects("front")} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Front</button>
+                        <button type="button" onClick={() => reorderSelectedObjects("back")} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Back</button>
+                        <button type="button" onClick={deleteSelectedObject} className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100">Delete</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {false && (errorMessage || successMessage || isExporting) && (
                 <div className="grid md:grid-cols-2 gap-3 p-4 pb-0">
                   {errorMessage && (
@@ -4442,67 +4676,6 @@ export default function QuickPhotoEditor() {
               )}
 
               <div className="relative flex-1 min-h-[560px]">
-                {(selectedObjectId || selectedObjectIds.length > 0) && (
-                  <div className="absolute top-4 left-4 z-30 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/95 p-2 shadow-xl backdrop-blur">
-                    <button
-                      type="button"
-                      onClick={copyEditorSelection}
-                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
-                    >
-                      Copy
-                    </button>
-                    <button
-                      type="button"
-                      onClick={pasteEditorClipboard}
-                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
-                    >
-                      Paste
-                    </button>
-                    <button
-                      type="button"
-                      onClick={duplicateSelectedObjects}
-                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
-                    >
-                      Duplicate
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => reorderSelectedObjects("up")}
-                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
-                    >
-                      Bring Up
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => reorderSelectedObjects("down")}
-                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
-                    >
-                      Bring Down
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => reorderSelectedObjects("front")}
-                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
-                    >
-                      Front
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => reorderSelectedObjects("back")}
-                      className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={deleteSelectedObject}
-                      className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                )}
-
                 <div
                   onPointerDown={handleArtboardPointerDown}
                   onDrop={handleDrop}
@@ -4552,19 +4725,22 @@ export default function QuickPhotoEditor() {
                 </div>
 
                 {isExporting && (
-                  <div className="absolute bottom-20 left-4 right-4 z-30 pointer-events-none">
-                    <div className="pointer-events-auto bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 shadow-lg">
-                      <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                        <span>Creating final edited photo...</span>
-                        <span>{exportProgress}%</span>
+                  <div className="absolute top-4 left-1/2 z-40 w-[min(620px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-[var(--border)] bg-white/95 p-4 shadow-2xl backdrop-blur">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div>
+                        <p className="text-sm font-bold">Creating your final design</p>
+                        <p className="text-xs text-[var(--text-secondary)]">
+                          Rendering layers, smoothing edges, and preparing download.
+                        </p>
                       </div>
+                      <span className="text-sm font-bold text-[var(--primary)]">{exportProgress}%</span>
+                    </div>
 
-                      <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
-                        <div
-                          className="h-full bg-[var(--primary)] transition-all duration-300"
-                          style={{ width: `${exportProgress}%` }}
-                        />
-                      </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-[#f1e9ff]">
+                      <div
+                        className="h-full rounded-full bg-[linear-gradient(90deg,var(--primary),#22c55e)] transition-all duration-300"
+                        style={{ width: `${exportProgress}%` }}
+                      />
                     </div>
                   </div>
                 )}
