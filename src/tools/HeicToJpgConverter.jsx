@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import heic2anyImport from "heic2any";
 import {
   Upload,
   Download,
   RotateCcw,
-  Zap,
   Image,
   AlertCircle,
   CheckCircle,
   FileImage,
+  Loader2,
   SlidersHorizontal,
+  Clock3,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -17,85 +19,80 @@ export const toolData = {
   path: "/heic-to-jpg-converter",
   category: "Image Tools",
   description:
-    "Convert HEIC and HEIF images to JPG online for free. Fast, secure, and browser-based.",
+    "Convert HEIC and HEIF images to JPG online with clean preview, quality control, and instant download.",
   metaTitle: "HEIC to JPG Converter | Convert HEIC Images to JPG Online Free",
   metaDescription:
-    "Convert HEIC and HEIF images to JPG online for free. Fast browser-based HEIC to JPG converter with quality control and instant download.",
+    "Convert HEIC and HEIF images to JPG online for free. Browser-based HEIC to JPG converter with preview, quality control, and instant download.",
 };
+
+const MAX_FILE_SIZE_MB = 35;
+const ACCEPTED_EXTENSIONS = [".heic", ".heif"];
+const ACCEPTED_TYPES = [
+  "image/heic",
+  "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
+];
 
 export default function HeicToJpgConverter() {
   const fileInputRef = useRef(null);
+  const convertedUrlRef = useRef("");
 
   const [file, setFile] = useState(null);
+  const [quality, setQuality] = useState(92);
+
   const [convertedUrl, setConvertedUrl] = useState("");
   const [convertedBlob, setConvertedBlob] = useState(null);
   const [convertedName, setConvertedName] = useState("");
-  const [quality, setQuality] = useState(90);
+
   const [isDragging, setIsDragging] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [processingTimeMs, setProcessingTimeMs] = useState(0);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
     return () => {
-      if (convertedUrl) {
-        URL.revokeObjectURL(convertedUrl);
-      }
+      revokeConvertedUrl();
     };
-  }, [convertedUrl]);
+  }, []);
 
-  const formatBytes = (bytes) => {
-    if (!bytes && bytes !== 0) return "0 B";
-
-    const sizes = ["B", "KB", "MB", "GB"];
-    const index = Math.floor(Math.log(bytes) / Math.log(1024));
-
-    return `${(bytes / Math.pow(1024, index)).toFixed(2)} ${sizes[index]}`;
-  };
-
-  const getBaseName = (name) => {
-    return name.replace(/\.[^/.]+$/, "");
-  };
-
-  const getSizeChange = () => {
-    if (!file || !convertedBlob) return null;
-
-    const difference = convertedBlob.size - file.size;
-    const percentage = Math.abs((difference / file.size) * 100).toFixed(1);
-
-    if (difference > 0) {
-      return `${percentage}% larger`;
+  function revokeConvertedUrl() {
+    if (convertedUrlRef.current) {
+      URL.revokeObjectURL(convertedUrlRef.current);
+      convertedUrlRef.current = "";
     }
+  }
 
-    if (difference < 0) {
-      return `${percentage}% smaller`;
-    }
-
-    return "Same size";
-  };
-
-  const isValidHeicFile = (selectedFile) => {
-    const fileName = selectedFile.name.toLowerCase();
-
-    return (
-      fileName.endsWith(".heic") ||
-      fileName.endsWith(".heif") ||
-      selectedFile.type === "image/heic" ||
-      selectedFile.type === "image/heif"
-    );
-  };
-
-  const clearConvertedOutput = () => {
-    if (convertedUrl) {
-      URL.revokeObjectURL(convertedUrl);
-    }
-
+  function clearConvertedOutput() {
+    revokeConvertedUrl();
     setConvertedUrl("");
     setConvertedBlob(null);
     setConvertedName("");
-  };
+    setProcessingTimeMs(0);
+    setProgress(0);
+  }
 
-  const handleFile = (selectedFile) => {
+  function resetInput() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function isValidHeicFile(selectedFile) {
+    if (!selectedFile) return false;
+
+    const lowerName = selectedFile.name.toLowerCase();
+    const hasValidExtension = ACCEPTED_EXTENSIONS.some((extension) =>
+      lowerName.endsWith(extension)
+    );
+
+    return hasValidExtension || ACCEPTED_TYPES.includes(selectedFile.type);
+  }
+
+  async function handleFile(selectedFile) {
     setError("");
     setSuccess("");
     clearConvertedOutput();
@@ -104,74 +101,108 @@ export default function HeicToJpgConverter() {
 
     if (!isValidHeicFile(selectedFile)) {
       setError("Please upload a valid HEIC or HEIF image file.");
+      resetInput();
       return;
     }
 
-    const maxSize = 25 * 1024 * 1024;
-
-    if (selectedFile.size > maxSize) {
-      setError("File is too large. Please upload a HEIC image under 25MB.");
+    if (selectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      setError(`File is too large. Please upload a HEIC/HEIF image under ${MAX_FILE_SIZE_MB} MB.`);
+      resetInput();
       return;
     }
 
     setFile(selectedFile);
-    setSuccess("HEIC image loaded successfully. Ready to convert.");
-  };
+    setSuccess("HEIC image loaded. Click Convert JPG to start conversion.");
+  }
 
-  const handleInputChange = (e) => {
-    const selectedFile = e.target.files?.[0];
-    handleFile(selectedFile);
-  };
+  function handleInputChange(event) {
+    handleFile(event.target.files?.[0]);
+  }
 
-  const handleDrop = (e) => {
-    e.preventDefault();
+  function handleDrop(event) {
+    event.preventDefault();
     setIsDragging(false);
+    handleFile(event.dataTransfer.files?.[0]);
+  }
 
-    const selectedFile = e.dataTransfer.files?.[0];
-    handleFile(selectedFile);
-  };
-
-  const handleConvert = async () => {
+  async function convertFile(targetFile = file, targetQuality = quality) {
     setError("");
     setSuccess("");
 
-    if (!file) {
+    if (!targetFile) {
       setError("Please upload a HEIC or HEIF image first.");
       return;
     }
 
     setIsConverting(true);
+    setProgress(8);
+    setProcessingTimeMs(0);
     clearConvertedOutput();
 
+    const startTime = performance.now();
+    const progressTimer = startProgressTimer(targetFile);
+
     try {
-      const heic2anyModule = await import("heic2any");
-      const heic2any = heic2anyModule.default;
+      const jpgBlob = await convertHeicToJpg(targetFile, targetQuality);
 
-      const result = await heic2any({
-        blob: file,
-        toType: "image/jpeg",
-        quality: quality / 100,
-      });
+      if (!(jpgBlob instanceof Blob) || !jpgBlob.size) {
+        throw new Error("The converter returned an empty JPG file.");
+      }
 
-      const jpgBlob = Array.isArray(result) ? result[0] : result;
       const jpgUrl = URL.createObjectURL(jpgBlob);
-      const jpgName = `${getBaseName(file.name)}.jpg`;
+      const jpgName = `${getBaseName(targetFile.name)}.jpg`;
+      const actualTime = Math.max(1, Math.round(performance.now() - startTime));
 
+      convertedUrlRef.current = jpgUrl;
       setConvertedBlob(jpgBlob);
       setConvertedUrl(jpgUrl);
       setConvertedName(jpgName);
-      setSuccess("Conversion completed successfully. Your JPG is ready.");
-    } catch (err) {
+      setProcessingTimeMs(actualTime);
+      setProgress(100);
+      setSuccess(`Converted successfully in ${(actualTime / 1000).toFixed(1)}s. JPG preview is ready.`);
+    } catch (conversionError) {
       setError(
-        "Conversion failed. Please try another HEIC file. Some damaged HEIC files may not be supported."
+        conversionError?.message ||
+          "Conversion failed. Please try another HEIC/HEIF image."
       );
+      clearConvertedOutput();
     } finally {
-      setIsConverting(false);
+      window.clearInterval(progressTimer);
+      window.setTimeout(() => {
+        setIsConverting(false);
+        setProgress(0);
+      }, 500);
     }
-  };
+  }
 
-  const handleDownload = () => {
-    if (!convertedUrl) return;
+  function startProgressTimer(targetFile) {
+    const start = Date.now();
+    const estimatedMs = Math.max(
+      1200,
+      Math.min(7500, (targetFile?.size || file?.size || 2_000_000) / 3500)
+    );
+
+    return window.setInterval(() => {
+      const elapsed = Date.now() - start;
+      const nextProgress = Math.min(92, Math.round((elapsed / estimatedMs) * 92));
+      setProgress(Math.max(8, nextProgress));
+    }, 90);
+  }
+
+  function handleQualityChange(value) {
+    setQuality(value);
+
+    if (file) {
+      setSuccess("Quality changed. Click Convert JPG again to apply the new quality.");
+      clearConvertedOutput();
+    }
+  }
+
+  function handleDownload() {
+    if (!convertedBlob || !convertedUrl) {
+      setError("Please convert the HEIC image first.");
+      return;
+    }
 
     const link = document.createElement("a");
     link.href = convertedUrl;
@@ -179,281 +210,408 @@ export default function HeicToJpgConverter() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }
 
-  const handleReset = () => {
+  function handleReset() {
     clearConvertedOutput();
-
     setFile(null);
-    setQuality(90);
+    setQuality(92);
     setIsDragging(false);
     setIsConverting(false);
     setError("");
     setSuccess("");
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
+    resetInput();
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      {/* TOOL HEADER */}
-      <section className="bg-white border rounded-2xl shadow-sm p-6">
-        <div className="flex items-start gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center shrink-0">
-            <Image className="w-7 h-7 text-[var(--primary)]" />
-          </div>
-
-          <div>
-            <h1 className="text-3xl font-bold mb-3">HEIC to JPG Converter</h1>
-            <p className="text-[var(--text-secondary)]">
-              Convert iPhone HEIC and HEIF photos to JPG in seconds. This tool
-              works directly in your browser with quality control and instant
-              download.
-            </p>
-          </div>
+      <section className="card p-6 sm:p-8">
+        <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
+          <Image size={28} className="text-[var(--primary)]" />
         </div>
+
+        <h1 className="text-3xl font-bold mb-3">HEIC to JPG Converter</h1>
+
+        <p className="text-[var(--text-secondary)] max-w-2xl">
+          Upload an iPhone HEIC/HEIF image, convert it to JPG, preview the converted image, and download it instantly.
+        </p>
       </section>
 
-      {/* TOOL BODY */}
-      <section className="bg-white border rounded-2xl shadow-sm p-6">
-        <div
-          onDrop={handleDrop}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          className={`border-2 border-dashed rounded-2xl p-8 text-center transition ${
-            isDragging
-              ? "border-[var(--primary)] bg-[var(--primary)]/5"
-              : "border-gray-200 bg-gray-50"
-          }`}
-        >
-          <div className="w-16 h-16 rounded-full bg-white border shadow-sm flex items-center justify-center mx-auto mb-4">
-            <Upload className="w-7 h-7 text-[var(--primary)]" />
-          </div>
-
-          <h2 className="text-xl font-semibold mb-2">Upload HEIC Image</h2>
-          <p className="text-sm text-[var(--text-secondary)] mb-5">
-            Drag and drop your HEIC or HEIF image here, or click the button
-            below.
-          </p>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".heic,.heif,image/heic,image/heif"
-            onChange={handleInputChange}
-            className="hidden"
-          />
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="btn-primary inline-flex items-center gap-2"
-          >
-            <Upload className="w-4 h-4" />
-            Choose HEIC File
-          </button>
-
-          {file && (
-            <p className="mt-4 text-sm font-medium text-[var(--text-primary)]">
-              Selected: {file.name}
-            </p>
-          )}
-        </div>
-
-        {/* FEEDBACK */}
-        {error && (
-          <div className="mt-5 flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
-
-        {success && (
-          <div className="mt-5 flex items-start gap-3 bg-green-50 border border-green-200 text-green-700 rounded-xl p-4">
-            <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
-            <p className="text-sm">{success}</p>
-          </div>
-        )}
-
-        {/* SETTINGS */}
-        <div className="grid md:grid-cols-2 gap-5 mt-6">
-          <div className="border rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <SlidersHorizontal className="w-5 h-5 text-[var(--primary)]" />
-              <h3 className="font-semibold">JPG Quality</h3>
-            </div>
-
-            <label className="block text-sm font-medium mb-2">
-              Quality: {quality}%
-            </label>
-
-            <input
-              type="range"
-              min="40"
-              max="100"
-              value={quality}
-              onChange={(e) => {
-                setQuality(Number(e.target.value));
-                clearConvertedOutput();
-                setSuccess(file ? "Quality changed. Convert again to apply." : "");
+      <section className="card p-4 sm:p-6">
+        <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-6">
+          <div className="flex flex-col gap-4">
+            <div
+              onDrop={handleDrop}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setIsDragging(true);
               }}
-              className="w-full accent-[var(--primary)]"
-            />
-
-            <p className="text-sm text-[var(--text-secondary)] mt-3">
-              Higher quality gives better image output but may create a larger
-              file size.
-            </p>
-          </div>
-
-          <div className="border rounded-2xl p-5 bg-gray-50">
-            <div className="flex items-center gap-2 mb-3">
-              <FileImage className="w-5 h-5 text-[var(--primary)]" />
-              <h3 className="font-semibold">Browser-Based Conversion</h3>
-            </div>
-
-            <p className="text-sm text-[var(--text-secondary)]">
-              Your image is converted locally in the browser. No backend or paid
-              API is required.
-            </p>
-          </div>
-        </div>
-
-        {/* ACTION BUTTONS */}
-        <div className="flex flex-col sm:flex-row gap-3 mt-6">
-          <button
-            type="button"
-            onClick={handleConvert}
-            disabled={!file || isConverting}
-            className={`btn-primary inline-flex items-center justify-center gap-2 ${
-              !file || isConverting ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            <Zap className="w-4 h-4" />
-            {isConverting ? "Converting..." : "Convert to JPG"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleReset}
-            className="btn-secondary inline-flex items-center justify-center gap-2"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Reset
-          </button>
-
-          {convertedUrl && (
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="btn-primary inline-flex items-center justify-center gap-2"
+              onDragLeave={() => setIsDragging(false)}
+              onClick={() => fileInputRef.current?.click()}
+              className={`min-h-[300px] border-2 border-dashed rounded-3xl p-8 text-center transition cursor-pointer flex flex-col items-center justify-center ${
+                isDragging
+                  ? "border-[var(--primary)] bg-[#f8f4ff]"
+                  : "border-[var(--border)] bg-gray-50 hover:bg-[#f8f4ff]"
+              }`}
             >
-              <Download className="w-4 h-4" />
-              Download JPG
-            </button>
-          )}
-        </div>
-      </section>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".heic,.heif,image/heic,image/heif,image/heic-sequence,image/heif-sequence"
+                onChange={handleInputChange}
+                className="hidden"
+              />
 
-      {/* STATS */}
-      {file && (
-        <section className="bg-white border rounded-2xl shadow-sm p-6">
-          <h2 className="text-xl font-bold mb-4">File Details</h2>
+              <Upload size={44} className="text-[var(--primary)] mb-4" />
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gray-50 border rounded-xl p-4">
-              <p className="text-sm text-[var(--text-secondary)]">
-                Original Format
+              <h2 className="text-xl font-bold mb-2">Upload HEIC / HEIF</h2>
+
+              <p className="text-sm text-[var(--text-secondary)] max-w-sm mb-5">
+                Drag and drop your image here, or click to choose a file. Max {MAX_FILE_SIZE_MB} MB.
               </p>
-              <p className="text-2xl font-bold">HEIC</p>
-            </div>
 
-            <div className="bg-gray-50 border rounded-xl p-4">
-              <p className="text-sm text-[var(--text-secondary)]">
-                Output Format
-              </p>
-              <p className="text-2xl font-bold">JPG</p>
-            </div>
+              <button type="button" className="btn-primary inline-flex items-center gap-2">
+                <Upload size={17} />
+                Choose Image
+              </button>
 
-            <div className="bg-gray-50 border rounded-xl p-4">
-              <p className="text-sm text-[var(--text-secondary)]">
-                Original Size
-              </p>
-              <p className="text-2xl font-bold">{formatBytes(file.size)}</p>
-            </div>
-
-            <div className="bg-gray-50 border rounded-xl p-4">
-              <p className="text-sm text-[var(--text-secondary)]">
-                Converted Size
-              </p>
-              <p className="text-2xl font-bold">
-                {convertedBlob ? formatBytes(convertedBlob.size) : "-"}
-              </p>
-            </div>
-          </div>
-
-          {convertedBlob && (
-            <div className="mt-4 bg-[var(--primary)]/5 border border-[var(--primary)]/20 rounded-xl p-4">
-              <p className="text-sm font-medium text-[var(--text-primary)]">
-                Size result: {getSizeChange()}
-              </p>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* PREVIEW */}
-      {file && (
-        <section className="bg-white border rounded-2xl shadow-sm p-6">
-          <h2 className="text-xl font-bold mb-4">Preview</h2>
-
-          <div className="grid md:grid-cols-2 gap-5">
-            <div className="border rounded-2xl p-5 bg-gray-50">
-              <h3 className="font-semibold mb-3">Original HEIC</h3>
-
-              <div className="min-h-64 rounded-2xl border bg-white flex items-center justify-center p-6 text-center">
-                <div>
-                  <FileImage className="w-12 h-12 mx-auto mb-3 text-[var(--primary)]" />
-                  <p className="font-medium">{file.name}</p>
-                  <p className="text-sm text-[var(--text-secondary)] mt-2">
-                    HEIC preview is not supported in many browsers. Convert it
-                    to see the JPG preview.
+              {file && (
+                <div className="mt-5 max-w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3">
+                  <p className="font-semibold truncate">{file.name}</p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    {formatBytes(file.size)}
                   </p>
                 </div>
-              </div>
+              )}
             </div>
 
-            <div className="border rounded-2xl p-5 bg-gray-50">
-              <h3 className="font-semibold mb-3">Converted JPG</h3>
+            <div className="rounded-2xl border border-[var(--border)] bg-white p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <SlidersHorizontal size={18} className="text-[var(--primary)]" />
+                <h3 className="font-semibold">JPG Quality</h3>
+              </div>
 
-              <div className="min-h-64 rounded-2xl border bg-white flex items-center justify-center p-3">
+              <label className="block text-sm font-medium mb-2">
+                Quality: {quality}%
+              </label>
+
+              <input
+                type="range"
+                min="50"
+                max="100"
+                value={quality}
+                onChange={(event) => handleQualityChange(Number(event.target.value))}
+                className="w-full accent-[var(--primary)]"
+              />
+
+              <p className="text-xs text-[var(--text-secondary)] mt-2">
+                90-95% is best for normal photos. Higher quality may create a larger JPG.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => convertFile()}
+                disabled={!file || isConverting}
+                className={`btn-primary flex-1 inline-flex items-center justify-center gap-2 ${
+                  !file || isConverting ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                {isConverting ? <Loader2 size={18} className="animate-spin" /> : <FileImage size={18} />}
+                {isConverting ? "Converting..." : "Convert JPG"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleReset}
+                className="btn-secondary inline-flex items-center justify-center gap-2"
+              >
+                <RotateCcw size={18} />
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {(error || success) && (
+              <>
+                {error && <MessageBox type="error" message={error} />}
+                {success && <MessageBox type="success" message={success} />}
+              </>
+            )}
+
+            {isConverting && (
+              <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
+                <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                  <span>Converting HEIC to JPG...</span>
+                  <span>{progress}%</span>
+                </div>
+
+                <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--primary)] transition-all duration-200"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="border border-[var(--border)] rounded-3xl bg-white p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold">JPG Preview</h2>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    Preview appears after successful conversion.
+                  </p>
+                </div>
+
+                {processingTimeMs > 0 && (
+                  <div className="inline-flex items-center gap-2 text-xs font-semibold text-green-700 bg-green-50 border border-green-100 rounded-full px-3 py-2">
+                    <Clock3 size={14} />
+                    {(processingTimeMs / 1000).toFixed(1)}s
+                  </div>
+                )}
+              </div>
+
+              <div className="min-h-[420px] rounded-2xl border border-[var(--border)] bg-gray-50 flex items-center justify-center overflow-hidden p-3">
                 {convertedUrl ? (
                   <img
                     src={convertedUrl}
-                    alt="Converted JPG Preview"
-                    className="max-h-80 w-auto rounded-xl shadow-sm"
+                    alt="Converted JPG preview"
+                    className="max-w-full max-h-[520px] object-contain rounded-xl shadow-sm bg-white"
                   />
                 ) : (
-                  <div className="text-center p-6">
-                    <Image className="w-12 h-12 mx-auto mb-3 text-[var(--primary)]" />
-                    <p className="text-sm text-[var(--text-secondary)]">
-                      Converted JPG preview will appear here.
+                  <div className="text-center max-w-sm p-6">
+                    <FileImage size={46} className="mx-auto mb-3 text-[var(--primary)]" />
+                    <p className="font-semibold">No JPG preview yet</p>
+                    <p className="text-sm text-[var(--text-secondary)] mt-2">
+                      Upload a HEIC image and click Convert JPG. The converted JPG will show here.
                     </p>
                   </div>
                 )}
               </div>
+
+              <div className="grid sm:grid-cols-3 gap-3 mt-4">
+                <StatCard label="Input" value={file ? formatBytes(file.size) : "-"} />
+                <StatCard label="Output" value={convertedBlob ? formatBytes(convertedBlob.size) : "-"} />
+                <StatCard label="Format" value={convertedBlob ? "JPG" : "HEIC"} />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={!convertedUrl || isConverting}
+                className={`btn-primary w-full inline-flex items-center justify-center gap-2 mt-4 ${
+                  !convertedUrl || isConverting ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                <Download size={18} />
+                Download JPG
+              </button>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* SUGGESTED TOOLS */}
       <SuggestedTools currentToolId="heic-to-jpg-converter" />
     </div>
   );
+}
+
+
+async function convertHeicToJpg(file, quality) {
+  const converter = getHeic2AnyConverter();
+
+  if (!converter) {
+    throw new Error("Conversion failed. heic2any is installed incorrectly or unavailable in this browser build.");
+  }
+
+  const attempts = await createConversionAttempts(file);
+  const errors = [];
+
+  for (const attempt of attempts) {
+    try {
+      const result = await converter({
+        blob: attempt.blob,
+        toType: "image/jpeg",
+        quality: quality / 100,
+      });
+
+      const jpgBlob = Array.isArray(result) ? result[0] : result;
+
+      if (jpgBlob instanceof Blob && jpgBlob.size > 0) {
+        return jpgBlob;
+      }
+
+      errors.push(`${attempt.label}: empty result`);
+    } catch (error) {
+      errors.push(`${attempt.label}: ${error?.message || "failed"}`);
+    }
+  }
+
+  try {
+    return await convertWithNativeBrowserDecode(file, quality);
+  } catch (nativeError) {
+    errors.push(`native browser decoder: ${nativeError?.message || "failed"}`);
+  }
+
+  throw new Error(
+    "Conversion failed. This HEIC variant may not be supported by the browser converter. Try another HEIC file, or export the photo again from iPhone as Most Compatible/JPG."
+  );
+}
+
+function getHeic2AnyConverter() {
+  if (typeof heic2anyImport === "function") return heic2anyImport;
+  if (typeof heic2anyImport?.default === "function") return heic2anyImport.default;
+  return null;
+}
+
+async function createConversionAttempts(file) {
+  const buffer = await file.arrayBuffer();
+  const inferredType = inferHeicMimeType(file);
+  const attempts = [
+    {
+      label: "original file",
+      blob: file,
+    },
+    {
+      label: inferredType,
+      blob: new Blob([buffer], { type: inferredType }),
+    },
+  ];
+
+  if (inferredType !== "image/heic") {
+    attempts.push({
+      label: "image/heic",
+      blob: new Blob([buffer], { type: "image/heic" }),
+    });
+  }
+
+  if (inferredType !== "image/heif") {
+    attempts.push({
+      label: "image/heif",
+      blob: new Blob([buffer], { type: "image/heif" }),
+    });
+  }
+
+  return attempts;
+}
+
+function inferHeicMimeType(file) {
+  const lowerName = String(file?.name || "").toLowerCase();
+
+  if (lowerName.endsWith(".heif")) return "image/heif";
+  return "image/heic";
+}
+
+async function convertWithNativeBrowserDecode(file, quality) {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const img = await loadImage(objectUrl);
+    const canvas = document.createElement("canvas");
+    const width = img.naturalWidth || img.width;
+    const height = img.naturalHeight || img.height;
+
+    if (!width || !height) {
+      throw new Error("native decoder returned an invalid image size");
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      throw new Error("canvas is not supported");
+    }
+
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const blob = await canvasToBlob(canvas, "image/jpeg", quality / 100);
+
+    if (!blob?.size) {
+      throw new Error("native conversion returned an empty JPG");
+    }
+
+    return blob;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function loadImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new window.Image();
+
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("browser could not decode this HEIC image"));
+    image.src = source;
+  });
+}
+
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("canvas could not create JPG"));
+          return;
+        }
+
+        resolve(blob);
+      },
+      mimeType,
+      quality
+    );
+  });
+}
+
+function MessageBox({ type, message }) {
+  const isError = type === "error";
+
+  return (
+    <div
+      className={`flex items-start gap-3 text-sm p-4 rounded-xl border ${
+        isError
+          ? "text-red-700 bg-red-50 border-red-100"
+          : "text-green-700 bg-green-50 border-green-100"
+      }`}
+    >
+      {isError ? (
+        <AlertCircle size={18} className="shrink-0 mt-0.5" />
+      ) : (
+        <CheckCircle size={18} className="shrink-0 mt-0.5" />
+      )}
+      <p>{message}</p>
+    </div>
+  );
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div className="bg-gray-50 border border-[var(--border)] rounded-2xl p-3 text-center">
+      <p className="text-[11px] text-[var(--text-secondary)] mb-1">{label}</p>
+      <p className="text-sm font-bold text-[var(--primary)] break-all">{value}</p>
+    </div>
+  );
+}
+
+function getBaseName(name) {
+  return String(name || "converted-image").replace(/\.[^/.]+$/, "");
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+
+  const units = ["B", "KB", "MB", "GB"];
+  const index = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  );
+
+  const value = bytes / Math.pow(1024, index);
+
+  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }

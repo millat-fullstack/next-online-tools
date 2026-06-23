@@ -222,12 +222,14 @@ export default function QuickPhotoEditor() {
   const [activeTool, setActiveTool] = useState("select");
   const [activePanel, setActivePanel] = useState("");
   const [toolPopupOpen, setToolPopupOpen] = useState(false);
+  const [popupTop, setPopupTop] = useState(12);
   const [colorPickerTarget, setColorPickerTarget] = useState(null);
   const [imageInputMode, setImageInputMode] = useState("add");
 
   const [objects, setObjects] = useState([]);
   const [draftObject, setDraftObject] = useState(null);
   const [selectedObjectId, setSelectedObjectId] = useState(null);
+  const [selectedObjectIds, setSelectedObjectIds] = useState([]);
   const [activeSelection, setActiveSelection] = useState(null);
   const [freeSelectionDraft, setFreeSelectionDraft] = useState(null);
 
@@ -235,7 +237,7 @@ export default function QuickPhotoEditor() {
   const [historyFuture, setHistoryFuture] = useState([]);
 
   const [brushSize, setBrushSize] = useState(36);
-  const [brushOpacity, setBrushOpacity] = useState(0.85);
+  const [brushOpacity, setBrushOpacity] = useState(1);
   const [brushColor, setBrushColor] = useState("#ef4444");
   const [blurStrength, setBlurStrength] = useState(10);
 
@@ -256,7 +258,7 @@ export default function QuickPhotoEditor() {
   const [shapeType, setShapeType] = useState("rectangle");
   const [shapeFillEnabled, setShapeFillEnabled] = useState(true);
   const [shapeStrokeEnabled, setShapeStrokeEnabled] = useState(true);
-  const [shapeFillColor, setShapeFillColor] = useState("rgba(239,68,68,0.12)");
+  const [shapeFillColor, setShapeFillColor] = useState("#ef4444");
   const [shapeStrokeColor, setShapeStrokeColor] = useState("#ef4444");
   const [shapeStrokeWidth, setShapeStrokeWidth] = useState(6);
 
@@ -303,9 +305,23 @@ export default function QuickPhotoEditor() {
     return objects.find((item) => item.id === selectedObjectId) || null;
   }, [objects, selectedObjectId]);
 
+  const selectedObjects = useMemo(() => {
+    const activeIds = selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
+
+    return objects.filter((item) => activeIds.includes(item.id));
+  }, [objects, selectedObjectId, selectedObjectIds]);
+
   const selectedObjectBox = useMemo(() => {
     return selectedObject ? getObjectBox(selectedObject) : null;
   }, [selectedObject]);
+
+  const selectedGroupBox = useMemo(() => {
+    return selectedObjects.length > 1 ? getGroupBox(selectedObjects) : selectedObjectBox;
+  }, [selectedObjects, selectedObjectBox]);
 
   const selectedOutputFormat = useMemo(() => {
     return OUTPUT_FORMATS.find((item) => item.value === outputFormat) || OUTPUT_FORMATS[0];
@@ -327,6 +343,25 @@ export default function QuickPhotoEditor() {
     setTextBoxHeight(Number(selectedObject.h || 120));
     setBoldText(Boolean(selectedObject.bold || Number(selectedObject.fontWeight || 0) >= 700));
     setTextShadow(Boolean(selectedObject.shadow));
+  }, [selectedObjectId]);
+
+  useEffect(() => {
+    setSelectedObjectIds((current) =>
+      current.filter((id) => objects.some((item) => item.id === id))
+    );
+  }, [objects]);
+
+  useEffect(() => {
+    if (!selectedObjectId) {
+      if (selectedObjectIds.length) {
+        setSelectedObjectIds([]);
+      }
+      return;
+    }
+
+    if (selectedObjectIds.length <= 1 && selectedObjectIds[0] !== selectedObjectId) {
+      setSelectedObjectIds([selectedObjectId]);
+    }
   }, [selectedObjectId]);
 
   const previewWidth = useMemo(() => {
@@ -446,6 +481,7 @@ export default function QuickPhotoEditor() {
       setObjects([baseImageObject]);
       setDraftObject(null);
       setSelectedObjectId(baseImageObject.id);
+      setSelectedObjectIds([baseImageObject.id]);
       setActiveSelection(null);
       setFreeSelectionDraft(null);
       setHistoryPast([]);
@@ -564,9 +600,27 @@ export default function QuickPhotoEditor() {
       const isModifier = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
 
+      if (!isModifier && key === "v") {
+        event.preventDefault();
+        setActiveTool("select");
+        setActivePanel("");
+        setToolPopupOpen(false);
+        setSuccessMessage("Select tool activated.");
+        return;
+      }
+
       if (isModifier && key === "d") {
         event.preventDefault();
-        clearFreeSelectionManually("Free selection deselected.");
+
+        if (selectedObjectIds.length || selectedObjectId) {
+          duplicateSelectedObjects();
+        } else if (editorClipboardRef.current) {
+          pasteEditorClipboard();
+        } else if (activeSelection?.path?.length) {
+          clearFreeSelectionManually("Free selection deselected.");
+        } else {
+          setErrorMessage("Select an item first, then press Ctrl/Cmd + D to duplicate it.");
+        }
         return;
       }
 
@@ -747,6 +801,7 @@ export default function QuickPhotoEditor() {
 
   function clearSelections() {
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setDraftObject(null);
     setGuideInfo(null);
     setPatchTargetBox(null);
@@ -863,6 +918,7 @@ export default function QuickPhotoEditor() {
 
       setObjects((current) => [...current, imageObject]);
       setSelectedObjectId(imageObject.id);
+      setSelectedObjectIds([imageObject.id]);
       setActiveTool("select");
       setActivePanel("image");
       setToolPopupOpen(true);
@@ -923,6 +979,7 @@ export default function QuickPhotoEditor() {
 
     setObjects((current) => [...current, imageObject]);
     setSelectedObjectId(imageObject.id);
+    setSelectedObjectIds([imageObject.id]);
     setActiveTool("select");
     setActivePanel("image");
     setToolPopupOpen(true);
@@ -954,6 +1011,7 @@ export default function QuickPhotoEditor() {
     if (event.target === visibleCanvasRef.current) return;
 
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setDraftObject(null);
     setActiveSelection(null);
     setFreeSelectionDraft(null);
@@ -1046,7 +1104,9 @@ export default function QuickPhotoEditor() {
       drawEditorGuides(ctx, canvas.width, canvas.height);
     }
 
-    if (selectedObject) {
+    if (selectedObjects.length > 1) {
+      drawGroupSelectionBox(ctx, selectedObjects);
+    } else if (selectedObject) {
       drawSelectionBox(ctx, selectedObject);
     }
 
@@ -1131,6 +1191,7 @@ export default function QuickPhotoEditor() {
     setShowCloneSourceGuide(Boolean(snapshot.showCloneSourceGuide));
     setGuideInfo(null);
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     clearOutput();
 
     window.setTimeout(renderVisibleCanvas, 0);
@@ -1278,19 +1339,62 @@ export default function QuickPhotoEditor() {
   function handleSelectPointerDown(event, point) {
     const selected = getObjectAtPoint(point, objects);
 
-    setSelectedObjectId(selected?.id || null);
-
     if (!selected) {
       setSelectedObjectId(null);
+      setSelectedObjectIds([]);
       setDraftObject(null);
       setGuideInfo(null);
       setColorPickerTarget(null);
       return;
     }
 
+    const currentlySelectedIds = selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
+
+    if (event.shiftKey) {
+      const nextIds = currentlySelectedIds.includes(selected.id)
+        ? currentlySelectedIds.filter((id) => id !== selected.id)
+        : [...currentlySelectedIds, selected.id];
+
+      if (!nextIds.length) {
+        setSelectedObjectId(null);
+        setSelectedObjectIds([]);
+        setGuideInfo(null);
+        return;
+      }
+
+      setSelectedObjectId(selected.id);
+      setSelectedObjectIds(nextIds);
+      setToolPopupOpen(true);
+      setActivePanel("select");
+
+      const nextObjects = objects.filter((item) => nextIds.includes(item.id));
+      const nextBox = getGroupBox(nextObjects) || getObjectBox(selected);
+
+      setGuideInfo(
+        buildGuideInfo(
+          nextBox,
+          canvasSize,
+          nextObjects.length > 1 ? `${nextObjects.length} items selected` : "Selected"
+        )
+      );
+      return;
+    }
+
+    const nextIds = currentlySelectedIds.includes(selected.id) && currentlySelectedIds.length > 1
+      ? currentlySelectedIds
+      : [selected.id];
+
+    setSelectedObjectId(selected.id);
+    setSelectedObjectIds(nextIds);
     setToolPopupOpen(true);
 
-    if (selected.type === "text") {
+    if (nextIds.length > 1) {
+      setActivePanel("select");
+    } else if (selected.type === "text") {
       setActivePanel("text");
     } else if (selected.type === "image") {
       setActivePanel("image");
@@ -1300,19 +1404,31 @@ export default function QuickPhotoEditor() {
       setActivePanel("");
     }
 
-    const selectedBox = getObjectBox(selected);
-    const resizeHandle = getResizeHandleAtPoint(point, selected, previewZoom);
+    const selectedItemsForAction = objects.filter((item) => nextIds.includes(item.id));
+    const selectedBox = nextIds.length > 1
+      ? getGroupBox(selectedItemsForAction)
+      : getObjectBox(selected);
+    const resizeHandle = getResizeHandleAtBox(point, selectedBox, previewZoom, canvasSize);
 
     pushHistory();
 
     pointerRef.current = {
       active: true,
-      mode: resizeHandle ? "resize-object" : "move-object",
+      mode: nextIds.length > 1
+        ? resizeHandle
+          ? "resize-group"
+          : "move-group"
+        : resizeHandle
+          ? "resize-object"
+          : "move-object",
       startPoint: point,
       lastPoint: point,
-      selectedStart: cloneObject(selected),
+      selectedStart: nextIds.length > 1
+        ? selectedItemsForAction.map(cloneObject)
+        : cloneObject(selected),
       dragStartBox: selectedBox,
       resizeHandle,
+      selectedIds: nextIds,
     };
 
     setGuideInfo(
@@ -1320,12 +1436,16 @@ export default function QuickPhotoEditor() {
         selectedBox,
         canvasSize,
         resizeHandle
-          ? selected.type === "text"
-            ? "Drag corner to scale text • Alt = center scale"
-            : "Drag corner to resize • Alt = center scale"
-          : selected.isBaseImage
-            ? "Drag image to adjust"
-            : "Selected"
+          ? nextIds.length > 1
+            ? "Resize selected items • Shift = keep ratio • Alt = center scale"
+            : selected.type === "text"
+              ? "Drag corner to scale text • Alt = center scale"
+              : "Drag corner to resize • Alt = center scale"
+          : nextIds.length > 1
+            ? "Move selected items"
+            : selected.isBaseImage
+              ? "Drag image to adjust"
+              : "Selected"
       )
     );
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -1334,6 +1454,7 @@ export default function QuickPhotoEditor() {
   function handleFreeSelectPointerDown(event, point) {
     commitBaseImageToCanvasIfNeeded({ withHistory: true });
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setActiveSelection(null);
     setPatchTargetSelection(null);
     setCloneSourceSelection(null);
@@ -1369,6 +1490,7 @@ export default function QuickPhotoEditor() {
 
     setObjects((current) => [...current.filter((item) => !item.isBaseImage), textObject]);
     setSelectedObjectId(textObject.id);
+    setSelectedObjectIds([textObject.id]);
     setActiveTool("select");
     setActivePanel("text");
     setGuideInfo(buildGuideInfo(getObjectBox(textObject), canvasSize, "Text added"));
@@ -1604,6 +1726,16 @@ export default function QuickPhotoEditor() {
       return;
     }
 
+    if (pointerRef.current.mode === "resize-group") {
+      resizeSelectedGroup(point, { shiftKey: event.shiftKey, altKey: event.altKey });
+      return;
+    }
+
+    if (pointerRef.current.mode === "move-group") {
+      moveSelectedGroup(point, { shiftKey: event.shiftKey });
+      return;
+    }
+
     if (pointerRef.current.mode === "resize-object" && selectedObjectId) {
       resizeSelectedObject(point, { shiftKey: event.shiftKey, altKey: event.altKey });
       return;
@@ -1630,7 +1762,10 @@ export default function QuickPhotoEditor() {
         shiftKey: event.shiftKey,
       });
       setDraftObject(nextDraft);
-      setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Drawing"));
+      const draftBox = getObjectBox(normalizeObject(nextDraft));
+      const referenceBoxes = objects.map(getObjectBox).filter(Boolean);
+      const snapResult = draftBox ? snapBoxToGuides(draftBox, canvasSize, referenceBoxes) : null;
+      setGuideInfo(buildGuideInfo(draftBox, canvasSize, snapResult?.message || "Drawing", snapResult));
       pointerRef.current.lastPoint = point;
       return;
     }
@@ -1709,6 +1844,93 @@ export default function QuickPhotoEditor() {
     }
   }
 
+  function moveSelectedGroup(point, options = {}) {
+    const startPoint = pointerRef.current.startPoint;
+    const selectedStarts = pointerRef.current.selectedStart;
+    const dragStartBox = pointerRef.current.dragStartBox;
+    const selectedIds = pointerRef.current.selectedIds || selectedObjectIds;
+
+    if (!startPoint || !Array.isArray(selectedStarts) || !dragStartBox) return;
+
+    const rawDx = point.x - startPoint.x;
+    const rawDy = point.y - startPoint.y;
+    const { dx, dy } = options.shiftKey
+      ? lockDragAxis(rawDx, rawDy)
+      : { dx: rawDx, dy: rawDy };
+
+    const movedGroupBox = translateBox(dragStartBox, dx, dy);
+    const referenceBoxes = objects
+      .filter((item) => !selectedIds.includes(item.id))
+      .map(getObjectBox)
+      .filter(Boolean);
+    const snapResult = snapBoxToGuides(movedGroupBox, canvasSize, referenceBoxes);
+    const snapDx = snapResult.box.x - movedGroupBox.x;
+    const snapDy = snapResult.box.y - movedGroupBox.y;
+
+    const movedObjects = selectedStarts.map((item) =>
+      moveObject(item, dx + snapDx, dy + snapDy)
+    );
+
+    setObjects((current) =>
+      current.map((item) => {
+        const moved = movedObjects.find((candidate) => candidate.id === item.id);
+        return moved || item;
+      })
+    );
+
+    setGuideInfo(
+      buildGuideInfo(
+        snapResult.box,
+        canvasSize,
+        snapResult.message || `Moving ${movedObjects.length} items`,
+        snapResult
+      )
+    );
+    clearOutput();
+  }
+
+  function resizeSelectedGroup(point, options = {}) {
+    const selectedStarts = pointerRef.current.selectedStart;
+    const dragStartBox = pointerRef.current.dragStartBox;
+    const resizeHandle = pointerRef.current.resizeHandle;
+    const selectedIds = pointerRef.current.selectedIds || selectedObjectIds;
+
+    if (!Array.isArray(selectedStarts) || !dragStartBox || !resizeHandle) return;
+
+    const nextBox = resizeBoxFromHandle(dragStartBox, point, resizeHandle, {
+      keepRatio: options.shiftKey,
+      fromCenter: options.altKey,
+    });
+
+    if (nextBox.w < 12 || nextBox.h < 12) return;
+
+    const referenceBoxes = objects
+      .filter((item) => !selectedIds.includes(item.id))
+      .map(getObjectBox)
+      .filter(Boolean);
+    const snapResult = snapBoxToGuides(nextBox, canvasSize, referenceBoxes);
+    const resizedObjects = selectedStarts.map((item) =>
+      transformObjectInGroup(item, dragStartBox, snapResult.box)
+    );
+
+    setObjects((current) =>
+      current.map((item) => {
+        const resized = resizedObjects.find((candidate) => candidate.id === item.id);
+        return resized || item;
+      })
+    );
+
+    setGuideInfo(
+      buildGuideInfo(
+        snapResult.box,
+        canvasSize,
+        snapResult.message || `Resizing ${resizedObjects.length} items`,
+        snapResult
+      )
+    );
+    clearOutput();
+  }
+
   function moveSelectedObject(point, options = {}) {
     const startPoint = pointerRef.current.startPoint;
     const selectedStart = pointerRef.current.selectedStart;
@@ -1760,7 +1982,12 @@ export default function QuickPhotoEditor() {
 
     if (nextBox.w < 12 || nextBox.h < 12) return;
 
-    const resizedObject = resizeObjectToBox(selectedStart, nextBox);
+    const referenceBoxes = objects
+      .filter((item) => item.id !== selectedObjectId)
+      .map(getObjectBox)
+      .filter(Boolean);
+    const snapResult = snapBoxToGuides(nextBox, canvasSize, referenceBoxes);
+    const resizedObject = resizeObjectToBox(selectedStart, snapResult.box);
     const finalBox = getObjectBox(resizedObject);
 
     setObjects((current) =>
@@ -1777,26 +2004,60 @@ export default function QuickPhotoEditor() {
       buildGuideInfo(
         finalBox,
         canvasSize,
-        resizedObject.type === "text" ? "Text scaled" : "Resizing"
+        snapResult.message || (resizedObject.type === "text" ? "Text scaled" : "Resizing"),
+        snapResult
       )
     );
     clearOutput();
   }
 
   function moveSelectedObjectByKeyboard(dx, dy, { withHistory = true } = {}) {
-    if (!selectedObjectId) return;
+    const activeIds = selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
 
-    const selected = objects.find((item) => item.id === selectedObjectId);
-    if (!selected) return;
+    if (!activeIds.length) return;
+
+    const selectedItems = objects.filter((item) => activeIds.includes(item.id));
+    if (!selectedItems.length) return;
 
     if (withHistory) {
       pushHistory();
     }
 
+    if (selectedItems.length > 1) {
+      const groupBox = getGroupBox(selectedItems);
+      const movedGroupBox = translateBox(groupBox, dx, dy);
+      const referenceBoxes = objects
+        .filter((item) => !activeIds.includes(item.id))
+        .map(getObjectBox)
+        .filter(Boolean);
+      const snapResult = snapBoxToGuides(movedGroupBox, canvasSize, referenceBoxes);
+      const snapDx = snapResult.box.x - movedGroupBox.x;
+      const snapDy = snapResult.box.y - movedGroupBox.y;
+      const movedObjects = selectedItems.map((item) => moveObject(item, dx + snapDx, dy + snapDy));
+
+      setObjects((current) =>
+        current.map((item) => {
+          const moved = movedObjects.find((candidate) => candidate.id === item.id);
+          return moved || item;
+        })
+      );
+
+      setGuideInfo(
+        buildGuideInfo(snapResult.box, canvasSize, snapResult.message || "Keyboard move", snapResult)
+      );
+      clearOutput();
+      return;
+    }
+
+    const selected = selectedItems[0];
     const moved = moveObject(selected, dx, dy);
     const movedBox = getObjectBox(moved);
     const referenceBoxes = objects
-      .filter((item) => item.id !== selectedObjectId)
+      .filter((item) => item.id !== selected.id)
       .map(getObjectBox)
       .filter(Boolean);
     const snapResult = snapBoxToGuides(movedBox, canvasSize, referenceBoxes);
@@ -1806,7 +2067,7 @@ export default function QuickPhotoEditor() {
     const finalBox = getObjectBox(finalMoved);
 
     setObjects((current) =>
-      current.map((item) => (item.id === selectedObjectId ? finalMoved : item))
+      current.map((item) => (item.id === selected.id ? finalMoved : item))
     );
 
     setGuideInfo(
@@ -1841,6 +2102,7 @@ export default function QuickPhotoEditor() {
         pushHistory();
         setObjects((current) => [...current.filter((item) => !item.isBaseImage), finalObject]);
         setSelectedObjectId(finalObject.id);
+        setSelectedObjectIds([finalObject.id]);
         setGuideInfo(buildGuideInfo(getObjectBox(finalObject), canvasSize, "Shape added"));
       }
 
@@ -2134,40 +2396,52 @@ export default function QuickPhotoEditor() {
   }
 
   function updateSelectedTransform(updates) {
-    if (!selectedObjectId || !selectedObjectBox) return;
+    const activeIds = selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
+
+    const activeObjects = objects.filter((item) => activeIds.includes(item.id));
+    const activeBox = activeObjects.length > 1 ? getGroupBox(activeObjects) : selectedObjectBox;
+
+    if (!activeIds.length || !activeBox) return;
 
     const nextBox = {
       x: clampNumber(
-        updates.x ?? selectedObjectBox.x,
+        updates.x ?? activeBox.x,
         -canvasSize.width * 2,
         canvasSize.width * 3
       ),
       y: clampNumber(
-        updates.y ?? selectedObjectBox.y,
+        updates.y ?? activeBox.y,
         -canvasSize.height * 2,
         canvasSize.height * 3
       ),
       w: clampNumber(
-        updates.w ?? selectedObjectBox.w,
+        updates.w ?? activeBox.w,
         1,
         canvasSize.width * 4
       ),
       h: clampNumber(
-        updates.h ?? selectedObjectBox.h,
+        updates.h ?? activeBox.h,
         1,
         canvasSize.height * 4
       ),
     };
 
     const nextObjects = objects.map((item) => {
-      if (item.id !== selectedObjectId) return item;
-      return resizeObjectToBox(item, nextBox);
+      if (!activeIds.includes(item.id)) return item;
+
+      return activeObjects.length > 1
+        ? transformObjectInGroup(item, activeBox, nextBox)
+        : resizeObjectToBox(item, nextBox);
     });
 
     const nextSelected = nextObjects.find((item) => item.id === selectedObjectId);
 
     setObjects(nextObjects);
-    setGuideInfo(nextSelected ? buildGuideInfo(getObjectBox(nextSelected), canvasSize, "Exact size updated") : null);
+    setGuideInfo(buildGuideInfo(nextBox, canvasSize, activeObjects.length > 1 ? "Group size updated" : "Exact size updated"));
 
     if (nextSelected?.type === "text") {
       setTextBoxWidth(Math.round(nextSelected.w || nextBox.w));
@@ -2179,6 +2453,13 @@ export default function QuickPhotoEditor() {
   }
 
   function openSelectedStylePanel() {
+    if (selectedObjects.length > 1) {
+      setActiveTool("select");
+      setActivePanel("select");
+      setToolPopupOpen(true);
+      return;
+    }
+
     if (!selectedObject) return;
 
     if (selectedObject.type === "image") {
@@ -2251,12 +2532,19 @@ export default function QuickPhotoEditor() {
   }
 
   function deleteSelectedObject() {
-    if (!selectedObjectId) return;
+    const activeIds = selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
+
+    if (!activeIds.length) return;
 
     pushHistory();
 
-    setObjects((current) => current.filter((item) => item.id !== selectedObjectId));
+    setObjects((current) => current.filter((item) => !activeIds.includes(item.id)));
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setGuideInfo(null);
     clearOutput();
   }
@@ -2454,13 +2742,23 @@ export default function QuickPhotoEditor() {
         return;
       }
 
+      if (selectedObjects.length > 1) {
+        editorClipboardRef.current = {
+          type: "objects",
+          objects: selectedObjects.map(cloneObject),
+        };
+
+        setSuccessMessage(`${selectedObjects.length} items copied. Press Ctrl + V or Ctrl + D to paste them.`);
+        return;
+      }
+
       if (selectedObject) {
         editorClipboardRef.current = {
           type: "object",
           object: cloneObject(selectedObject),
         };
 
-        setSuccessMessage(`${selectedObject.type} copied. Press Ctrl + V to paste it.`);
+        setSuccessMessage(`${selectedObject.type} copied. Press Ctrl + V or Ctrl + D to paste it.`);
         return;
       }
 
@@ -2488,6 +2786,27 @@ export default function QuickPhotoEditor() {
         return;
       }
 
+      if (clipboardItem.type === "objects" && clipboardItem.objects?.length) {
+        const pastedObjects = [];
+
+        for (const item of clipboardItem.objects) {
+          const hydrated = await hydrateCopiedObject(item);
+          pastedObjects.push(offsetCopiedObject(hydrated, 28, 28));
+        }
+
+        pushHistory();
+        setObjects((current) => [...current, ...pastedObjects]);
+        setSelectedObjectIds(pastedObjects.map((item) => item.id));
+        setSelectedObjectId(pastedObjects[pastedObjects.length - 1]?.id || null);
+        setActiveTool("select");
+        setActivePanel("select");
+        setToolPopupOpen(true);
+        setGuideInfo(buildGuideInfo(getGroupBox(pastedObjects), canvasSize, "Pasted group"));
+        clearOutput();
+        setSuccessMessage(`${pastedObjects.length} copied items pasted.`);
+        return;
+      }
+
       if (clipboardItem.type === "object" && clipboardItem.object) {
         const pasted = await hydrateCopiedObject(clipboardItem.object);
         const nextObject = offsetCopiedObject(pasted, 28, 28);
@@ -2495,6 +2814,7 @@ export default function QuickPhotoEditor() {
         pushHistory();
         setObjects((current) => [...current, nextObject]);
         setSelectedObjectId(nextObject.id);
+        setSelectedObjectIds([nextObject.id]);
         setActiveTool("select");
         setActivePanel(nextObject.type === "text" ? "text" : nextObject.type === "image" ? "image" : "shape");
         setToolPopupOpen(true);
@@ -2506,6 +2826,39 @@ export default function QuickPhotoEditor() {
       setErrorMessage("Could not paste the copied item. Please try again.");
     }
   }
+  async function duplicateSelectedObjects() {
+    const activeIds = selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
+    const selectedItems = objects.filter((item) => activeIds.includes(item.id));
+
+    if (!selectedItems.length) return;
+
+    try {
+      const duplicated = [];
+
+      for (const item of selectedItems) {
+        const hydrated = await hydrateCopiedObject(item);
+        duplicated.push(offsetCopiedObject(hydrated, 28, 28));
+      }
+
+      pushHistory();
+      setObjects((current) => [...current, ...duplicated]);
+      setSelectedObjectIds(duplicated.map((item) => item.id));
+      setSelectedObjectId(duplicated[duplicated.length - 1]?.id || null);
+      setActiveTool("select");
+      setActivePanel(duplicated.length > 1 ? "select" : duplicated[0]?.type === "text" ? "text" : duplicated[0]?.type === "image" ? "image" : "shape");
+      setToolPopupOpen(true);
+      setGuideInfo(buildGuideInfo(getGroupBox(duplicated), canvasSize, duplicated.length > 1 ? "Duplicated group" : "Duplicated"));
+      clearOutput();
+      setSuccessMessage(`Duplicated ${duplicated.length} item${duplicated.length === 1 ? "" : "s"}. Press Ctrl/Cmd + D again for another copy.`);
+    } catch {
+      setErrorMessage("Could not duplicate the selected item. Please try again.");
+    }
+  }
+
   function resetTool() {
     if (imageUrlRef.current) {
       URL.revokeObjectURL(imageUrlRef.current);
@@ -2530,6 +2883,7 @@ export default function QuickPhotoEditor() {
     setObjects([]);
     setDraftObject(null);
     setSelectedObjectId(null);
+    setSelectedObjectIds([]);
     setActiveSelection(null);
     setFreeSelectionDraft(null);
     editorClipboardRef.current = null;
@@ -2564,7 +2918,19 @@ export default function QuickPhotoEditor() {
     resetAddImageInput();
   }
 
-  function activateTool(toolId) {
+  function updatePopupPositionFromEvent(event) {
+    const toolbarRect = toolbarRef.current?.getBoundingClientRect?.();
+    const buttonRect = event?.currentTarget?.getBoundingClientRect?.();
+
+    if (!toolbarRect || !buttonRect) return;
+
+    const nextTop = clampNumber(buttonRect.top - toolbarRect.top, 12, Math.max(12, toolbarRect.height - 160));
+    setPopupTop(nextTop);
+  }
+
+  function activateTool(toolId, event = null) {
+    updatePopupPositionFromEvent(event);
+
     const isSameToolOpen = toolPopupOpen && activeTool === toolId && !activePanel;
 
     setColorPickerTarget(null);
@@ -2668,6 +3034,13 @@ export default function QuickPhotoEditor() {
         }
         .quick-photo-editor-workspace::-webkit-scrollbar-corner {
           background: #e5e7eb;
+        }
+        .quick-photo-editor-toolbar-scroll::-webkit-scrollbar {
+          width: 6px;
+        }
+        .quick-photo-editor-toolbar-scroll::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.28);
+          border-radius: 999px;
         }
       `}</style>
 
@@ -2811,7 +3184,7 @@ export default function QuickPhotoEditor() {
         ) : (
           <div className="grid lg:grid-cols-[72px_minmax(0,1fr)] min-h-[760px] bg-[#f3f4f6]">
             <aside className="relative z-40 border-r border-[var(--border)] bg-[#111827] p-2">
-              <div ref={toolbarRef} className="sticky top-3 flex flex-col gap-2">
+              <div ref={toolbarRef} className="sticky top-3 quick-photo-editor-toolbar-scroll flex max-h-[calc(100vh-2rem)] flex-col gap-2 overflow-y-auto pr-1">
                 <button
                   type="button"
                   onClick={openMainFilePicker}
@@ -2845,7 +3218,7 @@ export default function QuickPhotoEditor() {
                     <button
                       key={tool.id}
                       type="button"
-                      onClick={() => activateTool(tool.id)}
+                      onClick={(event) => activateTool(tool.id, event)}
                       title={tool.label}
                       className={`w-12 h-12 rounded-xl inline-flex items-center justify-center transition ${
                         activeTool === tool.id && !activePanel
@@ -2860,7 +3233,8 @@ export default function QuickPhotoEditor() {
 
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(event) => {
+                    updatePopupPositionFromEvent(event);
                     const isShapePanelOpen = toolPopupOpen && settingsMode === "shape";
                     setActiveTool(isShapePanelOpen ? "select" : shapeType);
                     setActivePanel(isShapePanelOpen ? "" : "shape");
@@ -2879,7 +3253,8 @@ export default function QuickPhotoEditor() {
 
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(event) => {
+                    updatePopupPositionFromEvent(event);
                     const isColorPanelOpen = toolPopupOpen && settingsMode === "color";
                     setActiveTool("select");
                     setActivePanel(isColorPanelOpen ? "" : "color");
@@ -2900,7 +3275,8 @@ export default function QuickPhotoEditor() {
 
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(event) => {
+                    updatePopupPositionFromEvent(event);
                     const isSizePanelOpen = toolPopupOpen && activePanel === "size";
                     setActiveTool("select");
                     setActivePanel(isSizePanelOpen ? "" : "size");
@@ -2918,7 +3294,8 @@ export default function QuickPhotoEditor() {
 
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(event) => {
+                    updatePopupPositionFromEvent(event);
                     const isExportPanelOpen = toolPopupOpen && activePanel === "export";
                     setActiveTool("select");
                     setActivePanel(isExportPanelOpen ? "" : "export");
@@ -2980,10 +3357,10 @@ export default function QuickPhotoEditor() {
                 <button
                   type="button"
                   onClick={deleteSelectedObject}
-                  disabled={!selectedObjectId}
+                  disabled={!selectedObjectId && !selectedObjectIds.length}
                   title="Delete selected item"
                   className={`w-12 h-12 rounded-xl text-white inline-flex items-center justify-center ${
-                    !selectedObjectId ? "opacity-30 cursor-not-allowed" : "bg-red-500/80 hover:bg-red-500"
+                    (!selectedObjectId && !selectedObjectIds.length) ? "opacity-30 cursor-not-allowed" : "bg-red-500/80 hover:bg-red-500"
                   }`}
                 >
                   <Trash2 size={20} />
@@ -2991,7 +3368,8 @@ export default function QuickPhotoEditor() {
               </div>
 
               {shouldShowSettings && (
-                <div ref={optionsPanelRef} className="absolute left-[72px] top-3 w-[min(440px,calc(100vw-96px))] max-h-[calc(100vh-120px)] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4">
+                <div ref={optionsPanelRef} className="absolute left-[72px] w-[min(440px,calc(100vw-96px))] max-h-[calc(100vh-120px)] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
+                  style={{ top: `${popupTop}px` }}>
                   <div className="flex items-center gap-2 mb-4">
                     <PanelLeft size={18} className="text-[var(--primary)]" />
                     <div>
@@ -3008,10 +3386,10 @@ export default function QuickPhotoEditor() {
                     <div className="space-y-4">
                       <InfoCard
                         label="Selected"
-                        value={selectedObject ? selectedObject.type : "None"}
+                        value={selectedObjects.length > 1 ? `${selectedObjects.length} items` : selectedObject ? selectedObject.type : "None"}
                       />
 
-                      {selectedObject && selectedObjectBox ? (
+                      {(selectedObject && selectedObjectBox) || (selectedObjects.length > 1 && selectedGroupBox) ? (
                         <div className="rounded-2xl border border-[var(--border)] bg-white p-4">
                           <div className="flex items-center justify-between gap-3 mb-3">
                             <div>
@@ -3033,22 +3411,22 @@ export default function QuickPhotoEditor() {
                           <div className="grid grid-cols-2 gap-3">
                             <NumberField
                               label="X"
-                              value={Math.round(selectedObjectBox.x)}
+                              value={Math.round((selectedObjects.length > 1 ? selectedGroupBox : selectedObjectBox).x)}
                               onChange={(value) => updateSelectedTransform({ x: value })}
                             />
                             <NumberField
                               label="Y"
-                              value={Math.round(selectedObjectBox.y)}
+                              value={Math.round((selectedObjects.length > 1 ? selectedGroupBox : selectedObjectBox).y)}
                               onChange={(value) => updateSelectedTransform({ y: value })}
                             />
                             <NumberField
                               label="Width"
-                              value={Math.round(selectedObjectBox.w)}
+                              value={Math.round((selectedObjects.length > 1 ? selectedGroupBox : selectedObjectBox).w)}
                               onChange={(value) => updateSelectedTransform({ w: value })}
                             />
                             <NumberField
                               label="Height"
-                              value={Math.round(selectedObjectBox.h)}
+                              value={Math.round((selectedObjects.length > 1 ? selectedGroupBox : selectedObjectBox).h)}
                               onChange={(value) => updateSelectedTransform({ h: value })}
                             />
                           </div>
@@ -3923,7 +4301,7 @@ export default function QuickPhotoEditor() {
                 </button>
               </div>
 
-              {(errorMessage || successMessage || isExporting) && (
+              {false && (errorMessage || successMessage || isExporting) && (
                 <div className="grid md:grid-cols-2 gap-3 p-4 pb-0">
                   {errorMessage && (
                     <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
@@ -4005,6 +4383,40 @@ export default function QuickPhotoEditor() {
                     </div>
                   </div>
                 </div>
+
+                {(errorMessage || successMessage || isExporting) && (
+                  <div className="absolute bottom-20 left-4 right-4 z-30 grid gap-3 md:grid-cols-2 pointer-events-none">
+                    {errorMessage && (
+                      <div className="pointer-events-auto flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl shadow-lg">
+                        <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                        <p>{errorMessage}</p>
+                      </div>
+                    )}
+
+                    {successMessage && (
+                      <div className="pointer-events-auto flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl shadow-lg">
+                        <CheckCircle size={18} className="shrink-0 mt-0.5" />
+                        <p>{successMessage}</p>
+                      </div>
+                    )}
+
+                    {isExporting && (
+                      <div className="pointer-events-auto bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 shadow-lg md:col-span-2">
+                        <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                          <span>Creating final edited photo...</span>
+                          <span>{exportProgress}%</span>
+                        </div>
+
+                        <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                          <div
+                            className="h-full bg-[var(--primary)] transition-all duration-300"
+                            style={{ width: `${exportProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/95 px-2 py-2 shadow-xl backdrop-blur">
                   <button
@@ -4668,14 +5080,42 @@ function drawSelectionBox(ctx, object) {
   ctx.setLineDash([]);
 
   const handleSize = Math.max(10, Math.min(box.w, box.h) * 0.04);
+  const canvasWidth = ctx.canvas?.width || box.x + box.w;
+  const canvasHeight = ctx.canvas?.height || box.y + box.h;
+  const handles = getVisibleBoxHandles(box, handleSize, canvasWidth, canvasHeight);
 
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#9b6ce3";
-  drawHandle(ctx, box.x, box.y, handleSize);
-  drawHandle(ctx, box.x + box.w, box.y, handleSize);
-  drawHandle(ctx, box.x, box.y + box.h, handleSize);
-  drawHandle(ctx, box.x + box.w, box.y + box.h, handleSize);
+  handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize));
 
+  ctx.restore();
+}
+
+function drawGroupSelectionBox(ctx, objects) {
+  const box = getGroupBox(objects);
+
+  if (!box) return;
+
+  ctx.save();
+  ctx.strokeStyle = "#9b6ce3";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([12, 7]);
+  ctx.strokeRect(box.x, box.y, box.w, box.h);
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#9b6ce3";
+
+  const handleSize = Math.max(12, Math.min(box.w, box.h) * 0.035);
+  const canvasWidth = ctx.canvas?.width || box.x + box.w;
+  const canvasHeight = ctx.canvas?.height || box.y + box.h;
+  const handles = getVisibleBoxHandles(box, handleSize, canvasWidth, canvasHeight);
+
+  handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize));
+
+  ctx.fillStyle = "#111827";
+  ctx.font = "700 15px Arial, sans-serif";
+  ctx.fillText(`${objects.length} items selected`, clampNumber(box.x, 8, canvasWidth - 150), clampNumber(box.y - 10, 18, canvasHeight - 8));
   ctx.restore();
 }
 
@@ -5035,23 +5475,23 @@ function scaleBox(box, scaleX, scaleY) {
   };
 }
 
-function getResizeHandleAtPoint(point, object, zoom = 1) {
+function getResizeHandleAtPoint(point, object, zoom = 1, canvasSize = null) {
   if (!point || !object) return null;
 
   if (!["image", "text", "rectangle", "circle", "arrow"].includes(object.type)) {
     return null;
   }
 
-  const box = getObjectBox(object);
-  if (!box) return null;
+  return getResizeHandleAtBox(point, getObjectBox(object), zoom, canvasSize);
+}
+
+function getResizeHandleAtBox(point, box, zoom = 1, canvasSize = null) {
+  if (!point || !box) return null;
 
   const hitSize = Math.max(10, 18 / Math.max(0.25, Number(zoom) || 1));
-  const handles = [
-    { id: "nw", x: box.x, y: box.y },
-    { id: "ne", x: box.x + box.w, y: box.y },
-    { id: "sw", x: box.x, y: box.y + box.h },
-    { id: "se", x: box.x + box.w, y: box.y + box.h },
-  ];
+  const canvasWidth = canvasSize?.width || box.x + box.w;
+  const canvasHeight = canvasSize?.height || box.y + box.h;
+  const handles = getVisibleBoxHandles(box, hitSize, canvasWidth, canvasHeight);
 
   const found = handles.find(
     (handle) =>
@@ -5061,6 +5501,57 @@ function getResizeHandleAtPoint(point, object, zoom = 1) {
 
   return found?.id || null;
 }
+
+function getVisibleBoxHandles(box, handleSize = 10, canvasWidth = Infinity, canvasHeight = Infinity) {
+  const minX = -handleSize;
+  const minY = -handleSize;
+  const maxX = Number.isFinite(canvasWidth) ? canvasWidth + handleSize : box.x + box.w;
+  const maxY = Number.isFinite(canvasHeight) ? canvasHeight + handleSize : box.y + box.h;
+
+  return [
+    { id: "nw", x: clampNumber(box.x, minX, maxX), y: clampNumber(box.y, minY, maxY) },
+    { id: "ne", x: clampNumber(box.x + box.w, minX, maxX), y: clampNumber(box.y, minY, maxY) },
+    { id: "sw", x: clampNumber(box.x, minX, maxX), y: clampNumber(box.y + box.h, minY, maxY) },
+    { id: "se", x: clampNumber(box.x + box.w, minX, maxX), y: clampNumber(box.y + box.h, minY, maxY) },
+  ];
+}
+
+function getGroupBox(objects) {
+  const boxes = (objects || []).map(getObjectBox).filter(Boolean);
+
+  if (!boxes.length) return null;
+
+  const minX = Math.min(...boxes.map((box) => box.x));
+  const minY = Math.min(...boxes.map((box) => box.y));
+  const maxX = Math.max(...boxes.map((box) => box.x + box.w));
+  const maxY = Math.max(...boxes.map((box) => box.y + box.h));
+
+  return {
+    x: minX,
+    y: minY,
+    w: Math.max(1, maxX - minX),
+    h: Math.max(1, maxY - minY),
+  };
+}
+
+function transformObjectInGroup(object, startGroupBox, nextGroupBox) {
+  const objectBox = getObjectBox(object);
+
+  if (!objectBox || !startGroupBox) return object;
+
+  const scaleX = nextGroupBox.w / Math.max(1, startGroupBox.w);
+  const scaleY = nextGroupBox.h / Math.max(1, startGroupBox.h);
+
+  const nextBox = {
+    x: nextGroupBox.x + (objectBox.x - startGroupBox.x) * scaleX,
+    y: nextGroupBox.y + (objectBox.y - startGroupBox.y) * scaleY,
+    w: Math.max(1, objectBox.w * scaleX),
+    h: Math.max(1, objectBox.h * scaleY),
+  };
+
+  return resizeObjectToBox(object, nextBox);
+}
+
 
 function resizeBoxFromHandle(startBox, point, handle, { keepRatio = false, fromCenter = false } = {}) {
   const minSize = 12;
@@ -5204,58 +5695,99 @@ function snapBoxToGuides(box, canvasSize, referenceBoxes = []) {
   let centerY = false;
   let message = "";
 
-  const boxCenterX = box.x + box.w / 2;
-  const boxCenterY = box.y + box.h / 2;
   const canvasCenterX = canvasSize.width / 2;
   const canvasCenterY = canvasSize.height / 2;
 
-  if (Math.abs(boxCenterX - canvasCenterX) <= SNAP_DISTANCE) {
-    resultBox.x = canvasCenterX - box.w / 2;
+  function snapVertical(targetValue, nextX, label = "Aligned") {
+    resultBox.x = nextX;
     centerX = true;
-    guideLines.push({ type: "vertical", value: canvasCenterX, label: "Canvas center" });
+    message = label;
+    guideLines.push({ type: "vertical", value: targetValue, label });
+  }
+
+  function snapHorizontal(targetValue, nextY, label = "Aligned") {
+    resultBox.y = nextY;
+    centerY = true;
+    message = label;
+    guideLines.push({ type: "horizontal", value: targetValue, label });
+  }
+
+  const boxCenterX = box.x + box.w / 2;
+  const boxCenterY = box.y + box.h / 2;
+
+  if (Math.abs(boxCenterX - canvasCenterX) <= SNAP_DISTANCE) {
+    snapVertical(canvasCenterX, canvasCenterX - box.w / 2, "Canvas vertical center");
   }
 
   if (Math.abs(boxCenterY - canvasCenterY) <= SNAP_DISTANCE) {
-    resultBox.y = canvasCenterY - box.h / 2;
-    centerY = true;
-    guideLines.push({ type: "horizontal", value: canvasCenterY, label: "Canvas center" });
+    snapHorizontal(canvasCenterY, canvasCenterY - box.h / 2, "Canvas horizontal center");
   }
 
   referenceBoxes.forEach((referenceBox) => {
     const refCenterX = referenceBox.x + referenceBox.w / 2;
     const refCenterY = referenceBox.y + referenceBox.h / 2;
 
-    if (!centerX && Math.abs(boxCenterX - refCenterX) <= SNAP_DISTANCE) {
-      resultBox.x = refCenterX - box.w / 2;
-      centerX = true;
-      message = "Aligned to object center";
+    const verticalCandidates = [
+      { value: referenceBox.x, nextX: referenceBox.x, label: "Left edges aligned" },
+      { value: referenceBox.x + referenceBox.w, nextX: referenceBox.x + referenceBox.w - box.w, label: "Right edges aligned" },
+      { value: refCenterX, nextX: refCenterX - box.w / 2, label: "Object vertical center" },
+    ];
+
+    const horizontalCandidates = [
+      { value: referenceBox.y, nextY: referenceBox.y, label: "Top edges aligned" },
+      { value: referenceBox.y + referenceBox.h, nextY: referenceBox.y + referenceBox.h - box.h, label: "Bottom edges aligned" },
+      { value: refCenterY, nextY: refCenterY - box.h / 2, label: "Object horizontal center" },
+    ];
+
+    if (!centerX) {
+      const match = verticalCandidates.find((candidate) =>
+        Math.abs((candidate.label.includes("Right") ? box.x + box.w : candidate.label.includes("center") || candidate.label.includes("Center") ? boxCenterX : box.x) - candidate.value) <= SNAP_DISTANCE
+      );
+
+      if (match) {
+        snapVertical(match.value, match.nextX, match.label);
+      }
+    }
+
+    if (!centerY) {
+      const match = horizontalCandidates.find((candidate) =>
+        Math.abs((candidate.label.includes("Bottom") ? box.y + box.h : candidate.label.includes("center") || candidate.label.includes("Center") ? boxCenterY : box.y) - candidate.value) <= SNAP_DISTANCE
+      );
+
+      if (match) {
+        snapHorizontal(match.value, match.nextY, match.label);
+      }
+    }
+
+    if (Math.abs(box.w - referenceBox.w) <= SNAP_DISTANCE) {
+      resultBox.w = referenceBox.w;
+      message = message || "Matched width";
       guideLines.push({
-        type: "vertical",
-        value: refCenterX,
-        label: "Object center",
-        start: referenceBox.y,
-        end: referenceBox.y + referenceBox.h,
+        type: "horizontal",
+        value: referenceBox.y + referenceBox.h + 10,
+        start: referenceBox.x,
+        end: referenceBox.x + referenceBox.w,
+        label: "Same width",
       });
     }
 
-    if (!centerY && Math.abs(boxCenterY - refCenterY) <= SNAP_DISTANCE) {
-      resultBox.y = refCenterY - box.h / 2;
-      centerY = true;
-      message = "Aligned to object center";
+    if (Math.abs(box.h - referenceBox.h) <= SNAP_DISTANCE) {
+      resultBox.h = referenceBox.h;
+      message = message || "Matched height";
       guideLines.push({
-        type: "horizontal",
-        value: refCenterY,
-        label: "Object center",
-        start: referenceBox.x,
-        end: referenceBox.x + referenceBox.w,
+        type: "vertical",
+        value: referenceBox.x + referenceBox.w + 10,
+        start: referenceBox.y,
+        end: referenceBox.y + referenceBox.h,
+        label: "Same height",
       });
     }
   });
 
   if (!message) {
     if (centerX && centerY) message = "Center aligned";
-    else if (centerX) message = "Vertical center";
-    else if (centerY) message = "Horizontal center";
+    else if (centerX) message = "Vertical aligned";
+    else if (centerY) message = "Horizontal aligned";
   }
 
   return {
