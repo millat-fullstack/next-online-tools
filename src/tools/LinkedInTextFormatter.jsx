@@ -260,6 +260,7 @@ export default function LinkedInTextFormatter() {
   const [selectedBullet, setSelectedBullet] = useState("dot");
   const [previewImage, setPreviewImage] = useState("");
   const [copiedType, setCopiedType] = useState("");
+  const [activeToolbarMenu, setActiveToolbarMenu] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
@@ -728,147 +729,45 @@ export default function LinkedInTextFormatter() {
 
       {/* TOOL BODY */}
       <section className="card p-6 sm:p-8">
-        {/* COMPACT TOP CONTROLS */}
-        <div className="grid lg:grid-cols-3 gap-4 mb-6">
-          <details className="border border-[var(--border)] rounded-2xl bg-white p-4">
-            <summary className="cursor-pointer list-none">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={20} className="text-[var(--primary)]" />
-                  <span className="font-semibold">LinkedIn Post Templates</span>
-                </div>
-                <span className="text-xs text-[var(--primary)] font-semibold">Open</span>
-              </div>
-              <p className="text-xs text-[var(--text-secondary)] mt-2">
-                Pick a ready structure for your post.
+        {/* PROFESSIONAL WORKSPACE BAR */}
+        <div className="mb-6 rounded-2xl border border-[var(--border)] bg-[#fbf9ff] px-5 py-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--primary)] font-bold">
+                Corporate writing workspace
               </p>
-            </summary>
-
-            <div className="grid gap-2 pt-4">
-              {POST_TEMPLATES.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  onClick={() => handleTemplate(template.text, template.title)}
-                  className="rounded-xl border border-[var(--border)] bg-white p-3 text-left hover:bg-[#f8f4ff] transition"
-                >
-                  <p className="font-semibold text-sm mb-1">{template.title}</p>
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    {template.description}
-                  </p>
-                </button>
-              ))}
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                Formatting controls are now placed directly above the textboard as icon-only actions.
+              </p>
             </div>
-          </details>
 
-          <details className="border border-[var(--border)] rounded-2xl bg-[#f8f4ff] p-4">
-            <summary className="cursor-pointer list-none">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Type size={20} className="text-[var(--primary)]" />
-                  <span className="font-semibold">Text Styles</span>
-                </div>
-                <span className="text-xs text-[var(--primary)] font-semibold">Open</span>
-              </div>
-              <p className="text-xs text-[var(--text-secondary)] mt-2">
-                Select text, then apply a style.
-              </p>
-            </summary>
-
-            <div className="grid grid-cols-2 gap-2 pt-4">
-              {STYLE_OPTIONS.map((style) => {
-                const Icon = style.icon;
+            <div className="flex flex-wrap gap-2">
+              {POST_MODES.map((mode) => {
+                const ModeIcon = getPostModeIcon(mode.id);
 
                 return (
                   <button
-                    key={style.id}
+                    key={mode.id}
                     type="button"
-                    onClick={() => applyStyle(style.id)}
-                    className={`rounded-xl border p-3 text-left transition ${
-                      selectedStyle === style.id
-                        ? "border-[var(--primary)] bg-white text-[var(--primary)]"
-                        : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                    onClick={() => {
+                      setSelectedMode(mode.id);
+                      setActiveToolbarMenu("");
+                      clearFeedback();
+                    }}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                      selectedMode === mode.id
+                        ? "border-[var(--primary)] bg-white text-[var(--primary)] shadow-sm"
+                        : "border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
                     }`}
+                    title={mode.helper}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Icon size={16} />
-                      <span className="font-semibold text-sm">{style.label}</span>
-                    </div>
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      {style.example}
-                    </p>
+                    <ModeIcon size={15} />
+                    {mode.label}
                   </button>
                 );
               })}
             </div>
-          </details>
-
-          <details className="border border-[var(--border)] rounded-2xl bg-white p-4">
-            <summary className="cursor-pointer list-none">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Wand2 size={20} className="text-[var(--primary)]" />
-                  <span className="font-semibold">Quick Post Formatting</span>
-                </div>
-                <span className="text-xs text-[var(--primary)] font-semibold">Open</span>
-              </div>
-              <p className="text-xs text-[var(--text-secondary)] mt-2">
-                Clean, bullet, CTA, hashtag, or remove styles.
-              </p>
-            </summary>
-
-            <div className="pt-4">
-              <div className="mb-3">
-                <p className="text-xs font-semibold text-[var(--text-secondary)] mb-2">
-                  Bullet Style
-                </p>
-
-                <div className="grid grid-cols-5 gap-2">
-                  {BULLET_STYLES.map((bullet) => (
-                    <button
-                      key={bullet.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedBullet(bullet.id);
-                        clearFeedback();
-                      }}
-                      className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${
-                        selectedBullet === bullet.id
-                          ? "border-[var(--primary)] bg-[#f8f4ff] text-[var(--primary)]"
-                          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                      }`}
-                      title={bullet.label}
-                      aria-label={`Use ${bullet.label} bullet style`}
-                    >
-                      {bullet.symbol}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                {QUICK_ACTIONS.map((action) => {
-                  const Icon = action.icon;
-
-                  return (
-                    <button
-                      key={action.id}
-                      type="button"
-                      onClick={() => handleQuickAction(action.id)}
-                      className="rounded-xl border border-[var(--border)] bg-white p-3 text-left hover:bg-[#f8f4ff] transition"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Icon size={16} className="text-[var(--primary)]" />
-                        <span className="font-semibold text-sm">
-                          {action.label}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </details>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
@@ -882,26 +781,199 @@ export default function LinkedInTextFormatter() {
                   <h2 className="text-xl font-semibold">LinkedIn Content</h2>
                 </div>
 
-                <select
-                  value={selectedMode}
-                  onChange={(event) => {
-                    setSelectedMode(event.target.value);
-                    clearFeedback();
-                  }}
-                  className="border border-[var(--border)] rounded-xl px-3 py-2 bg-white text-sm outline-none focus:border-[var(--primary)]"
-                  aria-label="Choose LinkedIn content type"
-                >
-                  {POST_MODES.map((mode) => (
-                    <option key={mode.id} value={mode.id}>
-                      {mode.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)]">
+                  {(() => {
+                    const ModeIcon = getPostModeIcon(selectedMode);
+                    return <ModeIcon size={15} />;
+                  })()}
+                  {activeMode.label}
+                </div>
               </div>
 
               <p className="text-xs text-[var(--text-secondary)] mb-4">
                 {activeMode.helper} Select text to format only that part.
               </p>
+
+              <div className="relative mb-0">
+                <div className="rounded-t-2xl border border-b-0 border-[var(--border)] bg-white px-3 py-2">
+                  <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap">
+                    <ToolbarIconButton
+                      icon={Sparkles}
+                      label="Templates"
+                      active={activeToolbarMenu === "templates"}
+                      onClick={() =>
+                        setActiveToolbarMenu((current) =>
+                          current === "templates" ? "" : "templates"
+                        )
+                      }
+                    />
+
+                    <ToolbarDivider />
+
+                    {STYLE_OPTIONS.map((style) => {
+                      const Icon = style.icon;
+
+                      return (
+                        <ToolbarIconButton
+                          key={style.id}
+                          icon={Icon}
+                          label={style.label}
+                          active={selectedStyle === style.id}
+                          onClick={() => {
+                            setActiveToolbarMenu("");
+                            applyStyle(style.id);
+                          }}
+                        />
+                      );
+                    })}
+
+                    <ToolbarDivider />
+
+                    {BULLET_STYLES.map((bullet) => (
+                      <button
+                        key={bullet.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBullet(bullet.id);
+                          setActiveToolbarMenu("");
+                          clearFeedback();
+                        }}
+                        className={`h-9 w-9 shrink-0 rounded-xl border text-sm font-bold transition ${
+                          selectedBullet === bullet.id
+                            ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                            : "border-transparent bg-white text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
+                        }`}
+                        title={bullet.label}
+                        aria-label={`Use ${bullet.label} bullet style`}
+                      >
+                        {bullet.symbol}
+                      </button>
+                    ))}
+
+                    <ToolbarIconButton
+                      icon={List}
+                      label="Add bullets"
+                      onClick={() => {
+                        setActiveToolbarMenu("");
+                        handleQuickAction("addBullets");
+                      }}
+                    />
+
+                    <ToolbarDivider />
+
+                    <ToolbarIconButton
+                      icon={Bold}
+                      label="Bold first line"
+                      onClick={() => {
+                        setActiveToolbarMenu("");
+                        handleQuickAction("boldFirstLine");
+                      }}
+                    />
+                    <ToolbarIconButton
+                      icon={Scissors}
+                      label="Clean spacing"
+                      onClick={() => {
+                        setActiveToolbarMenu("");
+                        handleQuickAction("cleanSpacing");
+                      }}
+                    />
+                    <ToolbarIconButton
+                      icon={Hash}
+                      label="Clean hashtags"
+                      onClick={() => {
+                        setActiveToolbarMenu("");
+                        handleQuickAction("cleanHashtags");
+                      }}
+                    />
+                    <ToolbarIconButton
+                      icon={MessageCircle}
+                      label="Add CTA"
+                      onClick={() => {
+                        setActiveToolbarMenu("");
+                        handleQuickAction("addCTA");
+                      }}
+                    />
+                    <ToolbarIconButton
+                      icon={RotateCcw}
+                      label="Remove styles"
+                      onClick={() => {
+                        setActiveToolbarMenu("");
+                        handleQuickAction("plainText");
+                      }}
+                    />
+
+                    <ToolbarDivider />
+
+                    <ToolbarIconButton
+                      icon={Save}
+                      label="Save draft"
+                      onClick={() => {
+                        setActiveToolbarMenu("");
+                        handleSaveDraft();
+                      }}
+                    />
+                    <ToolbarIconButton
+                      icon={FileText}
+                      label="Load draft"
+                      onClick={() => {
+                        setActiveToolbarMenu("");
+                        handleLoadDraft();
+                      }}
+                    />
+                    <ToolbarIconButton
+                      icon={Copy}
+                      label="Copy formatted"
+                      disabled={!postText.trim()}
+                      active={copiedType === "formatted"}
+                      onClick={() => {
+                        setActiveToolbarMenu("");
+                        handleCopyVariant("formatted");
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {activeToolbarMenu === "templates" && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 rounded-2xl border border-[var(--border)] bg-white p-4 shadow-2xl">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold">LinkedIn post templates</p>
+                        <p className="text-xs text-[var(--text-secondary)]">
+                          Choose a professional structure and edit it inside the textboard.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveToolbarMenu("")}
+                        className="h-8 w-8 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[#f8f4ff]"
+                        aria-label="Close templates"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2 max-h-[360px] overflow-auto pr-1">
+                      {POST_TEMPLATES.map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveToolbarMenu("");
+                            handleTemplate(template.text, template.title);
+                          }}
+                          className="rounded-xl border border-[var(--border)] bg-white p-3 text-left transition hover:border-[var(--primary)] hover:bg-[#f8f4ff]"
+                        >
+                          <p className="text-sm font-bold">{template.title}</p>
+                          <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                            {template.description}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <textarea
                 ref={textareaRef}
@@ -909,7 +981,7 @@ export default function LinkedInTextFormatter() {
                 onChange={(event) => handleTextChange(event.target.value)}
                 placeholder="Type or paste your LinkedIn post here. Select a word, sentence, or heading, then click a formatting style..."
                 rows="14"
-                className="w-full border border-[var(--border)] rounded-2xl px-4 py-4 bg-white outline-none focus:border-[var(--primary)] resize-none leading-7"
+                className="w-full border border-[var(--border)] rounded-b-2xl rounded-t-none px-4 py-4 bg-white outline-none focus:border-[var(--primary)] resize-none leading-7"
               />
 
               <div className="grid sm:grid-cols-4 gap-3 mt-4">
@@ -955,48 +1027,6 @@ export default function LinkedInTextFormatter() {
                   Reset
                 </button>
               </div>
-            </div>
-
-            {/* DRAFT CONTROLS */}
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Save size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Browser Draft</h3>
-              </div>
-
-              <div className="grid sm:grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={handleSaveDraft}
-                  className="btn-secondary inline-flex items-center justify-center gap-2"
-                >
-                  <Save size={18} />
-                  Save Draft
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleLoadDraft}
-                  className="btn-secondary inline-flex items-center justify-center gap-2"
-                >
-                  <FileText size={18} />
-                  Load Draft
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleClearDraft}
-                  className="btn-secondary inline-flex items-center justify-center gap-2"
-                >
-                  <Trash2 size={18} />
-                  Clear Draft
-                </button>
-              </div>
-
-              <p className="text-xs text-[var(--text-secondary)] mt-3">
-                Drafts are saved only in this browser using local storage. Your
-                text is not uploaded to a server.
-              </p>
             </div>
 
             {/* FEEDBACK */}
@@ -1405,6 +1435,52 @@ function PreviewAction({ icon: Icon, label }) {
       <span>{label}</span>
     </div>
   );
+}
+
+
+function ToolbarIconButton({
+  icon: Icon,
+  label,
+  active = false,
+  disabled = false,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`group relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${
+        active
+          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+          : "border-transparent bg-white text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
+      } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+      title={label}
+      aria-label={label}
+    >
+      <Icon size={17} />
+
+      <span className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#111827] px-2 py-1 text-[11px] font-semibold text-white shadow-lg group-hover:block">
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function ToolbarDivider() {
+  return <span className="mx-1 h-7 w-px shrink-0 bg-[var(--border)]" />;
+}
+
+function getPostModeIcon(modeId) {
+  const icons = {
+    post: Linkedin,
+    comment: MessageCircle,
+    headline: Type,
+    about: FileText,
+    message: Send,
+  };
+
+  return icons[modeId] || FileText;
 }
 
 
