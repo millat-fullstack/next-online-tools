@@ -107,13 +107,13 @@ const FONT_OPTIONS = [
 
 const TEXT_PRESETS = [
   {
-    label: "White Bold",
-    color: "#ffffff",
-    background: "#111827",
+    label: "Normal Text",
+    color: "#111827",
+    background: "#ffffff",
     fontSize: 48,
-    bold: true,
-    shadow: true,
-    hasBackground: true,
+    bold: false,
+    shadow: false,
+    hasBackground: false,
     fontFamily: "Arial, sans-serif",
   },
   {
@@ -233,6 +233,7 @@ export default function QuickPhotoEditor() {
   const [selectedSizePreset, setSelectedSizePreset] = useState("original");
   const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 630 });
   const [draftSize, setDraftSize] = useState({ width: 1200, height: 630 });
+  const [canvasBackgroundColor, setCanvasBackgroundColor] = useState("#ffffff");
 
   const [activeTool, setActiveTool] = useState("select");
   const [activePanel, setActivePanel] = useState("");
@@ -260,18 +261,18 @@ export default function QuickPhotoEditor() {
   const [blurStrength, setBlurStrength] = useState(10);
 
   const [textValue, setTextValue] = useState("Add text");
-  const [textColor, setTextColor] = useState("#ffffff");
-  const [textBackground, setTextBackground] = useState("#111827");
-  const [textHasBackground, setTextHasBackground] = useState(true);
+  const [textColor, setTextColor] = useState("#111827");
+  const [textBackground, setTextBackground] = useState("#ffffff");
+  const [textHasBackground, setTextHasBackground] = useState(false);
   const [textFontFamily, setTextFontFamily] = useState("Arial, sans-serif");
   const [fontSize, setFontSize] = useState(48);
-  const [fontWeight, setFontWeight] = useState(800);
+  const [fontWeight, setFontWeight] = useState(500);
   const [textAlign, setTextAlign] = useState("center");
   const [textCase, setTextCase] = useState("none");
   const [textBoxWidth, setTextBoxWidth] = useState(360);
   const [textBoxHeight, setTextBoxHeight] = useState(120);
-  const [boldText, setBoldText] = useState(true);
-  const [textShadow, setTextShadow] = useState(true);
+  const [boldText, setBoldText] = useState(false);
+  const [textShadow, setTextShadow] = useState(false);
 
   const [shapeType, setShapeType] = useState("rectangle");
   const [shapeFillEnabled, setShapeFillEnabled] = useState(true);
@@ -498,6 +499,7 @@ export default function QuickPhotoEditor() {
         width: uploadCanvasSize.width,
         height: uploadCanvasSize.height,
         transparent: selectedSizePreset === "original" && supportsTransparentFormat(file.type),
+        backgroundColor: canvasBackgroundColor,
       });
 
       const baseImageObject = {
@@ -567,7 +569,7 @@ export default function QuickPhotoEditor() {
       setIsLoadingImage(false);
       resetMainFileInput();
     }
-  }, [draftSize, selectedSizePreset]);
+  }, [draftSize, selectedSizePreset, canvasBackgroundColor]);
 
   useEffect(() => {
     renderVisibleCanvas();
@@ -770,7 +772,7 @@ export default function QuickPhotoEditor() {
     };
   }, []);
 
-  function setupBlankCanvas({ width, height, transparent = false }) {
+  function setupBlankCanvas({ width, height, transparent = false, backgroundColor = "#ffffff" }) {
     const workingCanvas = workingCanvasRef.current;
     const originalCanvas = originalCanvasRef.current;
 
@@ -786,10 +788,10 @@ export default function QuickPhotoEditor() {
     originalCtx.clearRect(0, 0, width, height);
 
     if (!transparent) {
-      workingCtx.fillStyle = "#ffffff";
+      workingCtx.fillStyle = backgroundColor || "#ffffff";
       workingCtx.fillRect(0, 0, width, height);
 
-      originalCtx.fillStyle = "#ffffff";
+      originalCtx.fillStyle = backgroundColor || "#ffffff";
       originalCtx.fillRect(0, 0, width, height);
     }
   }
@@ -868,13 +870,80 @@ export default function QuickPhotoEditor() {
     setSuccessMessage(message);
   }
 
+  function startSolidColorPage() {
+    const nextSize = {
+      width: clampNumber(
+        Number(draftSize.width) || 1200,
+        100,
+        MAX_CANVAS_LONG_SIDE
+      ),
+      height: clampNumber(
+        Number(draftSize.height) || 1200,
+        100,
+        MAX_CANVAS_LONG_SIDE
+      ),
+    };
+
+    pushHistory();
+
+    setupBlankCanvas({
+      width: nextSize.width,
+      height: nextSize.height,
+      transparent: false,
+      backgroundColor: canvasBackgroundColor,
+    });
+
+    setImageInfo({
+      name: "Solid color page",
+      size: 0,
+      type: "solid-color",
+      width: nextSize.width,
+      height: nextSize.height,
+      naturalWidth: nextSize.width,
+      naturalHeight: nextSize.height,
+      isSolidColorPage: true,
+    });
+
+    setCanvasSize(nextSize);
+    setDraftSize(nextSize);
+    setObjects([]);
+    setDraftObject(null);
+    setSelectedObjectId(null);
+    setSelectedObjectIds([]);
+    setActiveSelection(null);
+    setFreeSelectionDraft(null);
+    setHistoryPast([]);
+    setHistoryFuture([]);
+    setPatchTargetBox(null);
+    setPatchTargetSelection(null);
+    setPatchSourcePreviewBox(null);
+    setIsSettingPatchTarget(false);
+    setCloneSourceBox(null);
+    setCloneSourceSelection(null);
+    setCloneTargetPreviewBox(null);
+    setIsSettingCloneSource(false);
+    setShowCloneSourceGuide(false);
+    setGuideInfo(null);
+    setShowOriginal(false);
+    setPreviewZoom(1);
+    setArtboardPan({ x: 0, y: 0 });
+    setActiveTool("select");
+    setActivePanel("");
+    setToolPopupOpen(false);
+    setColorPickerTarget(null);
+    setOutputFormat("image/png");
+    setErrorMessage("");
+    setSuccessMessage("");
+    clearOutput();
+  }
+
   function openMainFilePicker() {
     mainFileInputRef.current?.click();
   }
 
   function openAddImagePicker(mode = "add") {
     if (!hasImage) {
-      setErrorMessage("Please upload a main photo first.");
+      setErrorMessage("Please upload a photo or start with a colored page first.");
       return;
     }
 
@@ -1427,6 +1496,16 @@ export default function QuickPhotoEditor() {
           nextObjects.length > 1 ? `${nextObjects.length} items selected` : "Selected"
         )
       );
+      return;
+    }
+
+    if (event.detail >= 2 && selected.type === "text") {
+      setSelectedObjectId(selected.id);
+      setSelectedObjectIds([selected.id]);
+      setActiveTool("select");
+      setActivePanel("text");
+      setToolPopupOpen(true);
+      setGuideInfo(buildGuideInfo(getObjectBox(selected), canvasSize, "Edit text"));
       return;
     }
 
@@ -3101,6 +3180,7 @@ export default function QuickPhotoEditor() {
     setSelectedSizePreset("original");
     setCanvasSize({ width: 1200, height: 630 });
     setDraftSize({ width: 1200, height: 630 });
+    setCanvasBackgroundColor("#ffffff");
     setActiveTool("select");
     setActivePanel("");
     setToolPopupOpen(false);
@@ -3142,20 +3222,49 @@ export default function QuickPhotoEditor() {
     resetAddImageInput();
   }
 
+  function getLeftNavigationSafeEdge(viewportHeight) {
+    if (typeof document === "undefined") return 0;
+
+    try {
+      const candidates = Array.from(
+        document.querySelectorAll("aside, nav, [data-sidebar], .sidebar")
+      );
+
+      return candidates.reduce((maxRight, element) => {
+        const rect = element.getBoundingClientRect?.();
+        const style = window.getComputedStyle?.(element);
+
+        if (!rect || rect.width < 120 || rect.height < viewportHeight * 0.4) {
+          return maxRight;
+        }
+
+        if (rect.left <= 4 && style?.display !== "none" && style?.visibility !== "hidden") {
+          return Math.max(maxRight, rect.right);
+        }
+
+        return maxRight;
+      }, 0);
+    } catch {
+      return 0;
+    }
+  }
+
   function updatePopupPositionFromEvent(event) {
     const buttonRect = event?.currentTarget?.getBoundingClientRect?.();
 
     if (!buttonRect || typeof window === "undefined") {
       setPopupTop(96);
-      setPopupLeft(88);
+      setPopupLeft(96);
       setPopupMaxHeight(520);
       return;
     }
 
     const viewportWidth = window.innerWidth || 1280;
     const viewportHeight = window.innerHeight || 800;
-    const panelWidth = Math.min(440, Math.max(280, viewportWidth - 96));
+    const panelWidth = Math.min(440, Math.max(280, viewportWidth - 28));
+    const sidebarSafeLeft = getLeftNavigationSafeEdge(viewportHeight) + 12;
     const safeTop = viewportWidth < 768 ? 72 : 96;
+    const safeLeft = viewportWidth < 768 ? 12 : Math.max(84, sidebarSafeLeft);
     const desiredHeight = Math.min(560, viewportHeight - safeTop - 20);
     const rawTop = buttonRect.top - 12;
     const nextTop = clampNumber(
@@ -3163,17 +3272,19 @@ export default function QuickPhotoEditor() {
       safeTop,
       Math.max(safeTop, viewportHeight - desiredHeight - 12)
     );
-    const nextLeft = viewportWidth < 768
+    const rawLeft = viewportWidth < 768
       ? 12
-      : clampNumber(
-          buttonRect.right + 16,
-          72,
-          Math.max(72, viewportWidth - panelWidth - 12)
-        );
+      : Math.max(buttonRect.right + 18, safeLeft);
+
+    const nextLeft = clampNumber(
+      rawLeft,
+      12,
+      Math.max(12, viewportWidth - panelWidth - 12)
+    );
 
     setPopupTop(nextTop);
     setPopupLeft(nextLeft);
-    setPopupMaxHeight(Math.max(240, viewportHeight - nextTop - 16));
+    setPopupMaxHeight(Math.max(260, viewportHeight - nextTop - 16));
   }
 
   function activateTool(toolId, event = null) {
@@ -3307,8 +3418,8 @@ export default function QuickPhotoEditor() {
         <h1 className="text-3xl font-bold mb-3">Quick Photo Editor</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Choose your canvas size before uploading, place your photo on the artboard,
-          drag to adjust, then edit with text, image layers, blur, patch, clone, shapes, and export.
+          Choose a canvas size, upload a photo or start with a colored page,
+          then edit with text, image layers, blur, patch, clone, shapes, and export.
         </p>
       </section>
 
@@ -3320,8 +3431,7 @@ export default function QuickPhotoEditor() {
                 <h2 className="text-xl font-bold mb-2">Choose Artboard Size First</h2>
 
                 <p className="text-sm text-[var(--text-secondary)] mb-4">
-                  Select the final size before uploading. Your image will be placed on this artboard,
-                  and you can drag it to adjust perfectly.
+                  Select the final size before uploading, or start with a solid colored page when you do not have a photo.
                 </p>
 
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -3391,6 +3501,34 @@ export default function QuickPhotoEditor() {
                       }}
                       className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white"
                     />
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
+                  <h3 className="font-bold mb-2">No photo? Start with a colored page</h3>
+                  <p className="text-xs text-[var(--text-secondary)] mb-3">
+                    Choose a solid artboard color, then add text, shapes, logos, or images later.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                    <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold">
+                      Page color
+                      <input
+                        type="color"
+                        value={canvasBackgroundColor}
+                        onChange={(event) => setCanvasBackgroundColor(event.target.value)}
+                        className="w-9 h-9 rounded-lg border border-[var(--border)] bg-white"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={startSolidColorPage}
+                      className="btn-primary inline-flex items-center justify-center gap-2"
+                    >
+                      <Sparkles size={18} />
+                      Start Colored Page
+                    </button>
                   </div>
                 </div>
               </div>
@@ -3630,7 +3768,7 @@ export default function QuickPhotoEditor() {
                     top: `${popupTop}px`,
                     left: `${popupLeft}px`,
                     maxHeight: `${popupMaxHeight}px`,
-                    zIndex: 80,
+                    zIndex: 10000,
                   }}
                 >
                   <div className="flex items-center gap-2 mb-4">
@@ -4583,6 +4721,27 @@ export default function QuickPhotoEditor() {
                         className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white"
                       />
                     </label>
+
+                    {imageInfo?.isSolidColorPage && !selectedObjects.length && (
+                      <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
+                        Page color
+                        <input
+                          type="color"
+                          value={canvasBackgroundColor}
+                          onChange={(event) => {
+                            const nextColor = event.target.value;
+                            setCanvasBackgroundColor(nextColor);
+                            setupBlankCanvas({
+                              width: canvasSize.width,
+                              height: canvasSize.height,
+                              backgroundColor: nextColor,
+                            });
+                            clearOutput();
+                          }}
+                          className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white"
+                        />
+                      </label>
+                    )}
 
                     <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold min-w-[190px]">
                       Transparency
