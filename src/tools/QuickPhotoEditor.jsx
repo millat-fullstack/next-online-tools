@@ -41,6 +41,7 @@ import {
   Hexagon,
   ChevronDown,
   ChevronUp,
+  Layers,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -247,6 +248,7 @@ export default function QuickPhotoEditor() {
 
   const [objects, setObjects] = useState([]);
   const [draftObject, setDraftObject] = useState(null);
+  const [selectionRect, setSelectionRect] = useState(null);
   const [selectedObjectId, setSelectedObjectId] = useState(null);
   const [selectedObjectIds, setSelectedObjectIds] = useState([]);
   const [activeSelection, setActiveSelection] = useState(null);
@@ -447,6 +449,7 @@ export default function QuickPhotoEditor() {
     "shape",
     "color",
     "freeSelect",
+    "layers",
   ].includes(settingsMode);
 
   const processText = processingTimeMs
@@ -530,6 +533,7 @@ export default function QuickPhotoEditor() {
       setDraftSize(uploadCanvasSize);
       setObjects([baseImageObject]);
       setDraftObject(null);
+    setSelectionRect(null);
       setSelectedObjectId(baseImageObject.id);
       setSelectedObjectIds([baseImageObject.id]);
       setActiveSelection(null);
@@ -578,6 +582,7 @@ export default function QuickPhotoEditor() {
     canvasSize,
     objects,
     draftObject,
+    selectionRect,
     selectedObjectId,
     activeSelection,
     freeSelectionDraft,
@@ -712,7 +717,7 @@ export default function QuickPhotoEditor() {
         return;
       }
 
-      if ((event.key === "Delete" || event.key === "Backspace") && selectedObjectId) {
+      if ((event.key === "Delete" || event.key === "Backspace") && (selectedObjectId || selectedObjectIds.length)) {
         event.preventDefault();
         deleteSelectedObject();
         return;
@@ -758,7 +763,7 @@ export default function QuickPhotoEditor() {
       window.removeEventListener("keyup", handleKeyUp);
       document.removeEventListener("pointerdown", handleDocumentPointerDown);
     };
-  }, [hasImage, showOriginal, selectedObjectId, objects, canvasSize, historyPast, historyFuture, activeSelection, toolPopupOpen]);
+  }, [hasImage, showOriginal, selectedObjectId, selectedObjectIds, objects, canvasSize, historyPast, historyFuture, activeSelection, toolPopupOpen]);
 
   useEffect(() => {
     return () => {
@@ -851,6 +856,7 @@ export default function QuickPhotoEditor() {
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
     setDraftObject(null);
+    setSelectionRect(null);
     setGuideInfo(null);
     setPatchTargetBox(null);
     setPatchTargetSelection(null);
@@ -864,6 +870,7 @@ export default function QuickPhotoEditor() {
   function clearFreeSelectionManually(message = "Free selection cleared.") {
     setActiveSelection(null);
     setFreeSelectionDraft(null);
+    setSelectionRect(null);
     setPatchTargetSelection(null);
     setCloneSourceSelection(null);
     setGuideInfo(null);
@@ -908,11 +915,14 @@ export default function QuickPhotoEditor() {
     setDraftSize(nextSize);
     setObjects([]);
     setDraftObject(null);
+    setSelectionRect(null);
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
     setActiveSelection(null);
     setFreeSelectionDraft(null);
-    setHistoryPast([]);
+    setSelectionRect(null);
+      setSelectionRect(null);
+      setHistoryPast([]);
     setHistoryFuture([]);
     setPatchTargetBox(null);
     setPatchTargetSelection(null);
@@ -1128,8 +1138,11 @@ export default function QuickPhotoEditor() {
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
     setDraftObject(null);
+    setSelectionRect(null);
     setActiveSelection(null);
     setFreeSelectionDraft(null);
+    setSelectionRect(null);
+    setSelectionRect(null);
     setPatchTargetBox(null);
     setPatchTargetSelection(null);
     setPatchSourcePreviewBox(null);
@@ -1205,6 +1218,10 @@ export default function QuickPhotoEditor() {
 
     if (freeSelectionDraft?.path?.length) {
       drawFreeSelection(ctx, freeSelectionDraft.path, "#0ea5e9", "Free Select");
+    }
+
+    if (selectionRect) {
+      drawMarqueeSelection(ctx, selectionRect);
     }
 
     if (draftObject) {
@@ -1297,6 +1314,7 @@ export default function QuickPhotoEditor() {
     setObjects(hydratedObjects);
     setActiveSelection(snapshot.activeSelection || null);
     setFreeSelectionDraft(null);
+    setSelectionRect(null);
     setPatchTargetBox(snapshot.patchTargetBox || null);
     setPatchTargetSelection(snapshot.patchTargetSelection || null);
     setPatchSourcePreviewBox(null);
@@ -1458,8 +1476,21 @@ export default function QuickPhotoEditor() {
       setSelectedObjectId(null);
       setSelectedObjectIds([]);
       setDraftObject(null);
-      setGuideInfo(null);
+      setGuideInfo(buildGuideInfo({ x: point.x, y: point.y, w: 1, h: 1 }, canvasSize, "Drag to select multiple items"));
       setColorPickerTarget(null);
+      setSelectionRect({ x: point.x, y: point.y, w: 0, h: 0 });
+
+      pointerRef.current = {
+        active: true,
+        mode: "marquee-select",
+        startPoint: point,
+        lastPoint: point,
+        selectedStart: event.shiftKey ? [...selectedObjectIds] : [],
+        dragStartBox: null,
+        resizeHandle: null,
+      };
+
+      event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
     }
 
@@ -1827,6 +1858,60 @@ export default function QuickPhotoEditor() {
     if (!point) return;
 
     event.preventDefault();
+
+    if (pointerRef.current.mode === "marquee-select") {
+      const startPoint = pointerRef.current.startPoint;
+      const rawBox = {
+        x: startPoint.x,
+        y: startPoint.y,
+        w: point.x - startPoint.x,
+        h: point.y - startPoint.y,
+      };
+      const nextBox = normalizeBox(rawBox);
+
+      setSelectionRect(nextBox);
+      setGuideInfo(buildGuideInfo(nextBox, canvasSize, "Selecting items"));
+      pointerRef.current.lastPoint = point;
+      return;
+    }
+
+    if (pointerRef.current.mode === "marquee-select") {
+      const finalBox = selectionRect ? normalizeBox(selectionRect) : null;
+      const previousIds = Array.isArray(pointerRef.current.selectedStart)
+        ? pointerRef.current.selectedStart
+        : [];
+
+      if (finalBox && finalBox.w > 6 && finalBox.h > 6) {
+        const selectedIds = objects
+          .filter((item) => !item.isBaseImage && boxesIntersect(finalBox, getObjectBox(item)))
+          .map((item) => item.id);
+
+        const nextIds = event.shiftKey
+          ? Array.from(new Set([...previousIds, ...selectedIds]))
+          : selectedIds;
+
+        setSelectedObjectIds(nextIds);
+        setSelectedObjectId(nextIds[nextIds.length - 1] || null);
+
+        const selectedItems = objects.filter((item) => nextIds.includes(item.id));
+        const groupBox = getGroupBox(selectedItems);
+
+        setActiveTool("select");
+        setActivePanel(nextIds.length > 1 ? "select" : selectedItems[0]?.type === "text" ? "text" : selectedItems[0]?.type === "image" ? "image" : selectedItems[0] ? "shape" : "");
+        setToolPopupOpen(Boolean(nextIds.length));
+        setGuideInfo(
+          groupBox
+            ? buildGuideInfo(groupBox, canvasSize, `${nextIds.length} item${nextIds.length === 1 ? "" : "s"} selected`)
+            : null
+        );
+      } else if (!event.shiftKey) {
+        setSelectedObjectIds([]);
+        setSelectedObjectId(null);
+        setGuideInfo(null);
+      }
+
+      setSelectionRect(null);
+    }
 
     if (pointerRef.current.mode === "free-select" && freeSelectionDraft) {
       const lastPoint = pointerRef.current.lastPoint || point;
@@ -2205,6 +2290,60 @@ export default function QuickPhotoEditor() {
     if (!pointerRef.current.active) return;
 
     event.preventDefault();
+
+    if (pointerRef.current.mode === "marquee-select") {
+      const startPoint = pointerRef.current.startPoint;
+      const rawBox = {
+        x: startPoint.x,
+        y: startPoint.y,
+        w: point.x - startPoint.x,
+        h: point.y - startPoint.y,
+      };
+      const nextBox = normalizeBox(rawBox);
+
+      setSelectionRect(nextBox);
+      setGuideInfo(buildGuideInfo(nextBox, canvasSize, "Selecting items"));
+      pointerRef.current.lastPoint = point;
+      return;
+    }
+
+    if (pointerRef.current.mode === "marquee-select") {
+      const finalBox = selectionRect ? normalizeBox(selectionRect) : null;
+      const previousIds = Array.isArray(pointerRef.current.selectedStart)
+        ? pointerRef.current.selectedStart
+        : [];
+
+      if (finalBox && finalBox.w > 6 && finalBox.h > 6) {
+        const selectedIds = objects
+          .filter((item) => !item.isBaseImage && boxesIntersect(finalBox, getObjectBox(item)))
+          .map((item) => item.id);
+
+        const nextIds = event.shiftKey
+          ? Array.from(new Set([...previousIds, ...selectedIds]))
+          : selectedIds;
+
+        setSelectedObjectIds(nextIds);
+        setSelectedObjectId(nextIds[nextIds.length - 1] || null);
+
+        const selectedItems = objects.filter((item) => nextIds.includes(item.id));
+        const groupBox = getGroupBox(selectedItems);
+
+        setActiveTool("select");
+        setActivePanel(nextIds.length > 1 ? "select" : selectedItems[0]?.type === "text" ? "text" : selectedItems[0]?.type === "image" ? "image" : selectedItems[0] ? "shape" : "");
+        setToolPopupOpen(Boolean(nextIds.length));
+        setGuideInfo(
+          groupBox
+            ? buildGuideInfo(groupBox, canvasSize, `${nextIds.length} item${nextIds.length === 1 ? "" : "s"} selected`)
+            : null
+        );
+      } else if (!event.shiftKey) {
+        setSelectedObjectIds([]);
+        setSelectedObjectId(null);
+        setGuideInfo(null);
+      }
+
+      setSelectionRect(null);
+    }
 
     if (pointerRef.current.mode === "free-select" && freeSelectionDraft) {
       const finalSelection = normalizeFreeSelection(freeSelectionDraft);
@@ -2834,6 +2973,52 @@ export default function QuickPhotoEditor() {
     clearOutput();
   }
 
+
+  function alignSelectedObjects(mode) {
+    const activeIds = getActiveSelectedIds();
+    const selectedItems = objects.filter((item) => activeIds.includes(item.id));
+
+    if (selectedItems.length < 2) {
+      setErrorMessage("Select two or more items first to use alignment.");
+      return;
+    }
+
+    const groupBox = getGroupBox(selectedItems);
+
+    if (!groupBox) return;
+
+    pushHistory();
+
+    const alignedObjects = selectedItems.map((item) => {
+      const box = getObjectBox(item);
+
+      if (!box) return item;
+
+      let dx = 0;
+      let dy = 0;
+
+      if (mode === "left") dx = groupBox.x - box.x;
+      if (mode === "center") dx = groupBox.x + groupBox.w / 2 - (box.x + box.w / 2);
+      if (mode === "right") dx = groupBox.x + groupBox.w - (box.x + box.w);
+      if (mode === "top") dy = groupBox.y - box.y;
+      if (mode === "middle") dy = groupBox.y + groupBox.h / 2 - (box.y + box.h / 2);
+      if (mode === "bottom") dy = groupBox.y + groupBox.h - (box.y + box.h);
+
+      return moveObject(item, dx, dy);
+    });
+
+    setObjects((current) =>
+      current.map((item) => {
+        const aligned = alignedObjects.find((candidate) => candidate.id === item.id);
+        return aligned || item;
+      })
+    );
+
+    const nextGroupBox = getGroupBox(alignedObjects);
+    setGuideInfo(buildGuideInfo(nextGroupBox || groupBox, canvasSize, `Aligned ${mode}`));
+    clearOutput();
+  }
+
   function deleteSelectedObject() {
     const activeIds = selectedObjectIds.length
       ? selectedObjectIds
@@ -3186,10 +3371,12 @@ export default function QuickPhotoEditor() {
     setToolPopupOpen(false);
     setObjects([]);
     setDraftObject(null);
+    setSelectionRect(null);
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
     setActiveSelection(null);
     setFreeSelectionDraft(null);
+    setSelectionRect(null);
     editorClipboardRef.current = null;
     setHistoryPast([]);
     setHistoryFuture([]);
@@ -3662,6 +3849,26 @@ export default function QuickPhotoEditor() {
                   }`}
                 >
                   <Pipette size={20} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    updatePopupPositionFromEvent(event);
+                    const isLayersPanelOpen = toolPopupOpen && activePanel === "layers";
+                    setActiveTool("select");
+                    setActivePanel(isLayersPanelOpen ? "" : "layers");
+                    setToolPopupOpen(!isLayersPanelOpen);
+                    setShowOriginal(false);
+                  }}
+                  title="Layers"
+                  className={`w-12 h-12 rounded-xl inline-flex items-center justify-center transition ${
+                    activePanel === "layers" && toolPopupOpen
+                      ? "bg-white text-[#111827]"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Layers size={20} />
                 </button>
 
                 <div className="h-px bg-white/15 my-1" />
@@ -4533,6 +4740,97 @@ export default function QuickPhotoEditor() {
                     </div>
                   )}
 
+                  {settingsMode === "layers" && (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
+                        <p className="font-bold">Layers</p>
+                        <p className="text-xs text-[var(--text-secondary)] mt-1">
+                          Top item in this list appears above other items. Hold Shift while clicking layers to select multiple.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2 max-h-[460px] overflow-auto pr-1">
+                        {objects.length ? (
+                          [...objects].reverse().map((item, reverseIndex) => {
+                            const layerIndex = objects.length - 1 - reverseIndex;
+                            const isSelected = selectedObjectIds.includes(item.id) || selectedObjectId === item.id;
+                            const label = getLayerDisplayName(item, layerIndex);
+
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={(event) => {
+                                  const activeIds = selectedObjectIds.length
+                                    ? selectedObjectIds
+                                    : selectedObjectId
+                                      ? [selectedObjectId]
+                                      : [];
+
+                                  if (event.shiftKey) {
+                                    const nextIds = activeIds.includes(item.id)
+                                      ? activeIds.filter((id) => id !== item.id)
+                                      : [...activeIds, item.id];
+
+                                    setSelectedObjectIds(nextIds);
+                                    setSelectedObjectId(nextIds[nextIds.length - 1] || null);
+                                    setGuideInfo(
+                                      buildGuideInfo(
+                                        getGroupBox(objects.filter((layer) => nextIds.includes(layer.id))) || getObjectBox(item),
+                                        canvasSize,
+                                        `${nextIds.length} layer${nextIds.length === 1 ? "" : "s"} selected`
+                                      )
+                                    );
+                                  } else {
+                                    setSelectedObjectId(item.id);
+                                    setSelectedObjectIds([item.id]);
+                                    setGuideInfo(buildGuideInfo(getObjectBox(item), canvasSize, label));
+                                  }
+
+                                  setActiveTool("select");
+                                  clearOutput();
+                                }}
+                                className={`w-full rounded-xl border p-3 text-left transition ${
+                                  isSelected
+                                    ? "border-[var(--primary)] bg-[#f4edff]"
+                                    : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-sm truncate">{label}</p>
+                                    <p className="text-xs text-[var(--text-secondary)] mt-1">
+                                      {item.isBaseImage ? "Base photo" : item.type} • Layer {layerIndex + 1}
+                                    </p>
+                                  </div>
+
+                                  {isSelected && (
+                                    <span className="text-xs font-bold text-[var(--primary)] shrink-0">
+                                      Selected
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="rounded-2xl border border-[var(--border)] bg-gray-50 p-4 text-sm text-[var(--text-secondary)]">
+                            No layers yet. Add text, shapes, logos, or images.
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => reorderSelectedObjects("up")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">Bring Up</button>
+                        <button type="button" onClick={() => reorderSelectedObjects("down")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">Bring Down</button>
+                        <button type="button" onClick={() => reorderSelectedObjects("front")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">To Front</button>
+                        <button type="button" onClick={() => reorderSelectedObjects("back")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">To Back</button>
+                        <button type="button" onClick={duplicateSelectedObjects} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">Duplicate</button>
+                        <button type="button" onClick={deleteSelectedObject} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm text-red-600 disabled:opacity-40">Delete</button>
+                      </div>
+                    </div>
+                  )}
+
                   {settingsMode === "size" && (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-2">
@@ -4782,6 +5080,18 @@ export default function QuickPhotoEditor() {
                           className="w-20 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
                         />
                       </label>
+                    )}
+
+                    {selectedObjects.length > 1 && (
+                      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2">
+                        <span className="text-xs font-bold text-[var(--text-secondary)] px-1">Align</span>
+                        <button type="button" onClick={() => alignSelectedObjects("left")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align left">Left</button>
+                        <button type="button" onClick={() => alignSelectedObjects("center")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align center">Center</button>
+                        <button type="button" onClick={() => alignSelectedObjects("right")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align right">Right</button>
+                        <button type="button" onClick={() => alignSelectedObjects("top")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align top">Top</button>
+                        <button type="button" onClick={() => alignSelectedObjects("middle")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align middle">Middle</button>
+                        <button type="button" onClick={() => alignSelectedObjects("bottom")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align bottom">Bottom</button>
+                      </div>
                     )}
 
                     {(selectedObjectId || selectedObjectIds.length > 0) && (
@@ -5578,6 +5888,19 @@ function drawAreaBox(ctx, box, color, label) {
   ctx.setLineDash([12, 8]);
   ctx.fillRect(box.x, box.y, box.w, box.h);
   ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+  if (box.x < 0 || box.y < 0 || box.x + box.w > ctx.canvas.width || box.y + box.h > ctx.canvas.height) {
+    const visibleBox = {
+      x: clampNumber(box.x, 1, ctx.canvas.width - 2),
+      y: clampNumber(box.y, 1, ctx.canvas.height - 2),
+      w: clampNumber(box.w, 1, ctx.canvas.width - clampNumber(box.x, 1, ctx.canvas.width - 2) - 1),
+      h: clampNumber(box.h, 1, ctx.canvas.height - clampNumber(box.y, 1, ctx.canvas.height - 2) - 1),
+    };
+    ctx.strokeStyle = "rgba(155,108,227,0.55)";
+    ctx.strokeRect(visibleBox.x, visibleBox.y, visibleBox.w, visibleBox.h);
+    ctx.strokeStyle = "#9b6ce3";
+  }
+
   ctx.setLineDash([]);
 
   ctx.fillStyle = color;
@@ -5630,6 +5953,22 @@ function drawBrushPreview(ctx, point, size, color, opacity = 1) {
   ctx.restore();
 }
 
+function drawMarqueeSelection(ctx, box) {
+  if (!box) return;
+
+  const normalized = normalizeBox(box);
+
+  ctx.save();
+  ctx.fillStyle = "rgba(155,108,227,0.12)";
+  ctx.strokeStyle = "#9b6ce3";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 5]);
+  ctx.fillRect(normalized.x, normalized.y, normalized.w, normalized.h);
+  ctx.strokeRect(normalized.x, normalized.y, normalized.w, normalized.h);
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 function drawSelectionBox(ctx, object) {
   const box = getObjectBox(object);
 
@@ -5640,6 +5979,19 @@ function drawSelectionBox(ctx, object) {
   ctx.lineWidth = 2;
   ctx.setLineDash([8, 6]);
   ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+  if (box.x < 0 || box.y < 0 || box.x + box.w > ctx.canvas.width || box.y + box.h > ctx.canvas.height) {
+    const visibleBox = {
+      x: clampNumber(box.x, 1, ctx.canvas.width - 2),
+      y: clampNumber(box.y, 1, ctx.canvas.height - 2),
+      w: clampNumber(box.w, 1, ctx.canvas.width - clampNumber(box.x, 1, ctx.canvas.width - 2) - 1),
+      h: clampNumber(box.h, 1, ctx.canvas.height - clampNumber(box.y, 1, ctx.canvas.height - 2) - 1),
+    };
+    ctx.strokeStyle = "rgba(155,108,227,0.55)";
+    ctx.strokeRect(visibleBox.x, visibleBox.y, visibleBox.w, visibleBox.h);
+    ctx.strokeStyle = "#9b6ce3";
+  }
+
   ctx.setLineDash([]);
 
   const handleSize = Math.max(10, Math.min(box.w, box.h) * 0.04);
@@ -5747,6 +6099,25 @@ function getObjectBox(object) {
   }
 
   return null;
+}
+
+function getLayerDisplayName(item, index = 0) {
+  if (!item) return `Layer ${index + 1}`;
+
+  if (item.isBaseImage) return item.name || "Base Photo";
+  if (item.type === "image") return item.name || `Image Layer ${index + 1}`;
+  if (item.type === "text") {
+    const text = String(item.text || "Text").trim();
+    return text ? `Text: ${text.slice(0, 28)}` : `Text Layer ${index + 1}`;
+  }
+  if (item.type === "rectangle") return `Rectangle ${index + 1}`;
+  if (item.type === "triangle") return `Triangle ${index + 1}`;
+  if (item.type === "circle") return `Circle ${index + 1}`;
+  if (item.type === "star") return `Star ${index + 1}`;
+  if (item.type === "hexagon") return `Hexagon ${index + 1}`;
+  if (item.type === "arrow") return `Arrow ${index + 1}`;
+
+  return `${item.type || "Layer"} ${index + 1}`;
 }
 
 function moveObject(object, dx, dy) {
@@ -6005,6 +6376,17 @@ function distanceBetweenPoints(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function boxesIntersect(a, b) {
+  if (!a || !b) return false;
+
+  return !(
+    b.x > a.x + a.w ||
+    b.x + b.w < a.x ||
+    b.y > a.y + a.h ||
+    b.y + b.h < a.y
+  );
+}
+
 function pointInBox(point, box) {
   if (!point || !box) return false;
 
@@ -6073,10 +6455,11 @@ function getResizeHandleAtBox(point, box, zoom = 1, canvasSize = null) {
 }
 
 function getVisibleBoxHandles(box, handleSize = 10, canvasWidth = Infinity, canvasHeight = Infinity) {
-  const minX = -handleSize;
-  const minY = -handleSize;
-  const maxX = Number.isFinite(canvasWidth) ? canvasWidth + handleSize : box.x + box.w;
-  const maxY = Number.isFinite(canvasHeight) ? canvasHeight + handleSize : box.y + box.h;
+  const edgePadding = Math.max(7, handleSize * 0.65);
+  const minX = Number.isFinite(canvasWidth) ? edgePadding : box.x;
+  const minY = Number.isFinite(canvasHeight) ? edgePadding : box.y;
+  const maxX = Number.isFinite(canvasWidth) ? Math.max(edgePadding, canvasWidth - edgePadding) : box.x + box.w;
+  const maxY = Number.isFinite(canvasHeight) ? Math.max(edgePadding, canvasHeight - edgePadding) : box.y + box.h;
 
   return [
     { id: "nw", x: clampNumber(box.x, minX, maxX), y: clampNumber(box.y, minY, maxY) },
