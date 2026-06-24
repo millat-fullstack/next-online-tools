@@ -190,11 +190,34 @@ const QUICK_ACTIONS = [
 ];
 
 const BULLET_STYLES = [
-  { id: "dot", label: "• Standard", symbol: "•" },
-  { id: "arrow", label: "→ Arrow", symbol: "→" },
-  { id: "check", label: "✓ Check", symbol: "✓" },
-  { id: "star", label: "★ Star", symbol: "★" },
-  { id: "fire", label: "🔥 Fire", symbol: "🔥" },
+  { id: "dot", label: "Standard", symbol: "•" },
+];
+
+const EMOJI_OPTIONS = [
+  "✅",
+  "🚀",
+  "🔥",
+  "💡",
+  "⭐",
+  "👉",
+  "📌",
+  "🎯",
+  "🙌",
+  "👏",
+  "💬",
+  "📈",
+  "🧠",
+  "⚡",
+  "💼",
+  "✨",
+];
+
+const CASE_OPTIONS = [
+  { id: "uppercase", label: "UPPERCASE", preview: "LINKEDIN POST" },
+  { id: "lowercase", label: "lowercase", preview: "linkedin post" },
+  { id: "title", label: "Title Case", preview: "LinkedIn Post" },
+  { id: "sentence", label: "Sentence case", preview: "LinkedIn post" },
+  { id: "capitalizeLines", label: "Capitalize lines", preview: "Each Line Starts Clean" },
 ];
 
 const CTA_OPTIONS = [
@@ -503,6 +526,77 @@ export default function LinkedInTextFormatter() {
         textareaRef.current.setSelectionRange(start, start + styledText.length);
         setTextSelection({ start, end: start + styledText.length });
       }
+    }, 0);
+  }
+
+  function replaceSelectedText(transformer, message) {
+    clearFeedback();
+
+    if (!postText.trim()) {
+      setError("Please type or paste your LinkedIn text first.");
+      return;
+    }
+
+    const { start, end } = getSelectionRange();
+    const hasSelection = start !== end;
+    const before = postText.slice(0, start);
+    const selected = hasSelection ? postText.slice(start, end) : postText;
+    const after = postText.slice(end);
+    const nextSelected = transformer(selected);
+    const nextText = hasSelection ? `${before}${nextSelected}${after}` : nextSelected;
+
+    updateText(nextText, message);
+
+    window.setTimeout(() => {
+      if (!textareaRef.current) return;
+
+      textareaRef.current.focus();
+
+      if (hasSelection) {
+        textareaRef.current.setSelectionRange(start, start + nextSelected.length);
+        setTextSelection({ start, end: start + nextSelected.length });
+      }
+    }, 0);
+  }
+
+  function applyCase(caseId) {
+    const caseOption = CASE_OPTIONS.find((item) => item.id === caseId);
+
+    const transformers = {
+      uppercase: (value) => value.toUpperCase(),
+      lowercase: (value) => value.toLowerCase(),
+      title: toTitleCase,
+      sentence: toSentenceCase,
+      capitalizeLines: capitalizeEachLine,
+    };
+
+    const transformer = transformers[caseId];
+
+    if (!transformer) return;
+
+    replaceSelectedText(
+      transformer,
+      `${caseOption?.label || "Case"} applied.`
+    );
+  }
+
+  function insertEmoji(emoji) {
+    clearFeedback();
+
+    const { start, end } = getSelectionRange();
+    const before = postText.slice(0, start);
+    const after = postText.slice(end);
+    const nextText = `${before}${emoji}${after}`;
+    const nextCursor = start + Array.from(emoji).join("").length;
+
+    updateText(nextText, `${emoji} inserted.`);
+
+    window.setTimeout(() => {
+      if (!textareaRef.current) return;
+
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(nextCursor, nextCursor);
+      setTextSelection({ start: nextCursor, end: nextCursor });
     }, 0);
   }
 
@@ -861,27 +955,6 @@ export default function LinkedInTextFormatter() {
 
                     <ToolbarDivider />
 
-                    {BULLET_STYLES.map((bullet) => (
-                      <button
-                        key={bullet.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedBullet(bullet.id);
-                          setActiveToolbarMenu("");
-                          clearFeedback();
-                        }}
-                        className={`h-9 w-9 shrink-0 rounded-xl border text-sm font-bold transition ${
-                          selectedBullet === bullet.id
-                            ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
-                            : "border-transparent bg-white text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
-                        }`}
-                        title={bullet.label}
-                        aria-label={`Use ${bullet.label} bullet style`}
-                      >
-                        {bullet.symbol}
-                      </button>
-                    ))}
-
                     <ToolbarIconButton
                       icon={List}
                       label="Add bullets"
@@ -890,6 +963,42 @@ export default function LinkedInTextFormatter() {
                         handleQuickAction("addBullets");
                       }}
                     />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActiveToolbarMenu((current) =>
+                          current === "emoji" ? "" : "emoji"
+                        )
+                      }
+                      className={`h-9 w-9 shrink-0 rounded-xl border text-base transition ${
+                        activeToolbarMenu === "emoji"
+                          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                          : "border-transparent bg-white text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
+                      }`}
+                      title="Insert emoji"
+                      aria-label="Insert emoji"
+                    >
+                      😊
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActiveToolbarMenu((current) =>
+                          current === "case" ? "" : "case"
+                        )
+                      }
+                      className={`h-9 shrink-0 rounded-xl border px-3 text-xs font-bold transition ${
+                        activeToolbarMenu === "case"
+                          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                          : "border-transparent bg-white text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
+                      }`}
+                      title="Change case"
+                      aria-label="Change case"
+                    >
+                      Aa
+                    </button>
 
                     <ToolbarDivider />
 
@@ -1000,6 +1109,62 @@ export default function LinkedInTextFormatter() {
                           <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
                             {template.description}
                           </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeToolbarMenu === "emoji" && (
+                  <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-[min(420px,calc(100vw-48px))] rounded-2xl border border-[var(--border)] bg-white p-4 shadow-2xl">
+                    <div className="mb-3">
+                      <p className="text-sm font-bold">Insert emoji</p>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        Click any emoji to place it at the cursor position.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-8 gap-2">
+                      {EMOJI_OPTIONS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => {
+                            setActiveToolbarMenu("");
+                            insertEmoji(emoji);
+                          }}
+                          className="h-10 rounded-xl border border-[var(--border)] bg-white text-lg transition hover:border-[var(--primary)] hover:bg-[#f8f4ff]"
+                          aria-label={`Insert ${emoji}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeToolbarMenu === "case" && (
+                  <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-[min(460px,calc(100vw-48px))] rounded-2xl border border-[var(--border)] bg-white p-4 shadow-2xl">
+                    <div className="mb-3">
+                      <p className="text-sm font-bold">Change case</p>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        Applies to selected text. If nothing is selected, it applies to the full post.
+                      </p>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      {CASE_OPTIONS.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveToolbarMenu("");
+                            applyCase(item.id);
+                          }}
+                          className="rounded-xl border border-[var(--border)] bg-white p-3 text-left transition hover:border-[var(--primary)] hover:bg-[#f8f4ff]"
+                        >
+                          <p className="text-sm font-bold">{item.label}</p>
+                          <p className="mt-1 text-xs text-[var(--text-secondary)]">{item.preview}</p>
                         </button>
                       ))}
                     </div>
@@ -1634,6 +1799,31 @@ function createCharacterMap({ upper, lower, digits }) {
   });
 
   return map;
+}
+
+function toTitleCase(text) {
+  return String(text || "").replace(
+    /\p{L}[\p{L}\p{M}'’-]*/gu,
+    (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  );
+}
+
+function toSentenceCase(text) {
+  const lower = String(text || "").toLowerCase();
+
+  return lower.replace(
+    /(^\s*[a-z])|([.!?]\s+[a-z])/g,
+    (match) => match.toUpperCase()
+  );
+}
+
+function capitalizeEachLine(text) {
+  return String(text || "")
+    .split(/\n/)
+    .map((line) =>
+      line.replace(/\S/, (char) => char.toUpperCase())
+    )
+    .join("\n");
 }
 
 function addCombiningMark(text, mark) {
