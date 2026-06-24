@@ -255,6 +255,7 @@ export default function LinkedInTextFormatter() {
   const imageInputRef = useRef(null);
 
   const [postText, setPostText] = useState("");
+  const [textSelection, setTextSelection] = useState({ start: 0, end: 0 });
   const [selectedStyle, setSelectedStyle] = useState("bold");
   const [selectedMode, setSelectedMode] = useState("post");
   const [selectedBullet, setSelectedBullet] = useState("dot");
@@ -424,6 +425,17 @@ export default function LinkedInTextFormatter() {
     clearFeedback();
   }
 
+  function updateStoredSelection() {
+    const textarea = textareaRef.current;
+
+    if (!textarea) return;
+
+    setTextSelection({
+      start: textarea.selectionStart || 0,
+      end: textarea.selectionEnd || 0,
+    });
+  }
+
   function getSelectionRange() {
     const textarea = textareaRef.current;
 
@@ -434,10 +446,26 @@ export default function LinkedInTextFormatter() {
       };
     }
 
-    return {
+    const liveSelection = {
       start: textarea.selectionStart || 0,
       end: textarea.selectionEnd || 0,
     };
+
+    if (liveSelection.start !== liveSelection.end) {
+      return liveSelection;
+    }
+
+    if (
+      document.activeElement !== textarea &&
+      textSelection.start !== textSelection.end
+    ) {
+      return {
+        start: Math.max(0, Math.min(textSelection.start, postText.length)),
+        end: Math.max(0, Math.min(textSelection.end, postText.length)),
+      };
+    }
+
+    return liveSelection;
   }
 
   function applyStyle(styleId = selectedStyle) {
@@ -473,6 +501,7 @@ export default function LinkedInTextFormatter() {
 
       if (hasSelection) {
         textareaRef.current.setSelectionRange(start, start + styledText.length);
+        setTextSelection({ start, end: start + styledText.length });
       }
     }, 0);
   }
@@ -796,7 +825,10 @@ export default function LinkedInTextFormatter() {
 
               <div className="relative mb-0">
                 <div className="rounded-t-2xl border border-b-0 border-[var(--border)] bg-white px-3 py-2">
-                  <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap">
+                  <div
+                    onMouseDown={(event) => event.preventDefault()}
+                    className="flex items-center gap-1 overflow-x-auto whitespace-nowrap"
+                  >
                     <ToolbarIconButton
                       icon={Sparkles}
                       label="Templates"
@@ -981,7 +1013,7 @@ export default function LinkedInTextFormatter() {
                 onChange={(event) => handleTextChange(event.target.value)}
                 placeholder="Type or paste your LinkedIn post here. Select a word, sentence, or heading, then click a formatting style..."
                 rows="14"
-                className="w-full border border-[var(--border)] rounded-b-2xl rounded-t-none px-4 py-4 bg-white outline-none focus:border-[var(--primary)] resize-none leading-7"
+                className="linkedin-unicode-text w-full border border-[var(--border)] rounded-b-2xl rounded-t-none px-4 py-4 bg-white outline-none focus:border-[var(--primary)] resize-none leading-7"
               />
 
               <div className="grid sm:grid-cols-4 gap-3 mt-4">
@@ -1170,37 +1202,6 @@ export default function LinkedInTextFormatter() {
               </p>
             </div>
 
-            {/* HOOK PREVIEW */}
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Linkedin size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">LinkedIn Feed Hook Preview</h3>
-              </div>
-
-              <div className="bg-white border border-[var(--border)] rounded-2xl p-4">
-                {hookPreview ? (
-                  <p className="whitespace-pre-wrap leading-7">
-                    {hookPreview}
-                    {characterCount > SEE_MORE_PREVIEW_LIMIT ? (
-                      <span className="text-[var(--primary)] font-semibold">
-                        {" "}
-                        ...see more
-                      </span>
-                    ) : null}
-                  </p>
-                ) : (
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    The first part of your post will appear here.
-                  </p>
-                )}
-              </div>
-
-              <p className="text-xs text-[var(--text-secondary)] mt-3">
-                Make the first 1–2 lines strong so people want to click “see
-                more.”
-              </p>
-            </div>
-
             {/* COPY OPTIONS */}
             <div className="border border-[var(--border)] rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -1337,6 +1338,12 @@ export default function LinkedInTextFormatter() {
           </div>
         </div>
       </section>
+
+      <style>{`
+        .linkedin-unicode-text {
+          font-family: "Segoe UI", "Segoe UI Symbol", "Noto Sans Math", "Noto Sans Symbols 2", "Arial Unicode MS", Arial, sans-serif;
+        }
+      `}</style>
 
       <SuggestedTools currentToolId="linkedin-text-formatter" />
     </div>
@@ -1560,57 +1567,73 @@ function getStyleLabel(styleId) {
   return style?.label || "Style";
 }
 
+const LINKEDIN_STYLE_MAPS = {
+  bold: createCharacterMap({
+    upper: "𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙",
+    lower: "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝐤𝐥𝐦𝐧𝐨𝐩𝐪𝐫𝐬𝐭𝐮𝐯𝐰𝐱𝐲𝐳",
+    digits: "𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗",
+  }),
+  italic: createCharacterMap({
+    upper: "𝐴𝐵𝐶𝐷𝐸𝐹𝐺𝐻𝐼𝐽𝐾𝐿𝑀𝑁𝑂𝑃𝑄𝑅𝑆𝑇𝑈𝑉𝑊𝑋𝑌𝑍",
+    lower: "𝑎𝑏𝑐𝑑𝑒𝑓𝑔ℎ𝑖𝑗𝑘𝑙𝑚𝑛𝑜𝑝𝑞𝑟𝑠𝑡𝑢𝑣𝑤𝑥𝑦𝑧",
+    digits: "0123456789",
+  }),
+  boldItalic: createCharacterMap({
+    upper: "𝑨𝑩𝑪𝑫𝑬𝑭𝑮𝑯𝑰𝑱𝑲𝑳𝑴𝑵𝑶𝑷𝑸𝑹𝑺𝑻𝑼𝑽𝑾𝑿𝒀𝒁",
+    lower: "𝒂𝒃𝒄𝒅𝒆𝒇𝒈𝒉𝒊𝒋𝒌𝒍𝒎𝒏𝒐𝒑𝒒𝒓𝒔𝒕𝒖𝒗𝒘𝒙𝒚𝒛",
+    digits: "0123456789",
+  }),
+  monospace: createCharacterMap({
+    upper: "𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉",
+    lower: "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣",
+    digits: "𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿",
+  }),
+};
+
 function transformText(text, styleId) {
+  const cleanText = convertStyledUnicodeToPlainText(text);
+
   if (styleId === "underline") {
-    return addCombiningMark(text, "\u0332");
+    return addCombiningMark(cleanText, "\u0332");
   }
 
   if (styleId === "strikethrough") {
-    return addCombiningMark(text, "\u0336");
+    return addCombiningMark(cleanText, "\u0336");
   }
 
   if (styleId === "smallCaps") {
-    return toSmallCaps(text);
+    return toSmallCaps(cleanText);
   }
 
   if (styleId === "fullwidth") {
-    return toFullwidth(text);
+    return toFullwidth(cleanText);
   }
 
-  return Array.from(text)
-    .map((char) => transformCharacter(char, styleId))
+  const map = LINKEDIN_STYLE_MAPS[styleId];
+
+  if (!map) return cleanText;
+
+  return Array.from(cleanText)
+    .map((char) => map.get(char) || char)
     .join("");
 }
 
-function transformCharacter(char, styleId) {
-  const code = char.codePointAt(0);
+function createCharacterMap({ upper, lower, digits }) {
+  const map = new Map();
 
-  if (code >= 65 && code <= 90) {
-    const index = code - 65;
+  Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ").forEach((char, index) => {
+    map.set(char, Array.from(upper)[index] || char);
+  });
 
-    if (styleId === "bold") return fromCodePoint(0x1d400 + index);
-    if (styleId === "italic") return fromCodePoint(0x1d434 + index);
-    if (styleId === "boldItalic") return fromCodePoint(0x1d468 + index);
-    if (styleId === "monospace") return fromCodePoint(0x1d670 + index);
-  }
+  Array.from("abcdefghijklmnopqrstuvwxyz").forEach((char, index) => {
+    map.set(char, Array.from(lower)[index] || char);
+  });
 
-  if (code >= 97 && code <= 122) {
-    const index = code - 97;
+  Array.from("0123456789").forEach((char, index) => {
+    map.set(char, Array.from(digits)[index] || char);
+  });
 
-    if (styleId === "bold") return fromCodePoint(0x1d41a + index);
-    if (styleId === "italic") return fromCodePoint(0x1d44e + index);
-    if (styleId === "boldItalic") return fromCodePoint(0x1d482 + index);
-    if (styleId === "monospace") return fromCodePoint(0x1d68a + index);
-  }
-
-  if (code >= 48 && code <= 57) {
-    const index = code - 48;
-
-    if (styleId === "bold") return fromCodePoint(0x1d7ce + index);
-    if (styleId === "monospace") return fromCodePoint(0x1d7f6 + index);
-  }
-
-  return char;
+  return map;
 }
 
 function addCombiningMark(text, mark) {
@@ -1784,17 +1807,10 @@ function convertStyledUnicodeToPlainText(text) {
 
 function buildReverseMap() {
   const reverseMap = new Map();
-  const styles = ["bold", "italic", "boldItalic", "monospace"];
-  const plainChars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-  styles.forEach((styleId) => {
-    Array.from(plainChars).forEach((char) => {
-      const styled = transformCharacter(char, styleId);
-
-      if (styled !== char) {
-        reverseMap.set(styled, char);
-      }
+  Object.values(LINKEDIN_STYLE_MAPS).forEach((styleMap) => {
+    styleMap.forEach((styled, plain) => {
+      reverseMap.set(styled, plain);
     });
   });
 
