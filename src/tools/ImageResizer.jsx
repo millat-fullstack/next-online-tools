@@ -120,10 +120,14 @@ export default function ImageResizer() {
   const dragRef = useRef({
     active: false,
     pointerId: null,
+    mode: "move",
+    handle: "",
     startX: 0,
     startY: 0,
     startOffsetX: 0,
     startOffsetY: 0,
+    startScale: 1,
+    startDistance: 1,
   });
 
   const [imageData, setImageData] = useState(null);
@@ -188,6 +192,9 @@ export default function ImageResizer() {
   }, [dimensions]);
 
   const zoomPercent = Math.round(transform.scale * 100);
+
+  const smartObjectHelp =
+    "Drag image to move • Drag corner handles to resize • Alt + wheel zooms from cursor • Alt + Shift + wheel zooms faster";
 
   const originalSizeText = imageData
     ? `${imageData.width} × ${imageData.height}px`
@@ -398,14 +405,21 @@ export default function ImageResizer() {
         moveImageBy(0, step);
       }
 
-      if ((event.ctrlKey || event.metaKey) && (event.key === "+" || event.key === "=")) {
+      const zoomStep = event.shiftKey ? 1.18 : 1.08;
+
+      if ((event.altKey || event.ctrlKey || event.metaKey) && (event.key === "+" || event.key === "=")) {
         event.preventDefault();
-        applyScale(transform.scale * 1.08);
+        applyScale(transform.scale * zoomStep);
       }
 
-      if ((event.ctrlKey || event.metaKey) && (event.key === "-" || event.key === "_")) {
+      if ((event.altKey || event.ctrlKey || event.metaKey) && (event.key === "-" || event.key === "_")) {
         event.preventDefault();
-        applyScale(transform.scale * 0.92);
+        applyScale(transform.scale / zoomStep);
+      }
+
+      if (event.altKey && event.key === "0") {
+        event.preventDefault();
+        resetTransform();
       }
     }
 
@@ -480,6 +494,58 @@ export default function ImageResizer() {
     };
   }
 
+  function getSmartImageBounds(currentTransform = transform) {
+    if (!imageData) return null;
+
+    const width = imageData.width * currentTransform.scale;
+    const height = imageData.height * currentTransform.scale;
+    const centerX = dimensions.width / 2 + currentTransform.offsetX;
+    const centerY = dimensions.height / 2 + currentTransform.offsetY;
+
+    return {
+      x: centerX - width / 2,
+      y: centerY - height / 2,
+      width,
+      height,
+      centerX,
+      centerY,
+    };
+  }
+
+  function getSmartHandleAtPoint(point) {
+    const box = getSmartImageBounds();
+
+    if (!box || !point) return "";
+
+    const hitSize = Math.max(18, Math.min(dimensions.width, dimensions.height) * 0.025);
+    const handles = [
+      { id: "nw", x: box.x, y: box.y },
+      { id: "ne", x: box.x + box.width, y: box.y },
+      { id: "sw", x: box.x, y: box.y + box.height },
+      { id: "se", x: box.x + box.width, y: box.y + box.height },
+    ];
+
+    const hit = handles.find((handle) => {
+      return (
+        Math.abs(point.x - handle.x) <= hitSize &&
+        Math.abs(point.y - handle.y) <= hitSize
+      );
+    });
+
+    return hit?.id || "";
+  }
+
+  function getDistanceFromImageCenter(point, currentTransform = transform) {
+    const box = getSmartImageBounds(currentTransform);
+
+    if (!box || !point) return 1;
+
+    return Math.max(
+      1,
+      Math.hypot(point.x - box.centerX, point.y - box.centerY)
+    );
+  }
+
   function handleArtboardPointerDown(event) {
     if (!hasImage) return;
 
@@ -489,13 +555,20 @@ export default function ImageResizer() {
 
     event.preventDefault();
 
+    const handle = getSmartHandleAtPoint(point);
+    const mode = handle ? "scale" : "move";
+
     dragRef.current = {
       active: true,
       pointerId: event.pointerId,
+      mode,
+      handle,
       startX: point.x,
       startY: point.y,
       startOffsetX: transform.offsetX,
       startOffsetY: transform.offsetY,
+      startScale: transform.scale,
+      startDistance: getDistanceFromImageCenter(point, transform),
     };
 
     setIsDraggingImage(true);
@@ -510,6 +583,26 @@ export default function ImageResizer() {
     if (!point) return;
 
     event.preventDefault();
+
+    if (dragRef.current.mode === "scale") {
+      const nextDistance = getDistanceFromImageCenter(point, {
+        ...transform,
+        scale: dragRef.current.startScale,
+        offsetX: dragRef.current.startOffsetX,
+        offsetY: dragRef.current.startOffsetY,
+      });
+
+      const rawScale =
+        dragRef.current.startScale *
+        (nextDistance / Math.max(1, dragRef.current.startDistance));
+
+      const adjustedScale = event.shiftKey
+        ? dragRef.current.startScale + (rawScale - dragRef.current.startScale) * 0.35
+        : rawScale;
+
+      applyScale(adjustedScale);
+      return;
+    }
 
     const deltaX = point.x - dragRef.current.startX;
     const deltaY = point.y - dragRef.current.startY;
@@ -534,10 +627,13 @@ export default function ImageResizer() {
   function handleWheelZoom(event) {
     if (!hasImage) return;
 
+    if (!event.altKey) return;
+
     event.preventDefault();
 
     const point = getArtboardPoint(event);
-    const factor = Math.exp(-event.deltaY * 0.0014);
+    const speed = event.shiftKey ? 0.0026 : 0.0014;
+    const factor = Math.exp(-event.deltaY * speed);
     const nextScale = clampNumber(transform.scale * factor, MIN_SCALE, MAX_SCALE);
 
     applyScale(nextScale, point);
@@ -951,7 +1047,7 @@ export default function ImageResizer() {
                 <div>
                   <h2 className="text-xl font-bold">Live Preview</h2>
                   <p className="text-xs text-[var(--text-secondary)]">
-                    Drag image to position. Scroll over preview to zoom. Arrow keys move image by 1px.
+                    {smartObjectHelp}
                   </p>
                 </div>
 
@@ -980,6 +1076,49 @@ export default function ImageResizer() {
                     )}
                     {isProcessing ? "Creating..." : "Download"}
                   </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-[var(--border)] bg-white px-3 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={fitImageToArtboard} className="small-option-btn inline-flex items-center gap-1">
+                      <Maximize2 size={14} />
+                      Fit
+                    </button>
+                    <button type="button" onClick={fillArtboard} className="small-option-btn inline-flex items-center gap-1">
+                      <Crop size={14} />
+                      Fill
+                    </button>
+                    <button type="button" onClick={centerImage} className="small-option-btn inline-flex items-center gap-1">
+                      <Move size={14} />
+                      Center
+                    </button>
+                    <button type="button" onClick={resetTransform} className="small-option-btn inline-flex items-center gap-1">
+                      <RefreshCcw size={14} />
+                      Reset
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-2 py-1">
+                    <button
+                      type="button"
+                      onClick={() => applyScale(transform.scale * 0.92)}
+                      className="h-9 w-9 rounded-lg hover:bg-white inline-flex items-center justify-center"
+                      title="Make image smaller"
+                    >
+                      <ZoomOut size={17} />
+                    </button>
+                    <span className="min-w-14 text-center text-xs font-bold text-[var(--primary)]">{zoomPercent}%</span>
+                    <button
+                      type="button"
+                      onClick={() => applyScale(transform.scale * 1.08)}
+                      className="h-9 w-9 rounded-lg hover:bg-white inline-flex items-center justify-center"
+                      title="Make image bigger"
+                    >
+                      <ZoomIn size={17} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1088,7 +1227,7 @@ export default function ImageResizer() {
                     type="button"
                     onClick={() => applyScale(transform.scale * 0.9)}
                     className="w-10 h-10 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
-                    title="Zoom out image"
+                    title="Make image smaller"
                   >
                     <ZoomOut size={18} />
                   </button>
@@ -1101,7 +1240,7 @@ export default function ImageResizer() {
                     type="button"
                     onClick={() => applyScale(transform.scale * 1.1)}
                     className="w-10 h-10 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] inline-flex items-center justify-center"
-                    title="Zoom in image"
+                    title="Make image bigger"
                   >
                     <ZoomIn size={18} />
                   </button>
@@ -1224,6 +1363,10 @@ export default function ImageResizer() {
                 badge={`${zoomPercent}%`}
               >
                 <div className="space-y-4">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
+                    <strong>Smart object controls:</strong> drag the image to move, drag corner handles to resize, hold <strong>Alt</strong> and scroll to zoom from cursor, or hold <strong>Alt + Shift</strong> and scroll for faster zoom.
+                  </div>
+
                   <RangeInput
                     label={`Zoom: ${zoomPercent}%`}
                     min={MIN_SCALE}
@@ -1442,6 +1585,7 @@ export default function ImageResizer() {
           font-size: 0.8rem;
           font-weight: 700;
           background: white;
+          transition: 160ms ease;
         }
         .small-option-btn:hover {
           background: #f4edff;
@@ -1590,7 +1734,7 @@ function GuideOverlay({ showGuides, showSafeArea, dimensions }) {
 function TransformHandle({ position }) {
   return (
     <span
-      className={`absolute ${position} w-4 h-4 rounded-sm bg-white border-2 border-[var(--primary)] shadow`}
+      className={`absolute ${position} w-5 h-5 rounded-md bg-white border-2 border-[var(--primary)] shadow-[0_4px_12px_rgba(17,24,39,0.25)] ring-2 ring-white`}
     />
   );
 }
