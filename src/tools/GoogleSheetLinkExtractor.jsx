@@ -22,49 +22,43 @@ export const toolData = {
   path: "/google-sheet-links-extractor",
   category: "Spreadsheet Tools",
   description:
-    "Paste Google Sheets hyperlinked text, upload XLSX, or use Apps Script to extract all available links with Not found for missing links.",
-  metaTitle: "Google Sheet Links Extractor - Extract Hidden Hyperlinks from Google Sheets",
+    "Paste Google Sheets hyperlinked text and extract links into the same row order with Not found for cells without links.",
+  metaTitle: "Google Sheet Links Extractor - Extract Google Sheets Hyperlinks",
   metaDescription:
-    "Extract hidden hyperlinks from Google Sheets. Paste hyperlinked text or upload XLSX, then copy TSV output with Not found for cells without links.",
+    "Extract hyperlinks from Google Sheets cells. Paste hyperlinked text or upload XLSX, then copy a clean two-column TSV with Text and Link in the same row order.",
 };
 
 const MIN_PROCESSING_TIME_MS = 900;
-const MAX_PROCESSING_TIME_MS = 14000;
+const MAX_PROCESSING_TIME_MS = 12000;
 const NOT_FOUND = "Not found";
 
-const APPS_SCRIPT = `function extractLinksFromSelectedCellsToTSV() {
+const APPS_SCRIPT = `function extractSelectedLinksTwoColumns() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const range = sheet.getActiveRange();
   const richTextValues = range.getRichTextValues();
   const displayValues = range.getDisplayValues();
-  const output = [["Serial", "Text", "Link"]];
-
-  let serial = 1;
+  const output = [];
 
   for (let r = 0; r < displayValues.length; r++) {
-    for (let c = 0; c < displayValues[r].length; c++) {
-      const richText = richTextValues[r][c];
-      const text = displayValues[r][c] || (richText ? richText.getText() : "");
-      const links = [];
+    const text = displayValues[r][0] || (richTextValues[r][0] ? richTextValues[r][0].getText() : "");
+    const richText = richTextValues[r][0];
+    const links = [];
 
-      if (richText) {
-        const mainLink = richText.getLinkUrl();
-        if (mainLink) links.push(mainLink);
+    if (richText) {
+      const mainLink = richText.getLinkUrl();
+      if (mainLink) links.push(mainLink);
 
-        const runs = richText.getRuns();
-        for (let i = 0; i < runs.length; i++) {
-          const runLink = runs[i].getLinkUrl();
-          if (runLink && links.indexOf(runLink) === -1) links.push(runLink);
-        }
+      const runs = richText.getRuns();
+      for (let i = 0; i < runs.length; i++) {
+        const runLink = runs[i].getLinkUrl();
+        if (runLink && links.indexOf(runLink) === -1) links.push(runLink);
       }
+    }
 
-      if (links.length) {
-        links.forEach(function(link) {
-          output.push([serial++, text, link]);
-        });
-      } else if (String(text).trim()) {
-        output.push([serial++, text, "Not found"]);
-      }
+    if (!String(text).trim() && !links.length) {
+      output.push(["", ""]);
+    } else {
+      output.push([text, links.length ? links.join("\\n") : "Not found"]);
     }
   }
 
@@ -73,7 +67,7 @@ const APPS_SCRIPT = `function extractLinksFromSelectedCellsToTSV() {
   if (!outputSheet) outputSheet = SpreadsheetApp.getActive().insertSheet(outputSheetName);
 
   outputSheet.clear();
-  outputSheet.getRange(1, 1, output.length, output[0].length).setValues(output);
+  outputSheet.getRange(1, 1, output.length, 2).setValues(output);
 }`;
 
 export default function GoogleSheetLinksExtractor() {
@@ -85,21 +79,18 @@ export default function GoogleSheetLinksExtractor() {
   const [inputSource, setInputSource] = useState("");
   const [outputRows, setOutputRows] = useState([]);
 
-  const [includeHeader, setIncludeHeader] = useState(true);
-  const [includeCellAddress, setIncludeCellAddress] = useState(false);
-  const [includeBlankCells, setIncludeBlankCells] = useState(false);
   const [pairNameUrlColumns, setPairNameUrlColumns] = useState(true);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [excelSuccess, setExcelSuccess] = useState(false);
+  const [scriptCopied, setScriptCopied] = useState(false);
+  const [showScript, setShowScript] = useState(false);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingTimeMs, setProcessingTimeMs] = useState(0);
   const [estimatedTimeMs, setEstimatedTimeMs] = useState(0);
   const [progress, setProgress] = useState(0);
 
-  const [copySuccess, setCopySuccess] = useState(false);
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
-  const [excelSuccess, setExcelSuccess] = useState(false);
-  const [scriptCopied, setScriptCopied] = useState(false);
-  const [showScript, setShowScript] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -127,13 +118,12 @@ export default function GoogleSheetLinksExtractor() {
       const elapsed = performance.now() - startTime;
       const nextProgress = Math.min(94, Math.round((elapsed / estimate) * 94));
       setProgress(Math.max(8, nextProgress));
-    }, 90);
+    }, 80);
 
     const finishTimer = window.setTimeout(() => {
       try {
-        const rows = buildOutputRows(inputCells, {
+        const rows = buildTwoColumnOutputRows(inputCells, {
           pairNameUrlColumns,
-          includeBlankCells,
         });
 
         setOutputRows(rows);
@@ -144,45 +134,39 @@ export default function GoogleSheetLinksExtractor() {
         setOutputRows([]);
       } finally {
         setIsProcessing(false);
-        window.setTimeout(() => setProgress(0), 700);
+        window.setTimeout(() => setProgress(0), 650);
       }
     }, estimate);
 
     timersRef.current = [progressTimer, finishTimer];
 
     return () => clearTimers();
-  }, [inputCells, includeBlankCells, pairNameUrlColumns]);
+  }, [inputCells, pairNameUrlColumns]);
 
-  useEffect(() => {
-    return () => clearTimers();
-  }, []);
+  useEffect(() => () => clearTimers(), []);
 
   const stats = useMemo(() => {
     const rows = inputCells.length;
     const columns = inputCells.reduce((max, row) => Math.max(max, row.length), 0);
-    const cells = inputCells.reduce((total, row) => total + row.length, 0);
-    const linksFound = outputRows.filter((row) => row.link !== NOT_FOUND).length;
-    const notFound = outputRows.filter((row) => row.link === NOT_FOUND).length;
+    const inputFilled = inputCells
+      .flat()
+      .filter((cell) => cell?.text || cell?.links?.length).length;
+    const linksFound = outputRows.filter((row) => row.link && row.link !== NOT_FOUND).length;
+    const notFound = outputRows.filter((row) => row.text && row.link === NOT_FOUND).length;
+    const blankRows = outputRows.filter((row) => !row.text && !row.link).length;
 
     return {
       rows,
       columns,
-      cells,
+      inputFilled,
       linksFound,
       notFound,
+      blankRows,
       source: inputSource,
     };
   }, [inputCells, inputSource, outputRows]);
 
-  const outputTsv = useMemo(
-    () =>
-      rowsToTsv(outputRows, {
-        includeHeader,
-        includeCellAddress,
-      }),
-    [outputRows, includeHeader, includeCellAddress]
-  );
-
+  const outputTsv = useMemo(() => rowsToTwoColumnTsv(outputRows), [outputRows]);
   const hasOutput = outputRows.length > 0 && !isProcessing;
 
   function clearTimers() {
@@ -287,7 +271,7 @@ export default function GoogleSheetLinksExtractor() {
     }
   }
 
-  async function copyTsv() {
+  async function copyResult() {
     if (!hasOutput) return;
 
     try {
@@ -306,7 +290,7 @@ export default function GoogleSheetLinksExtractor() {
 
     downloadTextFile({
       content: outputTsv,
-      fileName: "google-sheet-links-output.tsv",
+      fileName: "google-sheet-links-two-column-output.tsv",
       mimeType: "text/tab-separated-values;charset=utf-8",
     });
 
@@ -322,24 +306,14 @@ export default function GoogleSheetLinksExtractor() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Extracted Links");
 
-      const header = includeCellAddress
-        ? ["Serial", "Cell", "Text", "Link"]
-        : ["Serial", "Text", "Link"];
-
-      worksheet.addRow(header);
-
       outputRows.forEach((row) => {
-        const rowValues = includeCellAddress
-          ? [row.serial, row.cell, row.text, row.link]
-          : [row.serial, row.text, row.link];
+        const excelRow = worksheet.addRow([row.text || "", row.link || ""]);
+        const linkCell = excelRow.getCell(2);
 
-        const excelRow = worksheet.addRow(rowValues);
-        const linkCell = excelRow.getCell(includeCellAddress ? 4 : 3);
-
-        if (row.link !== NOT_FOUND) {
+        if (row.link && row.link !== NOT_FOUND) {
           linkCell.value = {
             text: row.link,
-            hyperlink: row.link,
+            hyperlink: row.link.split("\n")[0],
           };
           linkCell.font = {
             color: { argb: "FF2563EB" },
@@ -348,21 +322,19 @@ export default function GoogleSheetLinksExtractor() {
         }
       });
 
-      worksheet.columns.forEach((column) => {
-        column.width = 32;
-      });
+      worksheet.columns = [{ width: 36 }, { width: 68 }];
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
-      downloadBlob(blob, "google-sheet-links-output.xlsx");
+      downloadBlob(blob, "google-sheet-links-two-column-output.xlsx");
 
       setExcelSuccess(true);
       window.setTimeout(() => setExcelSuccess(false), 2000);
     } catch {
-      setError("Could not create Excel file. Please use Copy TSV or Download TSV.");
+      setError("Could not create Excel file. Please use Copy Result or Download TSV.");
     }
   }
 
@@ -413,9 +385,9 @@ export default function GoogleSheetLinksExtractor() {
         <h1 className="text-3xl font-bold mb-3">Google Sheet Links Extractor</h1>
 
         <p className="text-[var(--text-secondary)] max-w-3xl">
-          Paste hyperlinked Google Sheets text and get a clean TSV output. Every
-          visible text cell is listed serially, and cells without detected links show{" "}
-          <strong>Not found</strong>.
+          Paste copied Google Sheets cells and get a clean two-column output:
+          original text on the left and extracted link on the right. Empty input
+          rows stay empty, and text without a link becomes <strong>Not found</strong>.
         </p>
       </section>
 
@@ -424,7 +396,7 @@ export default function GoogleSheetLinksExtractor() {
           <div className="flex flex-col gap-4 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold">1. Paste Google Sheets cells</h2>
+                <h2 className="text-xl font-bold">Paste Google Sheets cells</h2>
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
                   Copy cells from Google Sheets, click below, and press Ctrl + V.
                 </p>
@@ -470,15 +442,14 @@ export default function GoogleSheetLinksExtractor() {
             <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 flex gap-3">
               <ShieldCheck size={18} className="text-blue-700 shrink-0 mt-0.5" />
               <p className="text-xs text-blue-800 leading-5">
-                Paste mode extracts all links that Google Sheets sends to the
-                browser clipboard. If Google Sheets hides some URLs, upload XLSX
-                or use Apps Script for true sheet-level accuracy.
+                Paste mode extracts every link that Google Sheets sends to the browser clipboard.
+                If Google Sheets hides URLs, upload XLSX or use the Apps Script helper.
               </p>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Rows" value={stats.rows} />
-              <StatCard label="Columns" value={stats.columns} />
+              <StatCard label="Input rows" value={stats.rows} />
+              <StatCard label="Input cells" value={stats.inputFilled} />
               <StatCard label="Links" value={stats.linksFound} />
               <StatCard label="Not found" value={stats.notFound} />
             </div>
@@ -489,68 +460,29 @@ export default function GoogleSheetLinksExtractor() {
           <div className="flex flex-col gap-4 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold">2. Result TSV</h2>
+                <h2 className="text-xl font-bold">Two-column result</h2>
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
-                  Copy and paste this result directly into Google Sheets.
+                  Same row order as input. Copy and paste directly into Google Sheets.
                 </p>
               </div>
-
-              <div className="flex flex-wrap gap-2">
-                <label className="inline-flex items-center gap-2 text-xs font-semibold border border-[var(--border)] rounded-xl px-3 py-2 bg-white">
-                  <input
-                    type="checkbox"
-                    checked={includeHeader}
-                    onChange={(event) => setIncludeHeader(event.target.checked)}
-                    className="accent-[var(--primary)]"
-                  />
-                  Header
-                </label>
-
-                <label className="inline-flex items-center gap-2 text-xs font-semibold border border-[var(--border)] rounded-xl px-3 py-2 bg-white">
-                  <input
-                    type="checkbox"
-                    checked={includeCellAddress}
-                    onChange={(event) => setIncludeCellAddress(event.target.checked)}
-                    className="accent-[var(--primary)]"
-                  />
-                  Cell
-                </label>
-              </div>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-3">
-              <label className="flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-white p-4">
-                <input
-                  type="checkbox"
-                  checked={pairNameUrlColumns}
-                  onChange={(event) => setPairNameUrlColumns(event.target.checked)}
-                  className="mt-1 accent-[var(--primary)]"
-                />
-                <span>
-                  <span className="block text-sm font-semibold">
-                    Pair adjacent URL column
-                  </span>
-                  <span className="block text-xs text-[var(--text-secondary)] mt-1">
-                    If a name is beside a URL cell, output the name with that URL.
-                  </span>
+            <label className="flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-white p-4">
+              <input
+                type="checkbox"
+                checked={pairNameUrlColumns}
+                onChange={(event) => setPairNameUrlColumns(event.target.checked)}
+                className="mt-1 accent-[var(--primary)]"
+              />
+              <span>
+                <span className="block text-sm font-semibold">
+                  Pair adjacent URL column
                 </span>
-              </label>
-
-              <label className="flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-white p-4">
-                <input
-                  type="checkbox"
-                  checked={includeBlankCells}
-                  onChange={(event) => setIncludeBlankCells(event.target.checked)}
-                  className="mt-1 accent-[var(--primary)]"
-                />
-                <span>
-                  <span className="block text-sm font-semibold">Include blank cells</span>
-                  <span className="block text-xs text-[var(--text-secondary)] mt-1">
-                    Blank cells also appear as Not found.
-                  </span>
+                <span className="block text-xs text-[var(--text-secondary)] mt-1">
+                  If a name is beside a URL cell, output the name with that URL.
                 </span>
-              </label>
-            </div>
+              </span>
+            </label>
 
             {(isProcessing || processingTimeMs > 0) && (
               <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
@@ -584,24 +516,26 @@ export default function GoogleSheetLinksExtractor() {
               </div>
             )}
 
+            <OutputPreview rows={outputRows} isProcessing={isProcessing} />
+
             <textarea
-              value={isProcessing ? "Processing links..." : outputTsv || "Serial\tText\tLink\n1\tExample Name\tNot found"}
+              value={isProcessing ? "Processing links..." : outputTsv || "Vito Garofalo\tNot found"}
               readOnly
-              rows={18}
-              className="min-h-[460px] w-full rounded-2xl border border-[var(--border)] bg-gray-50 p-4 font-mono text-sm outline-none resize-none"
+              rows={10}
+              className="min-h-[220px] w-full rounded-2xl border border-[var(--border)] bg-gray-50 p-4 font-mono text-sm outline-none resize-none"
             />
 
             <div className="grid sm:grid-cols-3 gap-3">
               <button
                 type="button"
-                onClick={copyTsv}
+                onClick={copyResult}
                 disabled={!hasOutput}
                 className={`btn-primary inline-flex items-center justify-center gap-2 ${
                   !hasOutput ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
                 {copySuccess ? <Check size={18} /> : <Copy size={18} />}
-                {copySuccess ? "Copied" : "Copy TSV"}
+                {copySuccess ? "Copied" : "Copy Result"}
               </button>
 
               <button
@@ -645,8 +579,8 @@ export default function GoogleSheetLinksExtractor() {
         {showScript && (
           <div className="mt-4 border-t border-[var(--border)] pt-4">
             <p className="text-sm text-[var(--text-secondary)] mb-4">
-              Use this when paste mode cannot access hidden links. It reads selected
-              Google Sheets cells directly and creates an output sheet.
+              Use this when paste mode cannot access hidden links. It reads the selected
+              Google Sheets cells directly and creates a two-column output sheet.
             </p>
 
             <pre className="bg-[#111827] text-white rounded-2xl p-4 overflow-auto text-xs leading-6 max-h-[320px]">
@@ -671,7 +605,8 @@ export default function GoogleSheetLinksExtractor() {
           color: #9ca3af;
         }
         .sheet-preview-table,
-        .sheet-paste-zone table {
+        .sheet-paste-zone table,
+        .sheet-output-table {
           border-collapse: collapse;
           width: max-content;
           min-width: 100%;
@@ -682,18 +617,21 @@ export default function GoogleSheetLinksExtractor() {
         .sheet-preview-table td,
         .sheet-preview-table th,
         .sheet-paste-zone td,
-        .sheet-paste-zone th {
+        .sheet-paste-zone th,
+        .sheet-output-table td,
+        .sheet-output-table th {
           border: 1px solid #e5e7eb;
           padding: 8px 10px;
-          min-width: 150px;
-          max-width: 360px;
+          min-width: 180px;
+          max-width: 460px;
           vertical-align: top;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
         .sheet-preview-table a,
-        .sheet-paste-zone a {
+        .sheet-paste-zone a,
+        .sheet-output-table a {
           color: #2563eb;
           text-decoration: underline;
         }
@@ -749,6 +687,50 @@ function PreviewCard({ cells, source }) {
   );
 }
 
+function OutputPreview({ rows, isProcessing }) {
+  return (
+    <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white">
+      <div className="px-4 py-3 border-b border-[var(--border)] bg-gray-50">
+        <h3 className="font-semibold">Ready-to-paste result</h3>
+        <p className="text-xs text-[var(--text-secondary)] mt-1">
+          Two columns only: text and extracted link.
+        </p>
+      </div>
+
+      <div className="min-h-[280px] max-h-[520px] overflow-auto p-4 bg-white">
+        {isProcessing ? (
+          <div className="h-[240px] flex items-center justify-center text-[var(--text-secondary)]">
+            Processing links...
+          </div>
+        ) : rows?.length ? (
+          <table className="sheet-output-table">
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`output-${rowIndex}`}>
+                  <td title={row.text}>{row.text || ""}</td>
+                  <td title={row.link}>
+                    {row.link && row.link !== NOT_FOUND ? (
+                      <a href={row.link.split("\n")[0]} target="_blank" rel="noreferrer">
+                        {row.link}
+                      </a>
+                    ) : (
+                      row.link || ""
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="h-[240px] flex items-center justify-center text-center text-[var(--text-secondary)]">
+            Result will appear here after paste or upload.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CellContent({ cell }) {
   const text = cell?.text || cell?.links?.[0] || "";
 
@@ -761,75 +743,55 @@ function CellContent({ cell }) {
   );
 }
 
-/* ---------------- Output rows ---------------- */
+/* ---------------- Two-column output ---------------- */
 
-function buildOutputRows(cells, options) {
-  const rows = [];
-  let serial = 1;
-
-  (cells || []).forEach((row, rowIndex) => {
-    for (let colIndex = 0; colIndex < (row || []).length; colIndex += 1) {
-      const cell = row[colIndex] || makeCell("", [], {});
-      const nextCell = row[colIndex + 1] || null;
-      const text = normalizeCellText(cell.text || "");
-
-      if (!text && !cell.links?.length && !options.includeBlankCells) continue;
-
-      if (
-        options.pairNameUrlColumns &&
-        text &&
-        !cell.links?.length &&
-        nextCell?.links?.length &&
-        isUrlLikeCell(nextCell)
-      ) {
-        nextCell.links.forEach((link) => {
-          rows.push(makeOutputRow(serial, rowIndex, colIndex, text, link));
-          serial += 1;
-        });
-        colIndex += 1;
-        continue;
-      }
-
-      if (cell.links?.length) {
-        cell.links.forEach((link) => {
-          rows.push(makeOutputRow(serial, rowIndex, colIndex, text || link, link));
-          serial += 1;
-        });
-        continue;
-      }
-
-      rows.push(makeOutputRow(serial, rowIndex, colIndex, text, NOT_FOUND));
-      serial += 1;
-    }
-  });
-
-  return rows;
+function buildTwoColumnOutputRows(cells, { pairNameUrlColumns }) {
+  return (cells || []).map((row) => buildTwoColumnRow(row || [], { pairNameUrlColumns }));
 }
 
-function makeOutputRow(serial, rowIndex, colIndex, text, link) {
+function buildTwoColumnRow(row, { pairNameUrlColumns }) {
+  const cells = row || [];
+  const nonEmptyCells = cells.filter((cell) => cell?.text || cell?.links?.length);
+
+  if (!nonEmptyCells.length) {
+    return { text: "", link: "" };
+  }
+
+  if (pairNameUrlColumns) {
+    for (let index = 0; index < cells.length; index += 1) {
+      const cell = cells[index] || makeCell("", [], {});
+      const nextCell = cells[index + 1] || null;
+
+      if (cell.text && !cell.links?.length && nextCell?.links?.length && isUrlLikeCell(nextCell)) {
+        return {
+          text: normalizeCellText(cell.text),
+          link: nextCell.links.join("\n"),
+        };
+      }
+    }
+  }
+
+  const linkedCell = nonEmptyCells.find((cell) => cell.links?.length);
+
+  if (linkedCell) {
+    return {
+      text: normalizeCellText(linkedCell.text || linkedCell.links[0]),
+      link: linkedCell.links.join("\n"),
+    };
+  }
+
+  const firstTextCell = nonEmptyCells.find((cell) => cell.text) || nonEmptyCells[0];
+
   return {
-    serial,
-    row: rowIndex + 1,
-    column: colIndex + 1,
-    cell: `${columnNumberToName(colIndex + 1)}${rowIndex + 1}`,
-    text: normalizeCellText(text),
-    link: link || NOT_FOUND,
+    text: normalizeCellText(firstTextCell?.text || ""),
+    link: NOT_FOUND,
   };
 }
 
-function rowsToTsv(rows, { includeHeader, includeCellAddress }) {
-  const header = includeCellAddress
-    ? ["Serial", "Cell", "Text", "Link"]
-    : ["Serial", "Text", "Link"];
-
-  const body = (rows || []).map((row) =>
-    includeCellAddress
-      ? [row.serial, row.cell, row.text, row.link]
-      : [row.serial, row.text, row.link]
-  );
-
-  const output = includeHeader ? [header, ...body] : body;
-  return output.map((row) => row.map(escapeTsvCell).join("\t")).join("\n");
+function rowsToTwoColumnTsv(rows) {
+  return (rows || [])
+    .map((row) => [row.text || "", row.link || ""].map(escapeTsvCell).join("\t"))
+    .join("\n");
 }
 
 /* ---------------- Paste parsing ---------------- */
@@ -1587,19 +1549,6 @@ function estimateProcessingTime(cells) {
     MIN_PROCESSING_TIME_MS,
     MAX_PROCESSING_TIME_MS
   );
-}
-
-function columnNumberToName(number) {
-  let result = "";
-  let current = number;
-
-  while (current > 0) {
-    const remainder = (current - 1) % 26;
-    result = String.fromCharCode(65 + remainder) + result;
-    current = Math.floor((current - 1) / 26);
-  }
-
-  return result || "A";
 }
 
 function clampNumber(value, min, max) {

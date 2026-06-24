@@ -193,6 +193,9 @@ const TEXT_ALIGN_OPTIONS = [
   { value: "right", label: "Right", icon: AlignRight },
 ];
 
+const TEXT_TOOL_CURSOR =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Crect x='5' y='4' width='22' height='5' rx='1.5' fill='%23111827'/%3E%3Crect x='13.5' y='8' width='5' height='20' rx='1.5' fill='%23111827'/%3E%3Cpath d='M4 28h24' stroke='%23ffffff' stroke-width='2'/%3E%3C/svg%3E\") 16 16, text";
+
 
 const SHAPE_TYPES = [
   { id: "rectangle", label: "Rectangle", icon: Square },
@@ -275,6 +278,7 @@ export default function QuickPhotoEditor() {
   const [textBoxHeight, setTextBoxHeight] = useState(120);
   const [boldText, setBoldText] = useState(false);
   const [textShadow, setTextShadow] = useState(false);
+  const [textFocusRequest, setTextFocusRequest] = useState(0);
 
   const [shapeType, setShapeType] = useState("rectangle");
   const [shapeFillEnabled, setShapeFillEnabled] = useState(true);
@@ -392,6 +396,18 @@ export default function QuickPhotoEditor() {
     setBoldText(Boolean(selectedObject.bold || Number(selectedObject.fontWeight || 0) >= 700));
     setTextShadow(Boolean(selectedObject.shadow));
   }, [selectedObjectId]);
+
+  useEffect(() => {
+    if (!textFocusRequest) return;
+    if (!toolPopupOpen || activePanel !== "text" || selectedObject?.type !== "text") return;
+
+    const timer = window.setTimeout(() => {
+      textEditorRef.current?.focus();
+      textEditorRef.current?.select();
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [textFocusRequest, toolPopupOpen, activePanel, selectedObjectId, selectedObject?.type]);
 
   useEffect(() => {
     setSelectedObjectIds((current) =>
@@ -1536,6 +1552,7 @@ export default function QuickPhotoEditor() {
       setActiveTool("select");
       setActivePanel("text");
       setToolPopupOpen(true);
+      setTextFocusRequest((current) => current + 1);
       setGuideInfo(buildGuideInfo(getObjectBox(selected), canvasSize, "Edit text"));
       return;
     }
@@ -1649,7 +1666,9 @@ export default function QuickPhotoEditor() {
     setSelectedObjectIds([textObject.id]);
     setActiveTool("select");
     setActivePanel("text");
-    setGuideInfo(buildGuideInfo(getObjectBox(textObject), canvasSize, "Text added"));
+    setToolPopupOpen(true);
+    setTextFocusRequest((current) => current + 1);
+    setGuideInfo(buildGuideInfo(getObjectBox(textObject), canvasSize, "Text added • Double-click text anytime to edit"));
     clearOutput();
   }
 
@@ -4222,6 +4241,7 @@ export default function QuickPhotoEditor() {
                       <div>
                         <label className="text-sm font-semibold mb-2 block">Text</label>
                         <textarea
+                          ref={textEditorRef}
                           value={textValue}
                           onChange={(event) => updateTextSetting("text", event.target.value)}
                           rows={4}
@@ -4984,7 +5004,7 @@ export default function QuickPhotoEditor() {
                 </button>
               </div>
 
-              <div className="border-b border-[var(--border)] bg-white/95 backdrop-blur px-4">
+              <div className="sticky top-0 z-30 border-b border-[var(--border)] bg-white/95 backdrop-blur px-4">
                 <button
                   type="button"
                   onClick={() => setTopBarOpen((current) => !current)}
@@ -5001,7 +5021,7 @@ export default function QuickPhotoEditor() {
                 </button>
 
                 {topBarOpen && (
-                  <div className="pb-3 flex flex-wrap items-center gap-3">
+                  <div className="pb-3 flex h-[58px] flex-nowrap items-center gap-3 overflow-x-auto overflow-y-hidden whitespace-nowrap">
                     <div className="rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)]">
                       {selectedObjects.length > 1
                         ? `${selectedObjects.length} items selected`
@@ -5083,7 +5103,7 @@ export default function QuickPhotoEditor() {
                     )}
 
                     {selectedObjects.length > 1 && (
-                      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2">
+                      <div className="flex shrink-0 items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2">
                         <span className="text-xs font-bold text-[var(--text-secondary)] px-1">Align</span>
                         <button type="button" onClick={() => alignSelectedObjects("left")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align left">Left</button>
                         <button type="button" onClick={() => alignSelectedObjects("center")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align center">Center</button>
@@ -5095,7 +5115,7 @@ export default function QuickPhotoEditor() {
                     )}
 
                     {(selectedObjectId || selectedObjectIds.length > 0) && (
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-2">
                         <button type="button" onClick={copyEditorSelection} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Copy</button>
                         <button type="button" onClick={pasteEditorClipboard} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Paste</button>
                         <button type="button" onClick={duplicateSelectedObjects} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Duplicate</button>
@@ -5185,7 +5205,7 @@ export default function QuickPhotoEditor() {
                           : activeTool === "select"
                             ? "default"
                             : activeTool === "text"
-                              ? "text"
+                              ? TEXT_TOOL_CURSOR
                               : "crosshair",
                     }}
                     />
@@ -5974,34 +5994,33 @@ function drawSelectionBox(ctx, object) {
 
   if (!box) return;
 
+  const canvasWidth = ctx.canvas?.width || box.x + box.w;
+  const canvasHeight = ctx.canvas?.height || box.y + box.h;
+  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.04, 10, 20);
+  const visibleBox = getCanvasVisibleBox(box, canvasWidth, canvasHeight);
+
   ctx.save();
   ctx.strokeStyle = "#9b6ce3";
   ctx.lineWidth = 2;
   ctx.setLineDash([8, 6]);
   ctx.strokeRect(box.x, box.y, box.w, box.h);
 
-  if (box.x < 0 || box.y < 0 || box.x + box.w > ctx.canvas.width || box.y + box.h > ctx.canvas.height) {
-    const visibleBox = {
-      x: clampNumber(box.x, 1, ctx.canvas.width - 2),
-      y: clampNumber(box.y, 1, ctx.canvas.height - 2),
-      w: clampNumber(box.w, 1, ctx.canvas.width - clampNumber(box.x, 1, ctx.canvas.width - 2) - 1),
-      h: clampNumber(box.h, 1, ctx.canvas.height - clampNumber(box.y, 1, ctx.canvas.height - 2) - 1),
-    };
-    ctx.strokeStyle = "rgba(155,108,227,0.55)";
+  if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
+    ctx.strokeStyle = "rgba(155,108,227,0.68)";
     ctx.strokeRect(visibleBox.x, visibleBox.y, visibleBox.w, visibleBox.h);
     ctx.strokeStyle = "#9b6ce3";
   }
 
   ctx.setLineDash([]);
-
-  const handleSize = Math.max(10, Math.min(box.w, box.h) * 0.04);
-  const canvasWidth = ctx.canvas?.width || box.x + box.w;
-  const canvasHeight = ctx.canvas?.height || box.y + box.h;
-  const handles = getVisibleBoxHandles(box, handleSize, canvasWidth, canvasHeight);
-
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#9b6ce3";
+
+  const handles = getVisibleBoxHandles(box, handleSize, canvasWidth, canvasHeight);
   handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize));
+
+  if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
+    drawVisibleEdgeHandles(ctx, visibleBox, handleSize);
+  }
 
   ctx.restore();
 }
@@ -6011,26 +6030,71 @@ function drawGroupSelectionBox(ctx, objects) {
 
   if (!box) return;
 
+  const canvasWidth = ctx.canvas?.width || box.x + box.w;
+  const canvasHeight = ctx.canvas?.height || box.y + box.h;
+  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.035, 11, 22);
+  const visibleBox = getCanvasVisibleBox(box, canvasWidth, canvasHeight);
+
   ctx.save();
   ctx.strokeStyle = "#9b6ce3";
   ctx.lineWidth = 3;
   ctx.setLineDash([12, 7]);
   ctx.strokeRect(box.x, box.y, box.w, box.h);
-  ctx.setLineDash([]);
 
+  if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
+    ctx.strokeStyle = "rgba(155,108,227,0.68)";
+    ctx.strokeRect(visibleBox.x, visibleBox.y, visibleBox.w, visibleBox.h);
+    ctx.strokeStyle = "#9b6ce3";
+  }
+
+  ctx.setLineDash([]);
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#9b6ce3";
 
-  const handleSize = Math.max(12, Math.min(box.w, box.h) * 0.035);
-  const canvasWidth = ctx.canvas?.width || box.x + box.w;
-  const canvasHeight = ctx.canvas?.height || box.y + box.h;
   const handles = getVisibleBoxHandles(box, handleSize, canvasWidth, canvasHeight);
-
   handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize));
+
+  if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
+    drawVisibleEdgeHandles(ctx, visibleBox, handleSize);
+  }
 
   ctx.fillStyle = "#111827";
   ctx.font = "700 15px Arial, sans-serif";
-  ctx.fillText(`${objects.length} items selected`, clampNumber(box.x, 8, canvasWidth - 150), clampNumber(box.y - 10, 18, canvasHeight - 8));
+  ctx.fillText(`${objects.length} items selected`, clampNumber(visibleBox?.x ?? box.x, 8, canvasWidth - 150), clampNumber((visibleBox?.y ?? box.y) - 10, 18, canvasHeight - 8));
+  ctx.restore();
+}
+
+function boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight) {
+  return box.x < 0 || box.y < 0 || box.x + box.w > canvasWidth || box.y + box.h > canvasHeight;
+}
+
+function getCanvasVisibleBox(box, canvasWidth, canvasHeight) {
+  const x1 = clampNumber(box.x, 1, Math.max(1, canvasWidth - 1));
+  const y1 = clampNumber(box.y, 1, Math.max(1, canvasHeight - 1));
+  const x2 = clampNumber(box.x + box.w, 1, Math.max(1, canvasWidth - 1));
+  const y2 = clampNumber(box.y + box.h, 1, Math.max(1, canvasHeight - 1));
+  const left = Math.min(x1, x2);
+  const top = Math.min(y1, y2);
+  const width = Math.max(1, Math.abs(x2 - x1));
+  const height = Math.max(1, Math.abs(y2 - y1));
+
+  return { x: left, y: top, w: width, h: height };
+}
+
+function drawVisibleEdgeHandles(ctx, box, size) {
+  const cornerSize = clampNumber(size * 0.9, 9, 18);
+  const edgeHandles = [
+    { x: box.x, y: box.y },
+    { x: box.x + box.w, y: box.y },
+    { x: box.x, y: box.y + box.h },
+    { x: box.x + box.w, y: box.y + box.h },
+  ];
+
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#7c3aed";
+  ctx.lineWidth = 2;
+  edgeHandles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, cornerSize));
   ctx.restore();
 }
 
@@ -6455,7 +6519,8 @@ function getResizeHandleAtBox(point, box, zoom = 1, canvasSize = null) {
 }
 
 function getVisibleBoxHandles(box, handleSize = 10, canvasWidth = Infinity, canvasHeight = Infinity) {
-  const edgePadding = Math.max(7, handleSize * 0.65);
+  const safeHandleSize = clampNumber(handleSize, 9, 22);
+  const edgePadding = Math.max(8, safeHandleSize * 0.75);
   const minX = Number.isFinite(canvasWidth) ? edgePadding : box.x;
   const minY = Number.isFinite(canvasHeight) ? edgePadding : box.y;
   const maxX = Number.isFinite(canvasWidth) ? Math.max(edgePadding, canvasWidth - edgePadding) : box.x + box.w;
