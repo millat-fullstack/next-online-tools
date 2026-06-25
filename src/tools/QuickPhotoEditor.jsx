@@ -212,6 +212,14 @@ const SELECTION_MODES = [
   { id: "pointSelect", label: "Keypoint Select", icon: Star },
 ];
 
+const GRADIENT_TEMPLATES = [
+  { id: "purple-green", label: "Purple Green", start: "#7c3aed", end: "#22c55e", angle: 135 },
+  { id: "blue-cyan", label: "Blue Cyan", start: "#2563eb", end: "#06b6d4", angle: 120 },
+  { id: "sunset", label: "Sunset", start: "#f97316", end: "#ec4899", angle: 135 },
+  { id: "gold", label: "Gold", start: "#f59e0b", end: "#fef3c7", angle: 90 },
+  { id: "dark", label: "Dark", start: "#111827", end: "#4b5563", angle: 135 },
+];
+
 
 
 export default function QuickPhotoEditor() {
@@ -246,6 +254,12 @@ export default function QuickPhotoEditor() {
   const [draftSize, setDraftSize] = useState({ width: 1200, height: 630 });
   const [canvasBackgroundColor, setCanvasBackgroundColor] = useState("#ffffff");
   const [pickedColor, setPickedColor] = useState("#9b6ce3");
+  const [gradientStartColor, setGradientStartColor] = useState("#7c3aed");
+  const [gradientEndColor, setGradientEndColor] = useState("#22c55e");
+  const [gradientAngle, setGradientAngle] = useState(135);
+  const [textBackgroundGradient, setTextBackgroundGradient] = useState(null);
+  const [shapeFillGradient, setShapeFillGradient] = useState(null);
+  const [selectionActionBox, setSelectionActionBox] = useState(null);
   const [pointSelectionReady, setPointSelectionReady] = useState(false);
 
   const [activeTool, setActiveTool] = useState("select");
@@ -822,11 +836,8 @@ export default function QuickPhotoEditor() {
     originalCtx.clearRect(0, 0, width, height);
 
     if (!transparent) {
-      workingCtx.fillStyle = backgroundColor || "#ffffff";
-      workingCtx.fillRect(0, 0, width, height);
-
-      originalCtx.fillStyle = backgroundColor || "#ffffff";
-      originalCtx.fillRect(0, 0, width, height);
+      fillCanvasBackground(workingCtx, width, height, backgroundColor || "#ffffff");
+      fillCanvasBackground(originalCtx, width, height, backgroundColor || "#ffffff");
     }
   }
 
@@ -937,6 +948,7 @@ export default function QuickPhotoEditor() {
     setCloneTargetPreviewBox(null);
     setShowCloneSourceGuide(false);
     setColorPickerTarget(null);
+    setSelectionActionBox(null);
   }
 
   function clearFreeSelectionManually(message = "Free selection cleared.") {
@@ -946,6 +958,7 @@ export default function QuickPhotoEditor() {
     setPatchTargetSelection(null);
     setCloneSourceSelection(null);
     setGuideInfo(null);
+    setSelectionActionBox(null);
     setSuccessMessage(message);
   }
 
@@ -1458,8 +1471,9 @@ export default function QuickPhotoEditor() {
 
     setColorPickerTarget({ target, label });
     setToolPopupOpen(false);
-    setActiveTool("select");
-    setSuccessMessage(`Color picker ready. Click any point on the image to use it for ${label}.`);
+    setActivePanel("");
+    setActiveTool("colorPicker");
+    setSuccessMessage(`Color picker ready. Move over the image to preview color, then click to use it for ${label}.`);
   }
 
   function handleColorPick(point) {
@@ -1484,6 +1498,8 @@ export default function QuickPhotoEditor() {
       if (colorPickerTarget?.target === "shapeStroke") updateShapeSetting("stroke", color);
 
       setColorPickerTarget(null);
+      setActiveTool("select");
+      setActivePanel("");
       setSuccessMessage(`Picked ${color}. Color copied and ready to use.`);
       setToolPopupOpen(false);
       clearOutput();
@@ -1491,6 +1507,124 @@ export default function QuickPhotoEditor() {
       setColorPickerTarget(null);
       setErrorMessage("Could not pick a color from this point. Please try again.");
     }
+  }
+
+
+  async function copyPickedColorToUse() {
+    const color = normalizeColor(pickedColor);
+
+    try {
+      await navigator.clipboard?.writeText?.(color);
+    } catch {
+      fallbackCopyText(color);
+    }
+
+    updateQuickColor(color);
+    setBrushColor(color);
+    setShapeFillColor(color);
+    setShapeStrokeColor(color);
+    setTextColor(color);
+    setSuccessMessage(`${color} copied and applied to the active color.`);
+    clearOutput();
+  }
+
+  function getCurrentGradient(overrides = {}) {
+    return {
+      type: "linear",
+      start: normalizeColor(overrides.start ?? gradientStartColor),
+      end: normalizeColor(overrides.end ?? gradientEndColor),
+      angle: clampNumber(Number(overrides.angle ?? gradientAngle), 0, 360),
+    };
+  }
+
+  function applyGradientTemplate(template) {
+    setGradientStartColor(template.start);
+    setGradientEndColor(template.end);
+    setGradientAngle(template.angle);
+    updateQuickGradient({
+      type: "linear",
+      start: template.start,
+      end: template.end,
+      angle: template.angle,
+    });
+  }
+
+  function updateGradientPart(field, value) {
+    const next = {
+      start: field === "start" ? value : gradientStartColor,
+      end: field === "end" ? value : gradientEndColor,
+      angle: field === "angle" ? value : gradientAngle,
+    };
+
+    if (field === "start") setGradientStartColor(value);
+    if (field === "end") setGradientEndColor(value);
+    if (field === "angle") setGradientAngle(Number(value));
+
+    updateQuickGradient(getCurrentGradient(next));
+  }
+
+  function updateQuickGradient(gradient = getCurrentGradient()) {
+    const cleanGradient = {
+      type: "linear",
+      start: normalizeColor(gradient.start),
+      end: normalizeColor(gradient.end),
+      angle: clampNumber(Number(gradient.angle), 0, 360),
+    };
+
+    setTextBackgroundGradient(cleanGradient);
+    setShapeFillGradient(cleanGradient);
+
+    if (!selectedObjects.length) {
+      setTextHasBackground(true);
+      setSuccessMessage("Gradient ready for new text backgrounds and shapes.");
+      return;
+    }
+
+    updateSelectedItems((item) => {
+      if (item.type === "text") {
+        return {
+          hasBackground: true,
+          backgroundGradient: cleanGradient,
+        };
+      }
+
+      if (SHAPE_TYPES.some((shape) => shape.id === item.type)) {
+        return {
+          fillEnabled: true,
+          fillGradient: cleanGradient,
+        };
+      }
+
+      if (item.type === "arrow") {
+        return {
+          stroke: cleanGradient.start,
+        };
+      }
+
+      return {};
+    }, "Gradient updated");
+  }
+
+  function clearSelectedGradient() {
+    setTextBackgroundGradient(null);
+    setShapeFillGradient(null);
+
+    if (!selectedObjects.length) {
+      setSuccessMessage("Gradient cleared for new objects.");
+      return;
+    }
+
+    updateSelectedItems((item) => {
+      if (item.type === "text") return { backgroundGradient: null };
+      if (SHAPE_TYPES.some((shape) => shape.id === item.type)) return { fillGradient: null };
+      return {};
+    }, "Gradient cleared");
+  }
+
+  async function copyCurrentSelectionAndHide() {
+    await copyEditorSelection();
+    setToolPopupOpen(false);
+    setSelectionActionBox(null);
   }
 
   function handlePointerDown(event) {
@@ -1786,11 +1920,13 @@ export default function QuickPhotoEditor() {
       });
 
       setActiveSelection(finalSelection);
+      setSelectionActionBox(finalSelection.box);
       setFreeSelectionDraft(null);
       setPointSelectionReady(false);
       setActiveTool("select");
+      setToolPopupOpen(false);
       setGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Keypoint selection ready"));
-      setSuccessMessage("Keypoint selection ready. Press Ctrl + C to copy, then Ctrl + V to paste.");
+      setSuccessMessage("Selection ready. Use the Copy button or press Ctrl + C, then Ctrl + V to paste.");
       return;
     }
 
@@ -1816,11 +1952,13 @@ export default function QuickPhotoEditor() {
 
     const finalSelection = normalizeFreeSelection(freeSelectionDraft);
     setActiveSelection(finalSelection);
+    setSelectionActionBox(finalSelection.box);
     setFreeSelectionDraft(null);
     setPointSelectionReady(false);
     setActiveTool("select");
+    setToolPopupOpen(false);
     setGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Keypoint selection ready"));
-    setSuccessMessage("Keypoint selection ready. Press Ctrl + C to copy, then Ctrl + V to paste.");
+    setSuccessMessage("Selection ready. Use the Copy button or press Ctrl + C, then Ctrl + V to paste.");
   }
 
   function handleTextPointerDown(point) {
@@ -2022,6 +2160,14 @@ export default function QuickPhotoEditor() {
     if (!hasImage || showOriginal) return;
 
     const point = getCanvasPoint(event);
+
+    if (point && colorPickerTarget && !pointerRef.current.active) {
+      try {
+        setPickedColor(sampleColorAtPoint(renderFinalCanvas({ includeObjects: true }), point));
+      } catch {
+        // Ignore live color preview errors while moving.
+      }
+    }
 
     if (point && ["draw", "blur", "restore"].includes(activeTool)) {
       setBrushPreviewPoint(point);
@@ -2537,8 +2683,10 @@ export default function QuickPhotoEditor() {
         };
 
         setActiveSelection(finalSelection);
+        setSelectionActionBox(finalBox);
+        setToolPopupOpen(false);
         setGuideInfo(buildGuideInfo(finalBox, canvasSize, "Rectangle selection ready"));
-        setSuccessMessage("Selection ready. Press Ctrl + C to copy, then Ctrl + V to paste.");
+        setSuccessMessage("Selection ready. Use the Copy button or press Ctrl + C, then Ctrl + V to paste.");
       } else {
         setErrorMessage("Selection is too small. Drag a bigger area.");
       }
@@ -2552,8 +2700,10 @@ export default function QuickPhotoEditor() {
 
       if (finalSelection.path.length >= 3 && finalSelection.box.w > 8 && finalSelection.box.h > 8) {
         setActiveSelection(finalSelection);
+        setSelectionActionBox(finalSelection.box);
+        setToolPopupOpen(false);
         setGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Free selection ready"));
-        setSuccessMessage("Free selection ready. Press Ctrl + C to copy it, or choose Patch/Clone to use it.");
+        setSuccessMessage("Selection ready. Use the Copy button or press Ctrl + C, then Ctrl + V to paste.");
       } else {
         setErrorMessage("Selection is too small. Draw a bigger area.");
       }
@@ -2708,6 +2858,7 @@ export default function QuickPhotoEditor() {
       text: textValue.trim() || "Text",
       color: textColor,
       background: textBackground,
+      backgroundGradient: textBackgroundGradient,
       hasBackground: textHasBackground,
       fontFamily: textFontFamily,
       fontSize,
@@ -2744,6 +2895,7 @@ export default function QuickPhotoEditor() {
       w: 0,
       h: 0,
       fill: shapeFillColor,
+      fillGradient: shapeFillGradient,
       stroke: shapeStrokeColor,
       strokeWidth: shapeStrokeWidth,
       fillEnabled: shapeFillEnabled,
@@ -2822,6 +2974,7 @@ export default function QuickPhotoEditor() {
 
     setTextColor(preset.color);
     setTextBackground(preset.background);
+    setTextBackgroundGradient(null);
     setTextHasBackground(preset.hasBackground);
     setTextFontFamily(preset.fontFamily);
     setFontSize(preset.fontSize);
@@ -2833,6 +2986,7 @@ export default function QuickPhotoEditor() {
       updateSelectedObject({
         color: preset.color,
         background: preset.background,
+        backgroundGradient: null,
         hasBackground: preset.hasBackground,
         fontFamily: preset.fontFamily,
         fontSize: preset.fontSize,
@@ -2908,7 +3062,7 @@ export default function QuickPhotoEditor() {
       if (item.type === "text") return { color: value };
       if (item.type === "arrow") return { stroke: value };
       if (SHAPE_TYPES.some((shape) => shape.id === item.type)) {
-        return { fill: value, stroke: item.stroke || value };
+        return { fill: value, fillGradient: null, stroke: item.stroke || value };
       }
 
       return {};
@@ -3429,6 +3583,8 @@ export default function QuickPhotoEditor() {
           name: "copied-selection",
         };
 
+        setSelectionActionBox(null);
+        setToolPopupOpen(false);
         setSuccessMessage("Selected image area copied. Press Ctrl + V to paste it as a new layer.");
         return;
       }
@@ -3474,6 +3630,7 @@ export default function QuickPhotoEditor() {
           name: clipboardItem.name || "pasted-selection",
           message: "Copied image area pasted as a new layer.",
         });
+        setSelectionActionBox(null);
         return;
       }
 
@@ -3569,6 +3726,13 @@ export default function QuickPhotoEditor() {
     setCanvasSize({ width: 1200, height: 630 });
     setDraftSize({ width: 1200, height: 630 });
     setCanvasBackgroundColor("#ffffff");
+    setPickedColor("#9b6ce3");
+    setGradientStartColor("#7c3aed");
+    setGradientEndColor("#22c55e");
+    setGradientAngle(135);
+    setTextBackgroundGradient(null);
+    setShapeFillGradient(null);
+    setSelectionActionBox(null);
     setActiveTool("select");
     setActivePanel("");
     setToolPopupOpen(false);
@@ -3742,6 +3906,7 @@ export default function QuickPhotoEditor() {
     setFreeSelectionDraft(null);
     setSelectionRect(null);
     setPointSelectionReady(false);
+    setSelectionActionBox(null);
 
     if (modeId === "rectSelect") {
       setSuccessMessage("Rectangle Select active. Drag an area, then press Ctrl + C and Ctrl + V.");
@@ -4064,22 +4229,28 @@ export default function QuickPhotoEditor() {
                   <Shapes size={20} />
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => startColorPicker("quick", "active color")}
-                  title={`Color Picker: ${pickedColor}`}
-                  className={`relative w-12 h-12 rounded-xl inline-flex items-center justify-center transition ${
-                    colorPickerTarget?.target === "quick"
-                      ? "bg-white text-[#111827]"
-                      : "bg-white/10 text-white hover:bg-white/20"
-                  }`}
-                >
-                  <Pipette size={20} />
-                  <span
-                    className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded border border-white shadow"
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => startColorPicker("quick", "active color")}
+                    title={`Pick color from image`}
+                    className={`relative w-12 h-9 rounded-xl inline-flex items-center justify-center transition ${
+                      colorPickerTarget?.target === "quick"
+                        ? "bg-white text-[#111827]"
+                        : "bg-white/10 text-white hover:bg-white/20"
+                    }`}
+                  >
+                    <Pipette size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={copyPickedColorToUse}
+                    title={`Copy and use ${pickedColor}`}
+                    className="w-12 h-3.5 rounded-md border border-white/60 shadow"
                     style={{ backgroundColor: pickedColor }}
+                    aria-label="Copy picked color"
                   />
-                </button>
+                </div>
 
                 <button
                   type="button"
@@ -5295,6 +5466,57 @@ export default function QuickPhotoEditor() {
                       />
                     </label>
 
+                    <div className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold">
+                      <span>Gradient</span>
+                      <input
+                        type="color"
+                        value={gradientStartColor}
+                        onChange={(event) => updateGradientPart("start", event.target.value)}
+                        className="w-7 h-7 rounded border border-[var(--border)] bg-white"
+                        title="Gradient start"
+                      />
+                      <input
+                        type="color"
+                        value={gradientEndColor}
+                        onChange={(event) => updateGradientPart("end", event.target.value)}
+                        className="w-7 h-7 rounded border border-[var(--border)] bg-white"
+                        title="Gradient end"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        max="360"
+                        value={gradientAngle}
+                        onChange={(event) => updateGradientPart("angle", event.target.value)}
+                        className="w-14 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
+                        title="Gradient angle"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => updateQuickGradient()}
+                        className="px-2 py-1.5 rounded-lg border border-[var(--border)] hover:bg-[#f8f4ff]"
+                      >
+                        Use
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearSelectedGradient}
+                        className="px-2 py-1.5 rounded-lg border border-[var(--border)] hover:bg-[#f8f4ff]"
+                      >
+                        Clear
+                      </button>
+                      {GRADIENT_TEMPLATES.map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => applyGradientTemplate(template)}
+                          title={template.label}
+                          className="h-7 w-7 rounded-lg border border-white shadow"
+                          style={{ background: `linear-gradient(${template.angle}deg, ${template.start}, ${template.end})` }}
+                        />
+                      ))}
+                    </div>
+
                     <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
                       Artboard BG
                       <input
@@ -5428,6 +5650,7 @@ export default function QuickPhotoEditor() {
                     }}
                   >
                     <div
+                      className="relative"
                       style={{
                         transform: `translate(${artboardPan.x}px, ${artboardPan.y}px)`,
                         transition: pointerRef.current.mode === "pan-artboard" ? "none" : "transform 120ms ease",
@@ -5446,15 +5669,44 @@ export default function QuickPhotoEditor() {
                       width: `${previewWidth}px`,
                       maxWidth: "none",
                       cursor:
-                        activeTool === "hand" || spacePressedRef.current
-                          ? "grab"
-                          : activeTool === "select"
+                        colorPickerTarget
+                          ? "copy"
+                          : activeTool === "hand" || spacePressedRef.current
+                            ? "grab"
+                            : activeTool === "select"
                             ? "default"
                             : activeTool === "text"
                               ? TEXT_TOOL_CURSOR
                               : "crosshair",
                     }}
                     />
+                    {selectionActionBox && activeSelection?.path?.length && (
+                      <div
+                        className="absolute z-30 flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/95 px-2 py-2 shadow-xl backdrop-blur"
+                        style={{
+                          left: `${clampNumber((selectionActionBox.x / canvasSize.width) * previewWidth, 0, Math.max(0, previewWidth - 160))}px`,
+                          top: `${Math.max(0, (selectionActionBox.y / canvasSize.width) * previewWidth - 46)}px`,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={copyCurrentSelectionAndHide}
+                          className="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-bold"
+                        >
+                          Copy Ctrl+C
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectionActionBox(null);
+                            setActiveSelection(null);
+                          }}
+                          className="px-2 py-1.5 rounded-lg border border-[var(--border)] text-xs font-bold hover:bg-[#f8f4ff]"
+                        >
+                          Hide
+                        </button>
+                      </div>
+                    )}
                     </div>
                   </div>
                 </div>
@@ -5649,6 +5901,43 @@ function InfoCard({ label, value, green = false }) {
   );
 }
 
+function fillCanvasBackground(ctx, width, height, color = "#ffffff", gradient = null) {
+  ctx.fillStyle = getFillStyle(ctx, color || "#ffffff", { x: 0, y: 0, w: width, h: height }, gradient);
+  ctx.fillRect(0, 0, width, height);
+}
+
+function getFillStyle(ctx, fallbackColor, box, gradient = null) {
+  if (!gradient?.start || !gradient?.end) return fallbackColor;
+
+  const angle = ((Number(gradient.angle) || 0) * Math.PI) / 180;
+  const centerX = box.x + box.w / 2;
+  const centerY = box.y + box.h / 2;
+  const length = Math.max(1, Math.hypot(box.w, box.h));
+  const x1 = centerX - Math.cos(angle) * length / 2;
+  const y1 = centerY - Math.sin(angle) * length / 2;
+  const x2 = centerX + Math.cos(angle) * length / 2;
+  const y2 = centerY + Math.sin(angle) * length / 2;
+
+  const canvasGradient = ctx.createLinearGradient(x1, y1, x2, y2);
+  canvasGradient.addColorStop(0, normalizeColor(gradient.start));
+  canvasGradient.addColorStop(1, normalizeColor(gradient.end));
+
+  return canvasGradient;
+}
+
+function fallbackCopyText(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+}
+
 function drawObjects(ctx, objects) {
   objects.forEach((object) => drawObject(ctx, object));
 }
@@ -5706,7 +5995,12 @@ function drawTextObject(ctx, object) {
 
   if (hasBackground) {
     ctx.shadowColor = "transparent";
-    ctx.fillStyle = object.background || "#111827";
+    ctx.fillStyle = getFillStyle(ctx, object.background || "#111827", {
+      x: object.x,
+      y: object.y,
+      w: boxWidth,
+      h: boxHeight,
+    }, object.backgroundGradient);
     roundRect(ctx, object.x, object.y, boxWidth, boxHeight, fontSize * 0.22);
     ctx.fill();
   }
@@ -5740,7 +6034,7 @@ function drawRectangleObject(ctx, object) {
   const box = normalizeBox(object);
 
   if (object.fillEnabled !== false) {
-    ctx.fillStyle = object.fill || "rgba(239,68,68,0.12)";
+    ctx.fillStyle = getFillStyle(ctx, object.fill || "rgba(239,68,68,0.12)", box, object.fillGradient);
     ctx.fillRect(box.x, box.y, box.w, box.h);
   }
 
@@ -5766,7 +6060,7 @@ function drawCircleObject(ctx, object) {
   );
 
   if (object.fillEnabled !== false) {
-    ctx.fillStyle = object.fill || "rgba(239,68,68,0.12)";
+    ctx.fillStyle = getFillStyle(ctx, object.fill || "rgba(239,68,68,0.12)", box, object.fillGradient);
     ctx.fill();
   }
 
@@ -5868,7 +6162,8 @@ function drawPolygonShape(ctx, object, points) {
   ctx.closePath();
 
   if (object.fillEnabled !== false) {
-    ctx.fillStyle = object.fill || "#ef4444";
+    const box = getPathBox(points);
+    ctx.fillStyle = getFillStyle(ctx, object.fill || "#ef4444", box, object.fillGradient);
     ctx.fill();
   }
 
