@@ -42,6 +42,7 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
+  Crop,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -67,6 +68,7 @@ const TOOLS = [
   { id: "select", label: "Select", icon: MousePointer2 },
   { id: "hand", label: "Hand", icon: Move },
   { id: "freeSelect", label: "Free Select", icon: Scissors },
+  { id: "crop", label: "Crop Copy", icon: Crop },
   { id: "text", label: "Text", icon: Type },
   { id: "draw", label: "Draw", icon: PenLine },
   { id: "blur", label: "Blur", icon: EyeOff },
@@ -465,6 +467,7 @@ export default function QuickPhotoEditor() {
     "shape",
     "color",
     "freeSelect",
+    "crop",
     "layers",
   ].includes(settingsMode);
 
@@ -1091,17 +1094,26 @@ export default function QuickPhotoEditor() {
     }
   }
 
-  async function addImageLayerFromSource({ src, name = "copied-selection", message = "Image layer added." }) {
+  async function addImageLayerFromSource({
+    src,
+    name = "copied-selection",
+    message = "Image layer added.",
+    x = null,
+    y = null,
+    w = null,
+    h = null,
+  }) {
     const imageElement = await loadImage(src);
 
     const imageWidth = imageElement.naturalWidth || imageElement.width;
     const imageHeight = imageElement.naturalHeight || imageElement.height;
 
+    const shouldUseExactBox = Number.isFinite(Number(x)) && Number.isFinite(Number(y)) && Number(w) > 0 && Number(h) > 0;
     const maxLayerSize = Math.min(canvasSize.width, canvasSize.height) * 0.42;
-    const scale = Math.min(1, maxLayerSize / Math.max(imageWidth, imageHeight));
+    const scale = shouldUseExactBox ? 1 : Math.min(1, maxLayerSize / Math.max(imageWidth, imageHeight));
 
-    const layerWidth = Math.max(20, imageWidth * scale);
-    const layerHeight = Math.max(20, imageHeight * scale);
+    const layerWidth = shouldUseExactBox ? Math.max(20, Number(w)) : Math.max(20, imageWidth * scale);
+    const layerHeight = shouldUseExactBox ? Math.max(20, Number(h)) : Math.max(20, imageHeight * scale);
 
     const imageObject = {
       id: createId(),
@@ -1109,8 +1121,8 @@ export default function QuickPhotoEditor() {
       src,
       element: imageElement,
       name,
-      x: canvasSize.width / 2 - layerWidth / 2,
-      y: canvasSize.height / 2 - layerHeight / 2,
+      x: shouldUseExactBox ? Number(x) : canvasSize.width / 2 - layerWidth / 2,
+      y: shouldUseExactBox ? Number(y) : canvasSize.height / 2 - layerHeight / 2,
       w: layerWidth,
       h: layerHeight,
       opacity: 1,
@@ -1196,18 +1208,18 @@ export default function QuickPhotoEditor() {
       drawPatchLivePreview(
         ctx,
         workingCanvasRef.current,
-        patchSourcePreviewBox,
         patchTargetBox,
+        patchSourcePreviewBox,
         patchStrength
       );
     }
 
     if (activeTool === "patch" && patchTargetBox) {
-      drawAreaBox(ctx, patchTargetBox, "#ef4444", "Patch Target");
+      drawAreaBox(ctx, patchTargetBox, "#16a34a", "Patch Source");
     }
 
     if (activeTool === "patch" && patchSourcePreviewBox) {
-      drawAreaBox(ctx, patchSourcePreviewBox, "#16a34a", "Clean Source");
+      drawAreaBox(ctx, patchSourcePreviewBox, "#ef4444", "Patch Target");
     }
 
     if (activeTool === "clone" && cloneSourceBox && cloneTargetPreviewBox) {
@@ -1460,6 +1472,11 @@ export default function QuickPhotoEditor() {
       return;
     }
 
+    if (activeTool === "crop") {
+      handleCropPointerDown(event, point);
+      return;
+    }
+
     if (activeTool === "text") {
       handleTextPointerDown(point);
       return;
@@ -1655,6 +1672,43 @@ export default function QuickPhotoEditor() {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
+  function handleCropPointerDown(event, point) {
+    commitBaseImageToCanvasIfNeeded({ withHistory: false });
+    setSelectedObjectId(null);
+    setSelectedObjectIds([]);
+    setActiveSelection(null);
+    setFreeSelectionDraft(null);
+    setSelectionRect(null);
+    setPatchTargetBox(null);
+    setPatchTargetSelection(null);
+    setPatchSourcePreviewBox(null);
+    setCloneTargetPreviewBox(null);
+
+    const cropDraft = {
+      id: createId(),
+      type: "crop-area",
+      x: point.x,
+      y: point.y,
+      w: 0,
+      h: 0,
+    };
+
+    setDraftObject(cropDraft);
+    setGuideInfo(buildGuideInfo(getObjectBox(cropDraft), canvasSize, "Drag crop area"));
+
+    pointerRef.current = {
+      active: true,
+      mode: "crop-select",
+      startPoint: point,
+      lastPoint: point,
+      selectedStart: null,
+      dragStartBox: null,
+      resizeHandle: null,
+    };
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
   function handleTextPointerDown(point) {
     commitBaseImageToCanvasIfNeeded({ withHistory: true });
     pushHistory();
@@ -1698,8 +1752,8 @@ export default function QuickPhotoEditor() {
       setPatchTargetSelection(activeSelection);
       setPatchSourcePreviewBox(null);
       setIsSettingPatchTarget(false);
-      setGuideInfo(buildGuideInfo(activeSelection.box, canvasSize, "Free patch target"));
-      setSuccessMessage("Free selection set as patch target. Now click or drag a clean area to patch it. Press Ctrl/Cmd + D to hide the selection when done.");
+      setGuideInfo(buildGuideInfo(activeSelection.box, canvasSize, "Patch source selected"));
+      setSuccessMessage("Patch source selected. Drag it over the area you want to cover. Press Ctrl/Cmd + D to hide the selection when done.");
       return;
     }
 
@@ -1731,12 +1785,12 @@ export default function QuickPhotoEditor() {
       return;
     }
 
-    const startSourceBox = pointInBox(point, patchTargetBox)
+    const startTargetBox = pointInBox(point, patchTargetBox)
       ? { ...patchTargetBox }
       : centerBoxAtPoint(patchTargetBox, point);
 
-    const clampedSourceBox = clampBoxToCanvas(
-      startSourceBox,
+    const clampedTargetBox = clampBoxToCanvas(
+      startTargetBox,
       workingCanvasRef.current
     );
 
@@ -1746,17 +1800,17 @@ export default function QuickPhotoEditor() {
       startPoint: point,
       lastPoint: point,
       selectedStart: null,
-      dragStartBox: clampedSourceBox,
+      dragStartBox: clampedTargetBox,
     };
 
-    setPatchSourcePreviewBox(clampedSourceBox);
+    setPatchSourcePreviewBox(clampedTargetBox);
     setGuideInfo(
       buildGuideInfo(
-        clampedSourceBox,
+        clampedTargetBox,
         canvasSize,
         pointInBox(point, patchTargetBox)
-          ? "Drag to clean area"
-          : "Clean source selected"
+          ? "Drag patch source to target"
+          : "Patch target selected"
       )
     );
 
@@ -1975,6 +2029,24 @@ export default function QuickPhotoEditor() {
       return;
     }
 
+    if (pointerRef.current.mode === "crop-select" && draftObject) {
+      const cropBox = clampBoxToCanvas(
+        normalizeBox(draftObject),
+        workingCanvasRef.current
+      );
+
+      if (cropBox.w > 10 && cropBox.h > 10) {
+        setGuideInfo(buildGuideInfo(cropBox, canvasSize, "Cropped area copied"));
+        void cropSelectionToLayer(cropBox);
+      } else {
+        setErrorMessage("Crop area is too small. Drag a bigger area.");
+      }
+
+      setDraftObject(null);
+      setActiveTool("select");
+      clearOutput();
+    }
+
     if (pointerRef.current.mode === "draw-object" && draftObject) {
       if (spacePressedRef.current && pointerRef.current.lastPoint) {
         const dx = point.x - pointerRef.current.lastPoint.x;
@@ -1995,6 +2067,27 @@ export default function QuickPhotoEditor() {
       const referenceBoxes = objects.map(getObjectBox).filter(Boolean);
       const snapResult = draftBox ? snapBoxToGuides(draftBox, canvasSize, referenceBoxes) : null;
       setGuideInfo(buildGuideInfo(draftBox, canvasSize, snapResult?.message || "Drawing", snapResult));
+      pointerRef.current.lastPoint = point;
+      return;
+    }
+
+    if (pointerRef.current.mode === "crop-select" && draftObject) {
+      if (spacePressedRef.current && pointerRef.current.lastPoint) {
+        const dx = point.x - pointerRef.current.lastPoint.x;
+        const dy = point.y - pointerRef.current.lastPoint.y;
+        const movedDraft = translateDraftObject(draftObject, dx, dy);
+        setDraftObject(movedDraft);
+        setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(movedDraft)), canvasSize, "Moving crop area"));
+        pointerRef.current.startPoint = translatePoint(pointerRef.current.startPoint, dx, dy);
+        pointerRef.current.lastPoint = point;
+        return;
+      }
+
+      const nextDraft = updateDraftObject(draftObject, pointerRef.current.startPoint, point, {
+        shiftKey: event.shiftKey,
+      });
+      setDraftObject(nextDraft);
+      setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Crop area"));
       pointerRef.current.lastPoint = point;
       return;
     }
@@ -2029,7 +2122,7 @@ export default function QuickPhotoEditor() {
       const nextBox = clampBoxToCanvas(snapResult.box, workingCanvasRef.current);
 
       setPatchSourcePreviewBox(nextBox);
-      setGuideInfo(buildGuideInfo(nextBox, canvasSize, snapResult.message || "Clean Source"));
+      setGuideInfo(buildGuideInfo(nextBox, canvasSize, snapResult.message || "Patch target"));
       return;
     }
 
@@ -2305,6 +2398,33 @@ export default function QuickPhotoEditor() {
     clearOutput();
   }
 
+  async function cropSelectionToLayer(cropBox) {
+    try {
+      const sourceCanvas = renderFinalCanvas({ includeObjects: true });
+      const croppedImage = createSelectionImageFromBox(sourceCanvas, cropBox);
+
+      editorClipboardRef.current = {
+        type: "image",
+        src: croppedImage.src,
+        width: croppedImage.width,
+        height: croppedImage.height,
+        name: "cropped-selection",
+      };
+
+      await addImageLayerFromSource({
+        src: croppedImage.src,
+        name: "cropped-selection",
+        x: cropBox.x,
+        y: cropBox.y,
+        w: cropBox.w,
+        h: cropBox.h,
+        message: "Cropped area copied and pasted as a new layer.",
+      });
+    } catch {
+      setErrorMessage("Could not crop this area. Please try again.");
+    }
+  }
+
   function handlePointerUp(event) {
     if (!pointerRef.current.active) return;
 
@@ -2378,6 +2498,24 @@ export default function QuickPhotoEditor() {
       setFreeSelectionDraft(null);
     }
 
+    if (pointerRef.current.mode === "crop-select" && draftObject) {
+      const cropBox = clampBoxToCanvas(
+        normalizeBox(draftObject),
+        workingCanvasRef.current
+      );
+
+      if (cropBox.w > 10 && cropBox.h > 10) {
+        setGuideInfo(buildGuideInfo(cropBox, canvasSize, "Cropped area copied"));
+        void cropSelectionToLayer(cropBox);
+      } else {
+        setErrorMessage("Crop area is too small. Drag a bigger area.");
+      }
+
+      setDraftObject(null);
+      setActiveTool("select");
+      clearOutput();
+    }
+
     if (pointerRef.current.mode === "draw-object" && draftObject) {
       const finalObject = normalizeObject(draftObject);
 
@@ -2395,6 +2533,27 @@ export default function QuickPhotoEditor() {
       clearOutput();
     }
 
+    if (pointerRef.current.mode === "crop-select" && draftObject) {
+      if (spacePressedRef.current && pointerRef.current.lastPoint) {
+        const dx = point.x - pointerRef.current.lastPoint.x;
+        const dy = point.y - pointerRef.current.lastPoint.y;
+        const movedDraft = translateDraftObject(draftObject, dx, dy);
+        setDraftObject(movedDraft);
+        setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(movedDraft)), canvasSize, "Moving crop area"));
+        pointerRef.current.startPoint = translatePoint(pointerRef.current.startPoint, dx, dy);
+        pointerRef.current.lastPoint = point;
+        return;
+      }
+
+      const nextDraft = updateDraftObject(draftObject, pointerRef.current.startPoint, point, {
+        shiftKey: event.shiftKey,
+      });
+      setDraftObject(nextDraft);
+      setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Crop area"));
+      pointerRef.current.lastPoint = point;
+      return;
+    }
+
     if (pointerRef.current.mode === "set-patch-target" && draftObject) {
       const targetBox = clampBoxToCanvas(
         normalizeBox(draftObject),
@@ -2406,9 +2565,9 @@ export default function QuickPhotoEditor() {
         setPatchTargetSelection(null);
         setPatchSourcePreviewBox(null);
         setIsSettingPatchTarget(false);
-        setGuideInfo(buildGuideInfo(targetBox, canvasSize, "Patch Target"));
+        setGuideInfo(buildGuideInfo(targetBox, canvasSize, "Patch source selected"));
         setSuccessMessage(
-          "Patch target selected. Now click or drag any clean/flat area to apply the patch."
+          "Patch source selected. Drag this selected area over the place you want to cover."
         );
       } else {
         setErrorMessage("Patch target is too small. Drag a bigger area.");
@@ -2426,8 +2585,8 @@ export default function QuickPhotoEditor() {
 
       applyPatchFromSource({
         canvas: workingCanvasRef.current,
-        sourceBox: patchSourcePreviewBox,
-        targetBox: patchTargetBox,
+        sourceBox: patchTargetBox,
+        targetBox: patchSourcePreviewBox,
         targetSelection: patchTargetSelection,
         opacity: patchStrength,
         feather: patchFeather,
@@ -2441,7 +2600,7 @@ export default function QuickPhotoEditor() {
       clearOutput();
 
       setSuccessMessage(
-        "Patch applied. Selection is hidden. Select another area to patch again."
+        "Patch applied and blended. Select another clean source area to patch again."
       );
     }
 
@@ -3515,7 +3674,7 @@ export default function QuickPhotoEditor() {
       setShapeType(toolId);
     }
 
-    if (["draw", "blur", "restore", "patch", "clone", "text", ...SHAPE_TYPES.map((shape) => shape.id), "freeSelect"].includes(toolId)) {
+    if (["draw", "blur", "restore", "patch", "clone", "text", "crop", ...SHAPE_TYPES.map((shape) => shape.id), "freeSelect"].includes(toolId)) {
       commitBaseImageToCanvasIfNeeded({ withHistory: true });
     }
 
@@ -4851,6 +5010,17 @@ export default function QuickPhotoEditor() {
                     </div>
                   )}
 
+                  {settingsMode === "crop" && (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
+                        <p className="font-bold">Crop Copy</p>
+                        <p className="text-xs text-[var(--text-secondary)] mt-1">
+                          Drag a perfect crop selection. The cropped area is copied and pasted as a movable image layer on the artboard.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {settingsMode === "size" && (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-2">
@@ -4976,7 +5146,7 @@ export default function QuickPhotoEditor() {
 
                 <div className="h-8 w-px bg-[var(--border)]" />
 
-                <div className="rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)]">
+                <div className="h-11 shrink-0 rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)] inline-flex items-center">
                   Zoom from the bottom-right controls for precise editing
                 </div>
 
@@ -5004,7 +5174,7 @@ export default function QuickPhotoEditor() {
                 </button>
               </div>
 
-              <div className="sticky top-0 z-30 border-b border-[var(--border)] bg-white/95 backdrop-blur px-4">
+              <div className={`sticky top-0 z-50 border-b border-[var(--border)] bg-white/95 backdrop-blur px-4 transition-none ${topBarOpen ? "h-[132px]" : "h-[44px]"}`}>
                 <button
                   type="button"
                   onClick={() => setTopBarOpen((current) => !current)}
@@ -5021,8 +5191,8 @@ export default function QuickPhotoEditor() {
                 </button>
 
                 {topBarOpen && (
-                  <div className="pb-3 flex h-[58px] flex-nowrap items-center gap-3 overflow-x-auto overflow-y-hidden whitespace-nowrap">
-                    <div className="rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)]">
+                  <div className="pb-3 flex h-[88px] flex-nowrap items-center gap-3 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+                    <div className="h-11 shrink-0 rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)] inline-flex items-center">
                       {selectedObjects.length > 1
                         ? `${selectedObjects.length} items selected`
                         : selectedObject
@@ -5030,7 +5200,7 @@ export default function QuickPhotoEditor() {
                           : "Select an item to edit quickly"}
                     </div>
 
-                    <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
+                    <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
                       Color
                       <input
                         type="color"
@@ -5041,7 +5211,7 @@ export default function QuickPhotoEditor() {
                     </label>
 
                     {imageInfo?.isSolidColorPage && !selectedObjects.length && (
-                      <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
+                      <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
                         Page color
                         <input
                           type="color"
@@ -5061,7 +5231,7 @@ export default function QuickPhotoEditor() {
                       </label>
                     )}
 
-                    <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold min-w-[190px]">
+                    <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold min-w-[190px]">
                       Transparency
                       <input
                         type="range"
@@ -5075,7 +5245,7 @@ export default function QuickPhotoEditor() {
                     </label>
 
                     {selectedObject?.type === "text" && (
-                      <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
+                      <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
                         Text size
                         <input
                           type="number"
@@ -5089,7 +5259,7 @@ export default function QuickPhotoEditor() {
                     )}
 
                     {(selectedObject && (SHAPE_TYPES.some((shape) => shape.id === selectedObject.type) || selectedObject.type === "arrow")) && (
-                      <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
+                      <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
                         Stroke
                         <input
                           type="number"
@@ -5421,7 +5591,8 @@ function drawObject(ctx, object) {
   if (object.type === "star") drawStarObject(ctx, object);
   if (object.type === "hexagon") drawHexagonObject(ctx, object);
   if (object.type === "arrow") drawArrowObject(ctx, object);
-  if (object.type === "patch-target") drawAreaBox(ctx, normalizeBox(object), "#ef4444", "Patch Target");
+  if (object.type === "crop-area") drawAreaBox(ctx, normalizeBox(object), "#22c55e", "Crop Area");
+  if (object.type === "patch-target") drawAreaBox(ctx, normalizeBox(object), "#16a34a", "Patch Source");
   if (object.type === "clone-source") drawAreaBox(ctx, normalizeBox(object), "#9b6ce3", "Clone Source");
 
   ctx.restore();
@@ -6149,7 +6320,7 @@ function getObjectBox(object) {
     return normalizeBox(object);
   }
 
-  if (object.type === "patch-target" || object.type === "clone-source") {
+  if (object.type === "patch-target" || object.type === "clone-source" || object.type === "crop-area") {
     return normalizeBox(object);
   }
 
@@ -6257,7 +6428,8 @@ function normalizeObject(object) {
     object.type === "star" ||
     object.type === "hexagon" ||
     object.type === "patch-target" ||
-    object.type === "clone-source"
+    object.type === "clone-source" ||
+    object.type === "crop-area"
   ) {
     return {
       ...object,
@@ -6364,6 +6536,34 @@ async function createSelectionImageFromCanvas(sourceCanvas, selection) {
   const tempCtx = temp.getContext("2d");
   tempCtx.drawImage(sourceCanvas, box.x, box.y, box.w, box.h, 0, 0, temp.width, temp.height);
   maskCanvasWithSelectionPath(temp, selection.path, box);
+
+  return {
+    src: temp.toDataURL("image/png"),
+    width: temp.width,
+    height: temp.height,
+  };
+}
+
+function createSelectionImageFromBox(sourceCanvas, box) {
+  const cropBox = clampBoxToCanvas(box, sourceCanvas);
+  const temp = document.createElement("canvas");
+  temp.width = Math.max(1, Math.round(cropBox.w));
+  temp.height = Math.max(1, Math.round(cropBox.h));
+
+  const tempCtx = temp.getContext("2d");
+  tempCtx.imageSmoothingEnabled = true;
+  tempCtx.imageSmoothingQuality = "high";
+  tempCtx.drawImage(
+    sourceCanvas,
+    cropBox.x,
+    cropBox.y,
+    cropBox.w,
+    cropBox.h,
+    0,
+    0,
+    temp.width,
+    temp.height
+  );
 
   return {
     src: temp.toDataURL("image/png"),
