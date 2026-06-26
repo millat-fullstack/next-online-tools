@@ -10,10 +10,6 @@ import {
   AlertCircle,
   Loader2,
   Crop,
-  Settings2,
-  Clock3,
-  Maximize2,
-  Move,
   Sparkles,
   SlidersHorizontal,
   FileImage,
@@ -278,9 +274,7 @@ export default function ImageCropperTool() {
       });
 
       setCropperKey((current) => current + 1);
-      setSuccess(
-        "Image loaded successfully. Choose a size, then drag and zoom to make the crop perfect."
-      );
+      setSuccess("");
     } catch {
       setError("Failed to load this image. Please try another image.");
 
@@ -632,6 +626,57 @@ export default function ImageCropperTool() {
     }
   }
 
+  async function handleDownloadCrop() {
+    if (!croppedBlob) {
+      await createCrop({ downloadAfterCreate: true });
+      return;
+    }
+
+    setIsProcessing(true);
+    setError("");
+    setSuccess("");
+    setProcessingPhase("Preparing cropped image for download...");
+    setProgress(12);
+
+    const startTime = performance.now();
+
+    try {
+      await wait(140);
+      setProcessingPhase("Creating download file...");
+      setProgress(45);
+
+      await ensureMinimumProcessingTime({
+        startTime,
+        minimumMs: MIN_PROCESSING_TIME_MS,
+        setProgress,
+      });
+
+      setProcessingPhase("Starting download...");
+      setProgress(95);
+
+      downloadBlob(croppedBlob, true);
+
+      const actualProcessingTime = Math.max(
+        1,
+        Math.round(performance.now() - startTime)
+      );
+
+      setProcessingTimeMs(actualProcessingTime);
+      setProgress(100);
+      setSuccess(
+        `Download started in ${(actualProcessingTime / 1000).toFixed(1)}s.`
+      );
+    } catch {
+      setError("Could not download the cropped image. Please try again.");
+    } finally {
+      setIsProcessing(false);
+
+      window.setTimeout(() => {
+        setProgress(0);
+      }, 900);
+    }
+  }
+
   function downloadBlob(blob = croppedBlob, silent = false) {
     if (!blob) {
       setError("Please create the cropped image first.");
@@ -791,88 +836,6 @@ export default function ImageCropperTool() {
               </select>
             </div>
 
-            <div className="inline-flex rounded-xl border border-[var(--border)] bg-white overflow-hidden">
-              <button
-                type="button"
-                onClick={() => handleDragModeChange("crop")}
-                disabled={!image}
-                className={`h-10 px-3 text-sm font-semibold ${
-                  dragMode === "crop"
-                    ? "bg-[var(--primary)] text-white"
-                    : !image
-                      ? "text-gray-400 cursor-not-allowed"
-                      : "hover:bg-[#f8f4ff]"
-                }`}
-                title="Drag to create or adjust crop area"
-              >
-                Crop
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDragModeChange("move")}
-                disabled={!image}
-                className={`h-10 px-3 text-sm font-semibold border-l border-[var(--border)] ${
-                  dragMode === "move"
-                    ? "bg-[var(--primary)] text-white"
-                    : !image
-                      ? "text-gray-400 cursor-not-allowed"
-                      : "hover:bg-[#f8f4ff]"
-                }`}
-                title="Drag to move the image inside crop area"
-              >
-                Move
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => zoomCropper(0.08)}
-              disabled={!image}
-              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
-                !image ? "opacity-40 cursor-not-allowed" : "hover:bg-[#f8f4ff]"
-              }`}
-              title="Zoom in"
-            >
-              <Maximize2 size={17} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => zoomCropper(-0.08)}
-              disabled={!image}
-              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
-                !image ? "opacity-40 cursor-not-allowed" : "hover:bg-[#f8f4ff]"
-              }`}
-              title="Zoom out"
-            >
-              <Move size={17} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => rotateCropper(-90)}
-              disabled={!image}
-              className={`w-10 h-10 rounded-xl border inline-flex items-center justify-center ${
-                !image ? "opacity-40 cursor-not-allowed" : "hover:bg-[#f8f4ff]"
-              }`}
-              title="Rotate left"
-            >
-              <RotateCcw size={17} />
-            </button>
-
-            <button
-              type="button"
-              onClick={resetCropBox}
-              disabled={!image}
-              className={`h-10 rounded-xl border px-3 inline-flex items-center gap-2 text-sm ${
-                !image ? "opacity-40 cursor-not-allowed" : "hover:bg-[#f8f4ff]"
-              }`}
-            >
-              <RotateCcw size={16} />
-              Reset Crop
-            </button>
-
             <div className="flex-1" />
 
             <button
@@ -888,26 +851,26 @@ export default function ImageCropperTool() {
               ) : (
                 <Sparkles size={17} />
               )}
-              {isProcessing ? "Processing..." : "Crop Preview"}
+              {isProcessing ? "Processing..." : "Crop Now"}
             </button>
 
             <button
               type="button"
-              onClick={() => createCrop({ downloadAfterCreate: true })}
+              onClick={handleDownloadCrop}
               disabled={!image || isProcessing}
               className={`btn-secondary inline-flex items-center justify-center gap-2 px-4 py-2 text-sm ${
                 !image || isProcessing ? "opacity-50 cursor-not-allowed" : ""
               }`}
             >
               <Download size={17} />
-              Download Crop
+              Download
             </button>
           </div>
         </div>
 
         {/* FEEDBACK */}
-        {(error || success || isProcessing) && (
-          <div className="grid md:grid-cols-2 gap-3 mb-4">
+        {(error || isProcessing || (success && (processingTimeMs > 0 || croppedBlob))) && (
+          <div className="space-y-3 mb-4">
             {error && (
               <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
                 <AlertCircle size={18} className="shrink-0 mt-0.5" />
@@ -915,17 +878,10 @@ export default function ImageCropperTool() {
               </div>
             )}
 
-            {success && (
-              <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
-                <CheckCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{success}</p>
-              </div>
-            )}
-
             {isProcessing && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 md:col-span-2">
+              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4">
                 <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                  <span>{processingPhase || "Creating final crop..."}</span>
+                  <span>{processingPhase || "Processing crop..."}</span>
                   <span>{progress}%</span>
                 </div>
 
@@ -937,8 +893,22 @@ export default function ImageCropperTool() {
                 </div>
 
                 <p className="text-xs text-[var(--text-secondary)] mt-3">
-                  {processingPhase || "Creating your crop with high-quality image smoothing."}
+                  {processingPhase || "Preparing your cropped image."}
                 </p>
+              </div>
+            )}
+
+            {!isProcessing && success && (processingTimeMs > 0 || croppedBlob) && (
+              <div className="flex items-start justify-between gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <CheckCircle size={18} className="shrink-0 mt-0.5" />
+                  <p>{success}</p>
+                </div>
+                {processingTimeMs > 0 && (
+                  <span className="font-bold shrink-0">
+                    {(processingTimeMs / 1000).toFixed(1)}s
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -957,17 +927,7 @@ export default function ImageCropperTool() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => createCrop({ downloadAfterCreate: true })}
-                  disabled={!image || isProcessing}
-                  className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                    !image || isProcessing ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <Download size={16} />
-                  Create & Download
-                </button>
+
               </div>
 
               <div className="rounded-2xl border border-[var(--border)] bg-white p-3 mb-4">
@@ -1071,34 +1031,7 @@ export default function ImageCropperTool() {
                 />
               </div>
 
-              <div className="grid md:grid-cols-3 gap-3 mt-4">
-                <div className="bg-white border border-[var(--border)] rounded-xl p-3">
-                  <p className="text-xs text-[var(--text-secondary)] mb-1">
-                    How to crop
-                  </p>
-                  <p className="text-sm font-semibold">
-                    Free crop → drag area → download
-                  </p>
-                </div>
 
-                <div className="bg-white border border-[var(--border)] rounded-xl p-3">
-                  <p className="text-xs text-[var(--text-secondary)] mb-1">
-                    Drag mode
-                  </p>
-                  <p className="text-sm font-semibold">
-                    Use Crop or Move mode as needed
-                  </p>
-                </div>
-
-                <div className="bg-white border border-[var(--border)] rounded-xl p-3">
-                  <p className="text-xs text-[var(--text-secondary)] mb-1">
-                    Output quality
-                  </p>
-                  <p className="text-sm font-semibold">
-                    Fast export with high smoothing
-                  </p>
-                </div>
-              </div>
             </div>
 
             <div className="flex flex-col gap-5">
@@ -1180,34 +1113,19 @@ export default function ImageCropperTool() {
                     />
                   ) : (
                     <p className="text-center text-sm text-[var(--text-secondary)] px-4">
-                      No final crop yet. Adjust the crop and click Crop Preview or Download Crop.
+                      No preview yet. Adjust the crop and click Crop Now.
                     </p>
                   )}
                 </div>
 
                 {croppedBlob && (
-                  <div className="grid grid-cols-2 gap-3 mt-4">
-                    <InfoCard
-                      label="Final Time"
-                      value={`${(processingTimeMs / 1000).toFixed(1)}s`}
-                      green
-                    />
-                    <InfoCard
-                      label="Output Size"
-                      value={formatBytes(outputSize)}
-                      green
-                    />
-                  </div>
-                )}
-
-                {croppedBlob && (
                   <button
                     type="button"
-                    onClick={() => downloadBlob()}
+                    onClick={handleDownloadCrop}
                     className="btn-primary w-full mt-4 inline-flex items-center justify-center gap-2"
                   >
                     <Download size={18} />
-                    Download {selectedFormat.label}
+                    Download
                   </button>
                 )}
               </div>

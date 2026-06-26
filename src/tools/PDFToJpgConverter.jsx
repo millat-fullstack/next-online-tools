@@ -76,7 +76,9 @@ export default function PDFToJpgConverter() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [progress, setProgress] = useState(0);
+  const [processingPhase, setProcessingPhase] = useState("");
   const [processingTimeMs, setProcessingTimeMs] = useState(0);
+  const [selectedPageNumber, setSelectedPageNumber] = useState(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -97,6 +99,15 @@ export default function PDFToJpgConverter() {
   const totalJpgSize = useMemo(() => {
     return convertedImages.reduce((sum, image) => sum + image.blob.size, 0);
   }, [convertedImages]);
+
+  const selectedImage = useMemo(() => {
+    if (!convertedImages.length) return null;
+
+    return (
+      convertedImages.find((image) => image.pageNumber === selectedPageNumber) ||
+      convertedImages[0]
+    );
+  }, [convertedImages, selectedPageNumber]);
 
   const canConvert = Boolean(file && pdfData && !isLoadingPdf && !isProcessing);
 
@@ -127,7 +138,9 @@ export default function PDFToJpgConverter() {
     setZipUrl("");
     setZipSize(0);
     setProgress(0);
+    setProcessingPhase("");
     setProcessingTimeMs(0);
+    setSelectedPageNumber(null);
   }
 
   function validatePdfFile(selectedFile) {
@@ -249,6 +262,7 @@ export default function PDFToJpgConverter() {
 
     setIsProcessing(true);
     setProgress(0);
+    setProcessingPhase("Preparing PDF pages...");
 
     const startTime = performance.now();
 
@@ -258,6 +272,7 @@ export default function PDFToJpgConverter() {
       const cleanBaseName = getFileBaseName(file.name);
 
       for (let pageNumber = 1; pageNumber <= pdfData.numPages; pageNumber += 1) {
+        setProcessingPhase(`Converting page ${pageNumber} of ${pdfData.numPages}...`);
         const page = await pdfData.getPage(pageNumber);
         const viewport = page.getViewport({ scale: Number(scale) });
 
@@ -308,6 +323,7 @@ export default function PDFToJpgConverter() {
         setProgress(Math.round((pageNumber / pdfData.numPages) * 90));
       }
 
+      setProcessingPhase("Preparing Download All file...");
       const generatedZipBlob = await zip.generateAsync(
         {
           type: "blob",
@@ -334,6 +350,8 @@ export default function PDFToJpgConverter() {
       setZipSize(generatedZipBlob.size);
       setProcessingTimeMs(actualProcessingTime);
       setProgress(100);
+      setSelectedPageNumber(nextImages[0]?.pageNumber || null);
+      setProcessingPhase("Conversion completed.");
 
       setSuccess(
         `${nextImages.length} JPG image${
@@ -351,6 +369,13 @@ export default function PDFToJpgConverter() {
   }
 
   function downloadImage(image) {
+    if (!image) {
+      setError("Please select a page first.");
+      return;
+    }
+
+    setSuccess(`Downloading page ${image.pageNumber}...`);
+
     const link = document.createElement("a");
 
     link.href = image.url;
@@ -366,6 +391,8 @@ export default function PDFToJpgConverter() {
       setError("Please convert your PDF first.");
       return;
     }
+
+    setSuccess("Downloading all pages...");
 
     const link = document.createElement("a");
 
@@ -412,7 +439,9 @@ export default function PDFToJpgConverter() {
     setIsProcessing(false);
 
     setProgress(0);
+    setProcessingPhase("");
     setProcessingTimeMs(0);
+    setSelectedPageNumber(null);
 
     setError("");
     setSuccess("");
@@ -439,9 +468,7 @@ export default function PDFToJpgConverter() {
 
       {/* TOOL BODY */}
       <section className="card p-6 sm:p-8">
-        <div className="grid lg:grid-cols-[1.35fr_0.85fr] gap-6">
-          {/* LEFT COLUMN */}
-          <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5">
             {/* UPLOAD AREA */}
             <label
               onDrop={handleDrop}
@@ -602,19 +629,7 @@ export default function PDFToJpgConverter() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5 text-sm">
-                  <InfoBox label="Pages" value={pageCount || "-"} />
-                  <InfoBox label="Quality" value={`${Math.round(quality * 100)}%`} />
-                  <InfoBox label="Resolution" value={selectedScale.label} />
-                  <InfoBox
-                    label="Est. Time"
-                    value={
-                      estimatedProcessingTime
-                        ? `${Math.ceil(estimatedProcessingTime / 1000)}s`
-                        : "-"
-                    }
-                  />
-                </div>
+
               </div>
             )}
 
@@ -657,7 +672,7 @@ export default function PDFToJpgConverter() {
             {isProcessing && (
               <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
                 <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                  <span>Rendering PDF pages to JPG...</span>
+                  <span>{processingPhase || "Rendering PDF pages to JPG..."}</span>
                   <span>{progress}%</span>
                 </div>
 
@@ -669,126 +684,64 @@ export default function PDFToJpgConverter() {
                 </div>
 
                 <p className="text-xs text-[var(--text-secondary)] mt-3">
-                  High-resolution conversion may take longer for large PDFs.
+                  {processingPhase || "High-resolution conversion may take longer for large PDFs."}
                 </p>
+              </div>
+            )}
+
+            {!isProcessing && processingTimeMs > 0 && convertedImages.length > 0 && (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-green-100 bg-green-50 p-4 text-sm text-green-800">
+                <span className="font-semibold">Processing completed</span>
+                <span className="font-bold">{(processingTimeMs / 1000).toFixed(1)}s</span>
               </div>
             )}
 
             {/* OUTPUT GRID */}
             {convertedImages.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Images size={20} className="text-[var(--primary)]" />
-                  <h3 className="font-semibold">Converted JPG Images</h3>
+              <div className="rounded-2xl border border-[var(--border)] bg-white p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Images size={20} className="text-[var(--primary)]" />
+                    <h3 className="font-semibold">Converted JPG Pages</h3>
+                  </div>
+
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    {convertedImages.length} page{convertedImages.length === 1 ? "" : "s"} ready
+                  </p>
                 </div>
 
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3">
                   {convertedImages.map((image) => (
                     <ImageCard
                       key={image.id}
                       image={image}
-                      onDownload={() => downloadImage(image)}
+                      selected={selectedImage?.pageNumber === image.pageNumber}
+                      onSelect={() => setSelectedPageNumber(image.pageNumber)}
                     />
                   ))}
                 </div>
+
+                <div className="grid sm:grid-cols-2 gap-3 mt-5 pt-4 border-t border-[var(--border)]">
+                  <button
+                    type="button"
+                    onClick={downloadZip}
+                    className="btn-primary inline-flex items-center justify-center gap-2"
+                  >
+                    <Download size={18} />
+                    Download All
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => downloadImage(selectedImage)}
+                    className="btn-secondary inline-flex items-center justify-center gap-2"
+                  >
+                    <Download size={18} />
+                    Download Page {selectedImage?.pageNumber || 1}
+                  </button>
+                </div>
               </div>
             )}
-          </div>
-
-          {/* RIGHT COLUMN */}
-          <div className="flex flex-col gap-5">
-            {/* RESULT */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Archive size={20} className="text-[var(--primary)]" />
-                <h2 className="text-xl font-semibold">Download Result</h2>
-              </div>
-
-              <div className="border border-[var(--border)] rounded-2xl p-6 bg-gray-50 min-h-[330px] flex items-center justify-center">
-                {zipUrl ? (
-                  <div className="text-center w-full">
-                    <div className="w-16 h-16 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle size={32} className="text-green-600" />
-                    </div>
-
-                    <h3 className="font-semibold mb-2">JPG Images Ready</h3>
-
-                    <p className="text-sm text-[var(--text-secondary)] mb-5">
-                      Download all converted pages as one ZIP file, or download
-                      individual JPG images from the preview cards.
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={downloadZip}
-                      className="btn-primary w-full inline-flex items-center justify-center gap-2"
-                    >
-                      <Download size={18} />
-                      Download ZIP
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <ImageIcon size={54} className="mx-auto mb-3 text-gray-300" />
-                    <p className="text-[var(--text-secondary)]">
-                      Converted JPG images will appear here.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* STATS */}
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard label="PDF Size" value={file ? formatBytes(file.size) : "-"} />
-              <StatCard label="Pages" value={pageCount || "-"} />
-              <StatCard
-                label="JPG Total"
-                value={totalJpgSize ? formatBytes(totalJpgSize) : "-"}
-                green={Boolean(totalJpgSize)}
-              />
-              <StatCard
-                label="ZIP Size"
-                value={zipSize ? formatBytes(zipSize) : "-"}
-                green={Boolean(zipSize)}
-              />
-              <StatCard
-                label="Processing Time"
-                value={
-                  processingTimeMs
-                    ? `${(processingTimeMs / 1000).toFixed(1)}s`
-                    : estimatedProcessingTime
-                      ? `Est. ${Math.ceil(estimatedProcessingTime / 1000)}s`
-                      : "-"
-                }
-                green={Boolean(processingTimeMs)}
-              />
-              <StatCard label="Resolution" value={selectedScale.label} />
-            </div>
-
-            {/* NOTE */}
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-              <h3 className="font-semibold text-blue-900 mb-2">
-                Browser-based conversion
-              </h3>
-
-              <p className="text-sm text-blue-800">
-                Your PDF is rendered into JPG images directly in your browser.
-                No paid API is required.
-              </p>
-            </div>
-
-            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-              <h3 className="font-semibold text-yellow-900 mb-2">
-                Large PDF tip
-              </h3>
-
-              <p className="text-sm text-yellow-800">
-                If a large PDF is slow, use Standard resolution or lower JPG
-                quality to reduce memory usage and output size.
-              </p>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -797,10 +750,19 @@ export default function PDFToJpgConverter() {
   );
 }
 
-function ImageCard({ image, onDownload }) {
+function ImageCard({ image, selected, onSelect }) {
   return (
-    <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white">
-      <div className="bg-[#f8f4ff] h-52 flex items-center justify-center">
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`group overflow-hidden rounded-2xl border bg-white text-left transition ${
+        selected
+          ? "border-[var(--primary)] ring-2 ring-[rgba(155,108,227,0.18)]"
+          : "border-[var(--border)] hover:border-[var(--primary)]"
+      }`}
+      title={`Select page ${image.pageNumber}`}
+    >
+      <div className="h-28 bg-[#f8f4ff] flex items-center justify-center">
         <img
           src={image.url}
           alt={`PDF page ${image.pageNumber}`}
@@ -808,50 +770,13 @@ function ImageCard({ image, onDownload }) {
         />
       </div>
 
-      <div className="p-4">
-        <p className="font-semibold text-sm truncate" title={image.fileName}>
-          Page {image.pageNumber}
+      <div className="p-2">
+        <p className="text-xs font-bold truncate">Page {image.pageNumber}</p>
+        <p className="text-[11px] text-[var(--text-secondary)] truncate">
+          {formatBytes(image.blob.size)}
         </p>
-
-        <div className="flex items-center justify-between gap-3 mt-2 text-xs text-[var(--text-secondary)]">
-          <span>{image.width} × {image.height}px</span>
-          <span>{formatBytes(image.blob.size)}</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={onDownload}
-          className="btn-secondary w-full mt-4 inline-flex items-center justify-center gap-2"
-        >
-          <Download size={16} />
-          Download JPG
-        </button>
       </div>
-    </div>
-  );
-}
-
-function InfoBox({ label, value }) {
-  return (
-    <div className="bg-white border border-[var(--border)] rounded-xl p-3 text-center">
-      <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
-      <p className="font-semibold text-[var(--primary)] break-all">{value}</p>
-    </div>
-  );
-}
-
-function StatCard({ label, value, green = false }) {
-  return (
-    <div className="bg-white border border-[var(--border)] rounded-2xl p-4 text-center">
-      <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
-      <p
-        className={`text-xl font-bold break-all ${
-          green ? "text-green-600" : "text-[var(--primary)]"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
+    </button>
   );
 }
 
