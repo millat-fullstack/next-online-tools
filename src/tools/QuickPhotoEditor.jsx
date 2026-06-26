@@ -43,6 +43,9 @@ import {
   ChevronUp,
   Layers,
   Crop,
+  Lock,
+  Unlock,
+  Eraser,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -66,11 +69,13 @@ const SNAP_DISTANCE = 10;
 
 const TOOLS = [
   { id: "select", label: "Select", icon: MousePointer2 },
-  { id: "hand", label: "Hand", icon: Move },
+  { id: "move", label: "Move Tool", icon: Move },
+  { id: "marquee", label: "Marquee Tool", icon: Crop },
   { id: "text", label: "Text", icon: Type },
   { id: "draw", label: "Draw", icon: PenLine },
   { id: "blur", label: "Blur", icon: EyeOff },
-  { id: "patch", label: "Patch", icon: Sparkles },
+  { id: "patch", label: "Patch Tool", icon: Sparkles },
+  { id: "eraser", label: "Eraser Tool", icon: Eraser },
   { id: "clone", label: "Clone", icon: Copy },
   { id: "restore", label: "Restore", icon: RotateCcw },
 ];
@@ -207,9 +212,11 @@ const SHAPE_TYPES = [
 ];
 
 const SELECTION_MODES = [
-  { id: "rectSelect", label: "Rectangle Select", icon: Square },
-  { id: "freeSelect", label: "Free Style", icon: Scissors },
-  { id: "pointSelect", label: "Keypoint Select", icon: Star },
+  { id: "rectSelect", label: "Rectangular", icon: Square },
+  { id: "ellipseSelect", label: "Circle", icon: CircleIcon },
+  { id: "squareSelect", label: "Square", icon: Square },
+  { id: "freeSelect", label: "Lasso", icon: Scissors },
+  { id: "pointSelect", label: "Polygonal Lasso", icon: Star },
 ];
 
 const GRADIENT_TEMPLATES = [
@@ -277,6 +284,7 @@ export default function QuickPhotoEditor() {
   const [selectionRect, setSelectionRect] = useState(null);
   const [selectedObjectId, setSelectedObjectId] = useState(null);
   const [selectedObjectIds, setSelectedObjectIds] = useState([]);
+  const [lockedObjectIds, setLockedObjectIds] = useState([]);
   const [activeSelection, setActiveSelection] = useState(null);
   const [freeSelectionDraft, setFreeSelectionDraft] = useState(null);
 
@@ -363,6 +371,16 @@ export default function QuickPhotoEditor() {
     return objects.filter((item) => activeIds.includes(item.id));
   }, [objects, selectedObjectId, selectedObjectIds]);
 
+  const selectedLocked = useMemo(() => {
+    const activeIds = selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
+
+    return activeIds.some((id) => lockedObjectIds.includes(id));
+  }, [lockedObjectIds, selectedObjectId, selectedObjectIds]);
+
   const selectedObjectBox = useMemo(() => {
     return selectedObject ? getObjectBox(selectedObject) : null;
   }, [selectedObject]);
@@ -439,6 +457,12 @@ export default function QuickPhotoEditor() {
   }, [objects]);
 
   useEffect(() => {
+    setLockedObjectIds((current) =>
+      current.filter((id) => objects.some((item) => item.id === id))
+    );
+  }, [objects]);
+
+  useEffect(() => {
     if (!selectedObjectId) {
       if (selectedObjectIds.length) {
         setSelectedObjectIds([]);
@@ -469,11 +493,14 @@ export default function QuickPhotoEditor() {
 
   const shouldShowSettings = toolPopupOpen && [
     "select",
+    "move",
     "hand",
+    "marquee",
     "image",
     "text",
     "draw",
     "blur",
+    "eraser",
     "restore",
     "rectangle",
     "triangle",
@@ -489,8 +516,11 @@ export default function QuickPhotoEditor() {
     "color",
     "freeSelect",
     "rectSelect",
+    "ellipseSelect",
+    "squareSelect",
     "pointSelect",
     "selectModes",
+    "marqueeModes",
     "crop",
     "layers",
   ].includes(settingsMode);
@@ -579,6 +609,7 @@ export default function QuickPhotoEditor() {
     setSelectionRect(null);
       setSelectedObjectId(baseImageObject.id);
       setSelectedObjectIds([baseImageObject.id]);
+      setLockedObjectIds([]);
       setActiveSelection(null);
       setFreeSelectionDraft(null);
       setHistoryPast([]);
@@ -730,6 +761,12 @@ export default function QuickPhotoEditor() {
       if (isModifier && key === "c") {
         event.preventDefault();
         copyEditorSelection();
+        return;
+      }
+
+      if (isModifier && key === "x") {
+        event.preventDefault();
+        cutEditorSelection();
         return;
       }
 
@@ -1003,6 +1040,7 @@ export default function QuickPhotoEditor() {
     setSelectionRect(null);
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
+    setLockedObjectIds([]);
     setActiveSelection(null);
     setFreeSelectionDraft(null);
     setSelectionRect(null);
@@ -1274,18 +1312,22 @@ export default function QuickPhotoEditor() {
       drawPatchLivePreview(
         ctx,
         workingCanvasRef.current,
-        patchTargetBox,
         patchSourcePreviewBox,
+        patchTargetBox,
         patchStrength
       );
     }
 
     if (activeTool === "patch" && patchTargetBox) {
-      drawAreaBox(ctx, patchTargetBox, "#16a34a", "Patch Source");
+      if (patchTargetSelection?.path?.length) {
+        drawFreeSelection(ctx, patchTargetSelection.path, "#ef4444", "Problem Area");
+      } else {
+        drawAreaBox(ctx, patchTargetBox, "#ef4444", "Problem Area");
+      }
     }
 
     if (activeTool === "patch" && patchSourcePreviewBox) {
-      drawAreaBox(ctx, patchSourcePreviewBox, "#ef4444", "Patch Target");
+      drawAreaBox(ctx, patchSourcePreviewBox, "#16a34a", "Good Texture");
     }
 
     if (activeTool === "clone" && cloneSourceBox && cloneTargetPreviewBox) {
@@ -1322,7 +1364,7 @@ export default function QuickPhotoEditor() {
       drawObject(ctx, draftObject);
     }
 
-    if (["draw", "blur", "restore"].includes(activeTool) && brushPreviewPoint) {
+    if (["draw", "blur", "restore", "eraser"].includes(activeTool) && brushPreviewPoint) {
       drawBrushPreview(ctx, brushPreviewPoint, brushSize, brushColor, brushOpacity);
     }
 
@@ -1375,6 +1417,7 @@ export default function QuickPhotoEditor() {
       canvasSize: { ...canvasSize },
       draftSize: { ...draftSize },
       selectedSizePreset,
+      lockedObjectIds: [...lockedObjectIds],
       activeSelection: activeSelection ? cloneFreeSelection(activeSelection) : null,
       patchTargetBox: patchTargetBox ? { ...patchTargetBox } : null,
       patchTargetSelection: patchTargetSelection ? cloneFreeSelection(patchTargetSelection) : null,
@@ -1406,6 +1449,7 @@ export default function QuickPhotoEditor() {
     setDraftSize(snapshot.draftSize || snapshot.canvasSize);
     setSelectedSizePreset(snapshot.selectedSizePreset || "custom");
     setObjects(hydratedObjects);
+    setLockedObjectIds(snapshot.lockedObjectIds || []);
     setActiveSelection(snapshot.activeSelection || null);
     setFreeSelectionDraft(null);
     setSelectionRect(null);
@@ -1630,7 +1674,7 @@ export default function QuickPhotoEditor() {
   function handlePointerDown(event) {
     if (!hasImage || showOriginal) return;
 
-    if (activeTool === "hand" || spacePressedRef.current) {
+    if (spacePressedRef.current) {
       event.preventDefault();
       setErrorMessage("");
 
@@ -1665,7 +1709,12 @@ export default function QuickPhotoEditor() {
       return;
     }
 
-    if (activeTool === "rectSelect" || activeTool === "crop") {
+    if (activeTool === "move") {
+      handleMoveToolPointerDown(event, point);
+      return;
+    }
+
+    if (["rectSelect", "squareSelect", "ellipseSelect"].includes(activeTool) || activeTool === "crop") {
       handleRectSelectPointerDown(event, point);
       return;
     }
@@ -1700,7 +1749,7 @@ export default function QuickPhotoEditor() {
       return;
     }
 
-    if (["draw", "blur", "restore"].includes(activeTool)) {
+    if (["draw", "blur", "restore", "eraser"].includes(activeTool)) {
       handleBrushPointerDown(event, point);
     }
   }
@@ -1824,6 +1873,21 @@ export default function QuickPhotoEditor() {
       selectedIds: nextIds,
     };
 
+    if (activeSelectionHasLockedItem(nextIds)) {
+      setGuideInfo(buildGuideInfo(selectedBox, canvasSize, "Locked layer • select it from Layers or top bar to unlock"));
+      setSuccessMessage("This layer is locked. It can be selected but not moved, resized, or edited.");
+      pointerRef.current = {
+        active: false,
+        mode: "",
+        startPoint: null,
+        lastPoint: null,
+        selectedStart: null,
+        dragStartBox: null,
+        resizeHandle: null,
+      };
+      return;
+    }
+
     setGuideInfo(
       buildGuideInfo(
         selectedBox,
@@ -1844,10 +1908,79 @@ export default function QuickPhotoEditor() {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
+  function handleMoveToolPointerDown(event, point) {
+    if (activeSelection?.path?.length && pointInBox(point, activeSelection.box)) {
+      pointerRef.current = {
+        active: true,
+        mode: "move-active-selection",
+        startPoint: point,
+        lastPoint: point,
+        selectedStart: cloneFreeSelection(activeSelection),
+        dragStartBox: activeSelection.box,
+        resizeHandle: null,
+      };
+
+      setSelectionActionBox(activeSelection.box);
+      setGuideInfo(buildGuideInfo(activeSelection.box, canvasSize, "Move selection outline"));
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    const selected = getObjectAtPoint(point, objects);
+
+    if (!selected) {
+      setGuideInfo(buildGuideInfo({ x: point.x, y: point.y, w: 1, h: 1 }, canvasSize, "Move Tool: click a layer or selection"));
+      return;
+    }
+
+    const currentlySelectedIds = selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
+
+    const nextIds = currentlySelectedIds.includes(selected.id)
+      ? currentlySelectedIds
+      : [selected.id];
+
+    setSelectedObjectId(selected.id);
+    setSelectedObjectIds(nextIds);
+
+    const selectedItemsForAction = objects.filter((item) => nextIds.includes(item.id));
+    const selectedBox = nextIds.length > 1
+      ? getGroupBox(selectedItemsForAction)
+      : getObjectBox(selected);
+
+    if (activeSelectionHasLockedItem(nextIds)) {
+      setGuideInfo(buildGuideInfo(selectedBox, canvasSize, "Locked layer selected"));
+      setSuccessMessage("This layer is locked. Unlock it before moving.");
+      return;
+    }
+
+    pushHistory();
+
+    pointerRef.current = {
+      active: true,
+      mode: nextIds.length > 1 ? "move-group" : "move-object",
+      startPoint: point,
+      lastPoint: point,
+      selectedStart: nextIds.length > 1
+        ? selectedItemsForAction.map(cloneObject)
+        : cloneObject(selected),
+      dragStartBox: selectedBox,
+      resizeHandle: null,
+      selectedIds: nextIds,
+    };
+
+    setGuideInfo(buildGuideInfo(selectedBox, canvasSize, nextIds.length > 1 ? "Move selected layers" : "Move layer"));
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
   function handleFreeSelectPointerDown(event, point) {
     commitBaseImageToCanvasIfNeeded({ withHistory: true });
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
+    setLockedObjectIds([]);
     setActiveSelection(null);
     setPatchTargetSelection(null);
     setCloneSourceSelection(null);
@@ -1879,6 +2012,7 @@ export default function QuickPhotoEditor() {
     commitBaseImageToCanvasIfNeeded({ withHistory: false });
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
+    setLockedObjectIds([]);
     setActiveSelection(null);
     setFreeSelectionDraft(null);
     setSelectionRect({ x: point.x, y: point.y, w: 0, h: 0 });
@@ -1895,9 +2029,10 @@ export default function QuickPhotoEditor() {
       selectedStart: null,
       dragStartBox: null,
       resizeHandle: null,
+      selectionShape: activeTool,
     };
 
-    setGuideInfo(buildGuideInfo({ x: point.x, y: point.y, w: 1, h: 1 }, canvasSize, "Rectangle Select"));
+    setGuideInfo(buildGuideInfo({ x: point.x, y: point.y, w: 1, h: 1 }, canvasSize, activeTool === "ellipseSelect" ? "Circle Select" : activeTool === "squareSelect" ? "Square Select" : "Rectangular Select"));
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -1925,7 +2060,7 @@ export default function QuickPhotoEditor() {
       setPointSelectionReady(false);
       setActiveTool("select");
       setToolPopupOpen(false);
-      setGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Keypoint selection ready"));
+      setGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Polygonal Lasso selection ready"));
       setSuccessMessage("Selection ready. Use the Copy button or press Ctrl + C, then Ctrl + V to paste.");
       return;
     }
@@ -1940,7 +2075,7 @@ export default function QuickPhotoEditor() {
 
     setFreeSelectionDraft(nextSelection);
     setPointSelectionReady(nextPath.length >= 3);
-    setGuideInfo(buildGuideInfo(nextSelection.box, canvasSize, nextPath.length >= 3 ? "Double-click to finish" : "Add keypoints"));
+    setGuideInfo(buildGuideInfo(nextSelection.box, canvasSize, nextPath.length >= 3 ? "Double-click to finish" : "Add polygon points"));
     setSuccessMessage(nextPath.length >= 3 ? "Double-click the last point to finish selection." : "Click around the area to create keypoints.");
   }
 
@@ -1957,7 +2092,7 @@ export default function QuickPhotoEditor() {
     setPointSelectionReady(false);
     setActiveTool("select");
     setToolPopupOpen(false);
-    setGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Keypoint selection ready"));
+    setGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Polygonal Lasso selection ready"));
     setSuccessMessage("Selection ready. Use the Copy button or press Ctrl + C, then Ctrl + V to paste.");
   }
 
@@ -2004,8 +2139,8 @@ export default function QuickPhotoEditor() {
       setPatchTargetSelection(activeSelection);
       setPatchSourcePreviewBox(null);
       setIsSettingPatchTarget(false);
-      setGuideInfo(buildGuideInfo(activeSelection.box, canvasSize, "Patch source selected"));
-      setSuccessMessage("Patch source selected. Drag it over the area you want to cover. Press Ctrl/Cmd + D to hide the selection when done.");
+      setGuideInfo(buildGuideInfo(activeSelection.box, canvasSize, "Problem area selected"));
+      setSuccessMessage("Problem area selected. Drag this outline over a good texture area to repair it.");
       return;
     }
 
@@ -2015,34 +2150,36 @@ export default function QuickPhotoEditor() {
       setPatchSourcePreviewBox(null);
       setGuideInfo(null);
 
-      setDraftObject({
+      const startSelection = {
         id: createId(),
-        type: "patch-target",
-        x: point.x,
-        y: point.y,
-        w: 0,
-        h: 0,
-      });
+        type: "patch-problem-selection",
+        path: [point],
+        box: { x: point.x, y: point.y, w: 1, h: 1 },
+      };
+
+      setFreeSelectionDraft(startSelection);
 
       pointerRef.current = {
         active: true,
-        mode: "set-patch-target",
+        mode: "patch-draw-target",
         startPoint: point,
         lastPoint: point,
-        selectedStart: null,
-        dragStartBox: null,
+        selectedStart: startSelection,
+        dragStartBox: startSelection.box,
+        resizeHandle: null,
       };
 
+      setGuideInfo(buildGuideInfo(startSelection.box, canvasSize, "Draw around problem area"));
       event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
     }
 
-    const startTargetBox = pointInBox(point, patchTargetBox)
+    const startSourceBox = pointInBox(point, patchTargetBox)
       ? { ...patchTargetBox }
       : centerBoxAtPoint(patchTargetBox, point);
 
-    const clampedTargetBox = clampBoxToCanvas(
-      startTargetBox,
+    const clampedSourceBox = clampBoxToCanvas(
+      startSourceBox,
       workingCanvasRef.current
     );
 
@@ -2052,17 +2189,15 @@ export default function QuickPhotoEditor() {
       startPoint: point,
       lastPoint: point,
       selectedStart: null,
-      dragStartBox: clampedTargetBox,
+      dragStartBox: clampedSourceBox,
     };
 
-    setPatchSourcePreviewBox(clampedTargetBox);
+    setPatchSourcePreviewBox(clampedSourceBox);
     setGuideInfo(
       buildGuideInfo(
-        clampedTargetBox,
+        clampedSourceBox,
         canvasSize,
-        pointInBox(point, patchTargetBox)
-          ? "Drag patch source to target"
-          : "Patch target selected"
+        "Drag to a good texture area"
       )
     );
 
@@ -2169,7 +2304,7 @@ export default function QuickPhotoEditor() {
       }
     }
 
-    if (point && ["draw", "blur", "restore"].includes(activeTool)) {
+    if (point && ["draw", "blur", "restore", "eraser"].includes(activeTool)) {
       setBrushPreviewPoint(point);
     }
 
@@ -2209,15 +2344,25 @@ export default function QuickPhotoEditor() {
 
     if (pointerRef.current.mode === "rect-area-select") {
       const startPoint = pointerRef.current.startPoint;
+      const selectionShape = pointerRef.current.selectionShape || activeTool;
+      let rawW = point.x - startPoint.x;
+      let rawH = point.y - startPoint.y;
+
+      if (selectionShape === "squareSelect" || (selectionShape === "ellipseSelect" && event.shiftKey)) {
+        const size = Math.max(Math.abs(rawW), Math.abs(rawH));
+        rawW = Math.sign(rawW || 1) * size;
+        rawH = Math.sign(rawH || 1) * size;
+      }
+
       const nextBox = normalizeBox({
         x: startPoint.x,
         y: startPoint.y,
-        w: point.x - startPoint.x,
-        h: point.y - startPoint.y,
+        w: rawW,
+        h: rawH,
       });
 
       setSelectionRect(clampBoxToCanvas(nextBox, workingCanvasRef.current));
-      setGuideInfo(buildGuideInfo(nextBox, canvasSize, "Rectangle selection"));
+      setGuideInfo(buildGuideInfo(nextBox, canvasSize, selectionShape === "ellipseSelect" ? "Circle selection" : selectionShape === "squareSelect" ? "Square selection" : "Rectangular selection"));
       pointerRef.current.lastPoint = point;
       return;
     }
@@ -2245,6 +2390,36 @@ export default function QuickPhotoEditor() {
       return;
     }
 
+    if (pointerRef.current.mode === "move-active-selection") {
+      const startPoint = pointerRef.current.startPoint;
+      const startSelection = pointerRef.current.selectedStart;
+
+      if (!startPoint || !startSelection) return;
+
+      const rawDx = point.x - startPoint.x;
+      const rawDy = point.y - startPoint.y;
+      const { dx, dy } = event.shiftKey ? lockDragAxis(rawDx, rawDy) : { dx: rawDx, dy: rawDy };
+      const movedSelection = moveFreeSelection(startSelection, dx, dy);
+
+      setActiveSelection(movedSelection);
+      setSelectionActionBox(movedSelection.box);
+      setGuideInfo(buildGuideInfo(movedSelection.box, canvasSize, "Moving selection"));
+      return;
+    }
+
+    if (pointerRef.current.mode === "patch-draw-target" && freeSelectionDraft) {
+      const lastPoint = pointerRef.current.lastPoint || point;
+
+      if (distanceBetweenPoints(lastPoint, point) >= 2) {
+        const nextSelection = addPointToFreeSelection(freeSelectionDraft, point);
+        setFreeSelectionDraft(nextSelection);
+        setGuideInfo(buildGuideInfo(nextSelection.box, canvasSize, "Draw around problem area"));
+        pointerRef.current.lastPoint = point;
+      }
+
+      return;
+    }
+
     if (pointerRef.current.mode === "resize-group") {
       resizeSelectedGroup(point, { shiftKey: event.shiftKey, altKey: event.altKey });
       return;
@@ -2263,6 +2438,26 @@ export default function QuickPhotoEditor() {
     if (pointerRef.current.mode === "move-object" && selectedObjectId) {
       moveSelectedObject(point, { shiftKey: event.shiftKey });
       return;
+    }
+
+    if (pointerRef.current.mode === "patch-draw-target" && freeSelectionDraft) {
+      const finalSelection = normalizeFreeSelection(freeSelectionDraft);
+
+      if (finalSelection.path.length >= 3 && finalSelection.box.w > 8 && finalSelection.box.h > 8) {
+        setPatchTargetBox(finalSelection.box);
+        setPatchTargetSelection(finalSelection);
+        setPatchSourcePreviewBox(null);
+        setIsSettingPatchTarget(false);
+        setActiveSelection(finalSelection);
+        setSelectionActionBox(finalSelection.box);
+        setGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Problem area selected"));
+        setSuccessMessage("Problem area selected. Drag this outline over a good texture area to repair it.");
+      } else {
+        setErrorMessage("Patch selection is too small. Draw around the problem area again.");
+      }
+
+      setFreeSelectionDraft(null);
+      setActiveTool("patch");
     }
 
     if (pointerRef.current.mode === "draw-object" && draftObject) {
@@ -2370,6 +2565,10 @@ export default function QuickPhotoEditor() {
     const selectedIds = pointerRef.current.selectedIds || selectedObjectIds;
 
     if (!startPoint || !Array.isArray(selectedStarts) || !dragStartBox) return;
+    if (activeSelectionHasLockedItem(selectedIds)) {
+      setErrorMessage("This layer is locked. Unlock it before moving or resizing.");
+      return;
+    }
 
     const rawDx = point.x - startPoint.x;
     const rawDy = point.y - startPoint.y;
@@ -2415,6 +2614,10 @@ export default function QuickPhotoEditor() {
     const selectedIds = pointerRef.current.selectedIds || selectedObjectIds;
 
     if (!Array.isArray(selectedStarts) || !dragStartBox || !resizeHandle) return;
+    if (activeSelectionHasLockedItem(selectedIds)) {
+      setErrorMessage("This layer is locked. Unlock it before moving or resizing.");
+      return;
+    }
 
     const nextBox = resizeBoxFromHandle(dragStartBox, point, resizeHandle, {
       keepRatio: options.shiftKey,
@@ -2456,6 +2659,11 @@ export default function QuickPhotoEditor() {
 
     if (!startPoint || !selectedStart) return;
 
+    if (isObjectLocked(selectedObjectId)) {
+      setErrorMessage("This layer is locked. Unlock it before moving.");
+      return;
+    }
+
     const rawDx = point.x - startPoint.x;
     const rawDy = point.y - startPoint.y;
     const { dx, dy } = options.shiftKey
@@ -2493,6 +2701,11 @@ export default function QuickPhotoEditor() {
     const resizeHandle = pointerRef.current.resizeHandle;
 
     if (!selectedStart || !dragStartBox || !resizeHandle) return;
+
+    if (isObjectLocked(selectedObjectId)) {
+      setErrorMessage("This layer is locked. Unlock it before resizing.");
+      return;
+    }
 
     const nextBox = resizeBoxFromHandle(dragStartBox, point, resizeHandle, {
       keepRatio: options.shiftKey,
@@ -2541,6 +2754,11 @@ export default function QuickPhotoEditor() {
 
     const selectedItems = objects.filter((item) => activeIds.includes(item.id));
     if (!selectedItems.length) return;
+
+    if (activeSelectionHasLockedItem(activeIds)) {
+      setErrorMessage("This layer is locked. Unlock it before moving.");
+      return;
+    }
 
     if (withHistory) {
       pushHistory();
@@ -2669,15 +2887,11 @@ export default function QuickPhotoEditor() {
       const finalBox = selectionRect ? clampBoxToCanvas(normalizeBox(selectionRect), workingCanvasRef.current) : null;
 
       if (finalBox && finalBox.w > 10 && finalBox.h > 10) {
-        const path = [
-          { x: finalBox.x, y: finalBox.y },
-          { x: finalBox.x + finalBox.w, y: finalBox.y },
-          { x: finalBox.x + finalBox.w, y: finalBox.y + finalBox.h },
-          { x: finalBox.x, y: finalBox.y + finalBox.h },
-        ];
+        const selectionShape = pointerRef.current.selectionShape || activeTool;
+        const path = createSelectionPathFromBox(finalBox, selectionShape);
         const finalSelection = {
           id: createId(),
-          type: "rect-selection",
+          type: selectionShape === "ellipseSelect" ? "ellipse-selection" : selectionShape === "squareSelect" ? "square-selection" : "rect-selection",
           path,
           box: finalBox,
         };
@@ -2760,8 +2974,8 @@ export default function QuickPhotoEditor() {
 
       applyPatchFromSource({
         canvas: workingCanvasRef.current,
-        sourceBox: patchTargetBox,
-        targetBox: patchSourcePreviewBox,
+        sourceBox: patchSourcePreviewBox,
+        targetBox: patchTargetBox,
         targetSelection: patchTargetSelection,
         opacity: patchStrength,
         feather: patchFeather,
@@ -2966,6 +3180,13 @@ export default function QuickPhotoEditor() {
       });
     }
 
+    if (activeTool === "eraser") {
+      applyEraserBrush(workingCanvas, fromPoint, toPoint, {
+        size: brushSize,
+        opacity: brushOpacity,
+      });
+    }
+
     renderVisibleCanvas();
   }
 
@@ -3001,6 +3222,11 @@ export default function QuickPhotoEditor() {
     const activeIds = getActiveSelectedIds();
 
     if (!activeIds.length) return;
+
+    if (activeSelectionHasLockedItem(activeIds)) {
+      setErrorMessage("This layer is locked. Unlock it from the top bar or Layers panel before editing.");
+      return;
+    }
 
     const updatesById = {};
 
@@ -3109,6 +3335,11 @@ export default function QuickPhotoEditor() {
   function updateSelectedObject(updates) {
     if (!selectedObjectId) return;
 
+    if (isObjectLocked(selectedObjectId)) {
+      setErrorMessage("This layer is locked. Unlock it before editing.");
+      return;
+    }
+
     const nextObjects = objects.map((item) =>
       item.id === selectedObjectId
         ? {
@@ -3136,6 +3367,11 @@ export default function QuickPhotoEditor() {
     const activeBox = activeObjects.length > 1 ? getGroupBox(activeObjects) : selectedObjectBox;
 
     if (!activeIds.length || !activeBox) return;
+
+    if (activeSelectionHasLockedItem(activeIds)) {
+      setErrorMessage("This layer is locked. Unlock it before changing position or size.");
+      return;
+    }
 
     const nextBox = {
       x: clampNumber(
@@ -3269,10 +3505,58 @@ export default function QuickPhotoEditor() {
         : [];
   }
 
+  function isObjectLocked(id) {
+    return lockedObjectIds.includes(id);
+  }
+
+  function activeSelectionHasLockedItem(ids = getActiveSelectedIds()) {
+    return ids.some((id) => isObjectLocked(id));
+  }
+
+  function toggleLockSelected() {
+    const activeIds = getActiveSelectedIds();
+
+    if (!activeIds.length) {
+      setErrorMessage("Select a layer or item first to lock or unlock.");
+      return;
+    }
+
+    const shouldUnlock = activeIds.every((id) => lockedObjectIds.includes(id));
+
+    setLockedObjectIds((current) => {
+      const currentSet = new Set(current);
+
+      activeIds.forEach((id) => {
+        if (shouldUnlock) currentSet.delete(id);
+        else currentSet.add(id);
+      });
+
+      return Array.from(currentSet);
+    });
+
+    setSuccessMessage(
+      shouldUnlock
+        ? "Selected layer unlocked. You can edit it again."
+        : "Selected layer locked. You can still select it from Layers to unlock."
+    );
+    setGuideInfo(
+      buildGuideInfo(
+        selectedGroupBox || selectedObjectBox,
+        canvasSize,
+        shouldUnlock ? "Unlocked" : "Locked"
+      )
+    );
+  }
+
   function reorderSelectedObjects(action) {
     const activeIds = getActiveSelectedIds();
 
     if (!activeIds.length) return;
+
+    if (activeSelectionHasLockedItem(activeIds)) {
+      setErrorMessage("This layer is locked. Unlock it before reordering.");
+      return;
+    }
 
     pushHistory();
 
@@ -3385,9 +3669,15 @@ export default function QuickPhotoEditor() {
 
     if (!activeIds.length) return;
 
+    if (activeSelectionHasLockedItem(activeIds)) {
+      setErrorMessage("This layer is locked. Unlock it before deleting.");
+      return;
+    }
+
     pushHistory();
 
     setObjects((current) => current.filter((item) => !activeIds.includes(item.id)));
+    setLockedObjectIds((current) => current.filter((id) => !activeIds.includes(id)));
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
     setGuideInfo(null);
@@ -3609,17 +3899,74 @@ export default function QuickPhotoEditor() {
         return;
       }
 
-      setErrorMessage("Select an object or draw a Free Select area first, then press Ctrl + C.");
+      setErrorMessage("Select an object or draw a Marquee/Lasso area first, then press Ctrl + C.");
     } catch {
       setErrorMessage("Could not copy the selected area. Please try again.");
     }
+  }
+
+  async function cutEditorSelection() {
+    if (!hasImage) return;
+
+    if (activeSelection?.path?.length) {
+      await copyEditorSelection();
+      eraseSelectionFromCanvas(activeSelection);
+      return;
+    }
+
+    const activeIds = getActiveSelectedIds();
+
+    if (activeIds.length) {
+      if (activeSelectionHasLockedItem(activeIds)) {
+        setErrorMessage("This layer is locked. Unlock it before cutting.");
+        return;
+      }
+
+      await copyEditorSelection();
+      deleteSelectedObject();
+      setSuccessMessage("Selection cut. Press Ctrl+V to paste.");
+      return;
+    }
+
+    setErrorMessage("Select an area or layer first, then press Ctrl+X.");
+  }
+
+  function eraseSelectionFromCanvas(selection) {
+    if (!selection?.path?.length) return;
+
+    pushHistory();
+
+    const ctx = workingCanvasRef.current.getContext("2d");
+
+    if (!ctx) return;
+
+    ctx.save();
+    ctx.beginPath();
+
+    selection.path.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+
+    ctx.closePath();
+    ctx.clip();
+    ctx.clearRect(selection.box.x - 2, selection.box.y - 2, selection.box.w + 4, selection.box.h + 4);
+    ctx.restore();
+
+    setActiveSelection(null);
+    setFreeSelectionDraft(null);
+    setSelectionActionBox(null);
+    setGuideInfo(null);
+    clearOutput();
+    setSuccessMessage("Selected pixels cut from the image. Press Ctrl+V to paste the copied area.");
+    window.setTimeout(renderVisibleCanvas, 0);
   }
 
   async function pasteEditorClipboard() {
     const clipboardItem = editorClipboardRef.current;
 
     if (!clipboardItem) {
-      setErrorMessage("Nothing copied yet. Use Free Select or select an object, then press Ctrl + C.");
+      setErrorMessage("Nothing copied yet. Use Marquee/Lasso or select an object, then press Ctrl + C.");
       return;
     }
 
@@ -3683,6 +4030,11 @@ export default function QuickPhotoEditor() {
     const selectedItems = objects.filter((item) => activeIds.includes(item.id));
 
     if (!selectedItems.length) return;
+
+    if (activeSelectionHasLockedItem(activeIds)) {
+      setErrorMessage("This layer is locked. Unlock it before duplicating.");
+      return;
+    }
 
     try {
       const duplicated = [];
@@ -3851,24 +4203,37 @@ export default function QuickPhotoEditor() {
     setGuideInfo(null);
 
     if (toolId === "select") {
-      const isOpen = toolPopupOpen && activePanel === "selectModes";
-      setActivePanel(isOpen ? "" : "selectModes");
+      setActivePanel("");
+      setToolPopupOpen(false);
+      setSuccessMessage("Select tool active. Click items to select or drag empty space to select multiple layers.");
+      return;
+    }
+
+    if (toolId === "move") {
+      setToolPopupOpen(false);
+      setSuccessMessage("Move Tool active. Move layers, selections, and guides only. Hold Space to pan the artboard.");
+      return;
+    }
+
+    if (toolId === "marquee") {
+      const isOpen = toolPopupOpen && activePanel === "marqueeModes";
+      setActivePanel(isOpen ? "" : "marqueeModes");
       setToolPopupOpen(!isOpen);
-      setSuccessMessage(isOpen ? "" : "Choose Rectangle Select, Free Style, or Keypoint Select.");
+      setSuccessMessage(isOpen ? "" : "Choose Rectangular, Circle, Square, Lasso, or Polygonal Lasso.");
       return;
     }
 
     if (toolId === "hand") {
       setToolPopupOpen(false);
-      setSuccessMessage("Hand tool active. Drag the artboard, or hold Space and drag.");
+      setSuccessMessage("Hold Space and drag the artboard to pan.");
       return;
     }
 
-    if (["draw", "blur", "restore", "patch", "clone", "text", ...SHAPE_TYPES.map((shape) => shape.id)].includes(toolId)) {
+    if (["draw", "blur", "restore", "eraser", "patch", "clone", "text", ...SHAPE_TYPES.map((shape) => shape.id)].includes(toolId)) {
       commitBaseImageToCanvasIfNeeded({ withHistory: true });
     }
 
-    const toolsNeedingPopup = ["draw", "blur", "patch", "clone", "text", "restore"];
+    const toolsNeedingPopup = ["draw", "blur", "eraser", "patch", "clone", "text", "restore"];
     setToolPopupOpen(toolsNeedingPopup.includes(toolId));
 
     if (SHAPE_TYPES.map((shape) => shape.id).includes(toolId)) {
@@ -3878,9 +4243,9 @@ export default function QuickPhotoEditor() {
     if (toolId === "patch") {
       if (!patchTargetBox) {
         setIsSettingPatchTarget(true);
-        setSuccessMessage(activeSelection ? "Selection is ready. Click the artboard to use it as patch source." : "Select a clean source area, then drag it over the place you want to cover.");
+        setSuccessMessage(activeSelection ? "Selection is ready. Click the artboard to use it as the problem area." : "Draw a freeform selection around the problem area, then drag it to good texture.");
       } else {
-        setSuccessMessage("Drag the selected source area over the place you want to cover.");
+        setSuccessMessage("Drag the problem area outline over a good texture area to repair it.");
       }
     }
 
@@ -3909,15 +4274,23 @@ export default function QuickPhotoEditor() {
     setSelectionActionBox(null);
 
     if (modeId === "rectSelect") {
-      setSuccessMessage("Rectangle Select active. Drag an area, then press Ctrl + C and Ctrl + V.");
+      setSuccessMessage("Rectangular Marquee active. Drag an area, then press Ctrl+C, Ctrl+V, or Ctrl+X.");
+    }
+
+    if (modeId === "ellipseSelect") {
+      setSuccessMessage("Circle Marquee active. Drag an area, then press Ctrl+C, Ctrl+V, or Ctrl+X.");
+    }
+
+    if (modeId === "squareSelect") {
+      setSuccessMessage("Square Marquee active. Drag an area, then press Ctrl+C, Ctrl+V, or Ctrl+X.");
     }
 
     if (modeId === "freeSelect") {
-      setSuccessMessage("Free Style Select active. Draw around an area, then press Ctrl + C and Ctrl + V.");
+      setSuccessMessage("Lasso active. Draw around an area, then press Ctrl+C, Ctrl+V, or Ctrl+X.");
     }
 
     if (modeId === "pointSelect") {
-      setSuccessMessage("Keypoint Select active. Click around the area, then double-click or use Finish.");
+      setSuccessMessage("Polygonal Lasso active. Click around the area, then double-click or use Finish.");
     }
 
     commitBaseImageToCanvasIfNeeded({ withHistory: false });
@@ -4233,7 +4606,7 @@ export default function QuickPhotoEditor() {
                   <button
                     type="button"
                     onClick={() => startColorPicker("quick", "active color")}
-                    title={`Pick color from image`}
+                    title={`Eyedropper Tool: pick color from image`}
                     className={`relative w-12 h-9 rounded-xl inline-flex items-center justify-center transition ${
                       colorPickerTarget?.target === "quick"
                         ? "bg-white text-[#111827]"
@@ -4248,7 +4621,7 @@ export default function QuickPhotoEditor() {
                     title={`Copy and use ${pickedColor}`}
                     className="w-12 h-3.5 rounded-md border border-white/60 shadow"
                     style={{ backgroundColor: pickedColor }}
-                    aria-label="Copy picked color"
+                    aria-label="Copy eyedropper color"
                   />
                 </div>
 
@@ -4383,7 +4756,7 @@ export default function QuickPhotoEditor() {
                     <PanelLeft size={18} className="text-[var(--primary)]" />
                     <div>
                       <p className="font-bold capitalize">
-                        {settingsMode === "shape" ? "Shape" : settingsMode === "freeSelect" ? "Free Select" : settingsMode === "color" ? "Color Picker" : settingsMode} Options
+                        {settingsMode === "shape" ? "Shape" : settingsMode === "freeSelect" ? "Lasso" : settingsMode === "marqueeModes" ? "Marquee" : settingsMode === "color" ? "Eyedropper" : settingsMode} Options
                       </p>
                       <p className="text-xs text-[var(--text-secondary)]">
                         Click the same tool again or click outside the artboard to hide this panel.
@@ -4391,7 +4764,7 @@ export default function QuickPhotoEditor() {
                     </div>
                   </div>
 
-                  {settingsMode === "selectModes" && (
+                  {settingsMode === "marqueeModes" && (
                     <div className="space-y-3">
                       <div className="grid grid-cols-3 gap-2">
                         {SELECTION_MODES.map((mode) => {
@@ -4418,7 +4791,7 @@ export default function QuickPhotoEditor() {
                           onClick={finishPointSelection}
                           className="btn-primary w-full"
                         >
-                          Finish Keypoint Selection
+                          Finish Polygonal Lasso
                         </button>
                       )}
                     </div>
@@ -4428,7 +4801,7 @@ export default function QuickPhotoEditor() {
                     <div className="space-y-4">
                       <InfoCard
                         label="Selected"
-                        value={selectedObjects.length > 1 ? `${selectedObjects.length} items` : selectedObject ? selectedObject.type : "None"}
+                        value={selectedObjects.length > 1 ? `${selectedObjects.length} items${selectedLocked ? " • Locked" : ""}` : selectedObject ? `${selectedObject.type}${selectedLocked ? " • Locked" : ""}` : "None"}
                       />
 
                       {(selectedObject && selectedObjectBox) || (selectedObjects.length > 1 && selectedGroupBox) ? (
@@ -4514,13 +4887,13 @@ export default function QuickPhotoEditor() {
                     </div>
                   )}
 
-                  {settingsMode === "hand" && (
+                  {settingsMode === "move" && (
                     <div className="space-y-4">
                       <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4 text-sm text-[var(--text-secondary)] leading-7">
-                        <p className="font-semibold text-[var(--text-primary)] mb-1">Hand tool</p>
-                        <p>Drag the artboard position for precise editing.</p>
-                        <p>Use Ctrl/Cmd + mouse wheel to zoom in or out.</p>
-                        <p>Click Hand again or click outside the artboard to hide this panel.</p>
+                        <p className="font-semibold text-[var(--text-primary)] mb-1">Move Tool</p>
+                        <p>Moves selected layers, selection outlines, and guides inside the editor.</p>
+                        <p>It does not pan the artboard. Hold Space and drag to pan the artboard.</p>
+                        <p>Locked layers can be selected, but cannot be moved until unlocked.</p>
                       </div>
 
                       <button
@@ -4825,9 +5198,17 @@ export default function QuickPhotoEditor() {
                     </div>
                   )}
 
-                  {["draw", "blur", "restore"].includes(settingsMode) && (
+                  {["draw", "blur", "restore", "eraser"].includes(settingsMode) && (
                     <div className="space-y-4">
-                      <InfoCard label="Active Tool" value={activeTool} />
+                      <InfoCard label="Active Tool" value={activeTool === "eraser" ? "Eraser Tool" : activeTool} />
+
+                      {settingsMode === "eraser" && (
+                        <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-800 leading-7">
+                          <p className="font-bold mb-1">Eraser Tool</p>
+                          <p>Permanently erases pixels from the editable image layer.</p>
+                          <p>Use Undo if you erase too much.</p>
+                        </div>
+                      )}
 
                       {settingsMode === "draw" && (
                         <ColorInput label="Brush Color" value={brushColor} onChange={setBrushColor} onPick={() => startColorPicker("brushColor", "brush color")} />
@@ -5189,6 +5570,7 @@ export default function QuickPhotoEditor() {
                           [...objects].reverse().map((item, reverseIndex) => {
                             const layerIndex = objects.length - 1 - reverseIndex;
                             const isSelected = selectedObjectIds.includes(item.id) || selectedObjectId === item.id;
+                            const isLocked = lockedObjectIds.includes(item.id);
                             const label = getLayerDisplayName(item, layerIndex);
 
                             return (
@@ -5235,15 +5617,20 @@ export default function QuickPhotoEditor() {
                                   <div className="min-w-0">
                                     <p className="font-semibold text-sm truncate">{label}</p>
                                     <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                      {item.isBaseImage ? "Base photo" : item.type} • Layer {layerIndex + 1}
+                                      {item.isBaseImage ? "Base photo" : item.type} • Layer {layerIndex + 1}{isLocked ? " • Locked" : ""}
                                     </p>
                                   </div>
 
-                                  {isSelected && (
-                                    <span className="text-xs font-bold text-[var(--primary)] shrink-0">
-                                      Selected
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {isLocked && (
+                                      <Lock size={14} className="text-[var(--primary)]" />
+                                    )}
+                                    {isSelected && (
+                                      <span className="text-xs font-bold text-[var(--primary)]">
+                                        Selected
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </button>
                             );
@@ -5260,6 +5647,7 @@ export default function QuickPhotoEditor() {
                         <button type="button" onClick={() => reorderSelectedObjects("down")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">Bring Down</button>
                         <button type="button" onClick={() => reorderSelectedObjects("front")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">To Front</button>
                         <button type="button" onClick={() => reorderSelectedObjects("back")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">To Back</button>
+                        <button type="button" onClick={toggleLockSelected} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">{selectedLocked ? "Unlock" : "Lock"}</button>
                         <button type="button" onClick={duplicateSelectedObjects} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">Duplicate</button>
                         <button type="button" onClick={deleteSelectedObject} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm text-red-600 disabled:opacity-40">Delete</button>
                       </div>
@@ -5455,6 +5843,22 @@ export default function QuickPhotoEditor() {
                           ? `${selectedObject.type} selected`
                           : "Select an item to edit quickly"}
                     </div>
+
+                    {(selectedObjectId || selectedObjectIds.length > 0) && (
+                      <button
+                        type="button"
+                        onClick={toggleLockSelected}
+                        className={`h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
+                          selectedLocked
+                            ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                            : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                        }`}
+                        title={selectedLocked ? "Unlock selected layer" : "Lock selected layer"}
+                      >
+                        {selectedLocked ? <Unlock size={16} /> : <Lock size={16} />}
+                        {selectedLocked ? "Unlock" : "Lock"}
+                      </button>
+                    )}
 
                     <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
                       Color
@@ -5671,7 +6075,7 @@ export default function QuickPhotoEditor() {
                       cursor:
                         colorPickerTarget
                           ? "copy"
-                          : activeTool === "hand" || spacePressedRef.current
+                          : spacePressedRef.current
                             ? "grab"
                             : activeTool === "select"
                             ? "default"
@@ -5938,6 +6342,36 @@ function fallbackCopyText(text) {
   document.body.removeChild(textarea);
 }
 
+function createSelectionPathFromBox(box, mode = "rectSelect") {
+  const normalized = normalizeBox(box);
+
+  if (mode === "ellipseSelect") {
+    const path = [];
+    const steps = 56;
+    const centerX = normalized.x + normalized.w / 2;
+    const centerY = normalized.y + normalized.h / 2;
+    const radiusX = normalized.w / 2;
+    const radiusY = normalized.h / 2;
+
+    for (let index = 0; index < steps; index += 1) {
+      const angle = (Math.PI * 2 * index) / steps;
+      path.push({
+        x: centerX + Math.cos(angle) * radiusX,
+        y: centerY + Math.sin(angle) * radiusY,
+      });
+    }
+
+    return path;
+  }
+
+  return [
+    { x: normalized.x, y: normalized.y },
+    { x: normalized.x + normalized.w, y: normalized.y },
+    { x: normalized.x + normalized.w, y: normalized.y + normalized.h },
+    { x: normalized.x, y: normalized.y + normalized.h },
+  ];
+}
+
 function drawObjects(ctx, objects) {
   objects.forEach((object) => drawObject(ctx, object));
 }
@@ -6183,6 +6617,24 @@ function drawBrushLine(ctx, fromPoint, toPoint, { color, size, opacity }) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
+  ctx.beginPath();
+  ctx.moveTo(fromPoint.x, fromPoint.y);
+  ctx.lineTo(toPoint.x, toPoint.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function applyEraserBrush(canvas, fromPoint, toPoint, options) {
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return;
+
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.globalAlpha = clampNumber(options.opacity ?? 1, 0.05, 1);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(1, Number(options.size || 20));
   ctx.beginPath();
   ctx.moveTo(fromPoint.x, fromPoint.y);
   ctx.lineTo(toPoint.x, toPoint.y);
