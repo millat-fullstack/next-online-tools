@@ -141,6 +141,14 @@ const CROP_PRESETS = [
     group: "Common",
   },
   {
+    id: "custom",
+    label: "Custom Size",
+    width: null,
+    height: null,
+    ratioLabel: "Custom",
+    group: "Custom",
+  },
+  {
     id: "free",
     label: "Free Crop",
     width: null,
@@ -166,6 +174,8 @@ export default function ImageCropperTool() {
   const [imageInfo, setImageInfo] = useState(null);
 
   const [presetId, setPresetId] = useState("free");
+  const [customWidth, setCustomWidth] = useState("");
+  const [customHeight, setCustomHeight] = useState("");
   const [cropperKey, setCropperKey] = useState(0);
   const [dragMode, setDragMode] = useState("crop");
 
@@ -181,6 +191,7 @@ export default function ImageCropperTool() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [progress, setProgress] = useState(0);
+  const [processingPhase, setProcessingPhase] = useState("");
   const [processingTimeMs, setProcessingTimeMs] = useState(0);
 
   const [error, setError] = useState("");
@@ -194,22 +205,42 @@ export default function ImageCropperTool() {
     return OUTPUT_FORMATS.find((format) => format.value === outputFormat) || OUTPUT_FORMATS[0];
   }, [outputFormat]);
 
+  const customDimensions = useMemo(() => {
+    const width = Math.round(Number(customWidth));
+    const height = Math.round(Number(customHeight));
+
+    if (width > 0 && height > 0) {
+      return { width, height };
+    }
+
+    return null;
+  }, [customHeight, customWidth]);
+
+  const outputDimensions = useMemo(() => {
+    if (presetId === "custom" && customDimensions) return customDimensions;
+
+    if (selectedPreset.width && selectedPreset.height) {
+      return {
+        width: selectedPreset.width,
+        height: selectedPreset.height,
+      };
+    }
+
+    return null;
+  }, [customDimensions, presetId, selectedPreset]);
+
   const aspectRatio = useMemo(() => {
-    if (!selectedPreset.width || !selectedPreset.height) {
+    if (!outputDimensions?.width || !outputDimensions?.height) {
       return NaN;
     }
 
-    return selectedPreset.width / selectedPreset.height;
-  }, [selectedPreset]);
+    return outputDimensions.width / outputDimensions.height;
+  }, [outputDimensions]);
 
-  const isFixedSize = Boolean(selectedPreset.width && selectedPreset.height);
-
-  const estimatedText = useMemo(() => {
-    return "Instant crop";
-  }, []);
+  const isFixedSize = Boolean(outputDimensions?.width && outputDimensions?.height);
 
   const outputDimensionText = isFixedSize
-    ? `${selectedPreset.width} × ${selectedPreset.height}px`
+    ? `${outputDimensions.width} × ${outputDimensions.height}px`
     : "Original crop size";
 
   const handleImageFile = useCallback(async (file) => {
@@ -315,6 +346,7 @@ export default function ImageCropperTool() {
     setCroppedBlob(null);
     setOutputSize(0);
     setProgress(0);
+    setProcessingPhase("");
     setProcessingTimeMs(0);
   }
 
@@ -356,6 +388,13 @@ export default function ImageCropperTool() {
     setSuccess("");
     clearOutput();
 
+    const nextPreset = CROP_PRESETS.find((preset) => preset.id === nextPresetId);
+
+    if (nextPreset?.width && nextPreset?.height) {
+      setCustomWidth("");
+      setCustomHeight("");
+    }
+
     setCropperKey((current) => current + 1);
   }
 
@@ -375,6 +414,92 @@ export default function ImageCropperTool() {
 
     clearOutput();
     setSuccess(nextMode === "crop" ? "Crop mode active. Drag to select any area." : "Move mode active. Drag image to position it.");
+  }
+
+  function applyCustomSize() {
+    const width = Math.round(Number(customWidth));
+    const height = Math.round(Number(customHeight));
+    const cropper = cropperRef.current?.cropper;
+
+    if (!width || !height || width < 1 || height < 1) {
+      setError("Please enter a valid custom width and height.");
+      return;
+    }
+
+    setPresetId("custom");
+    setError("");
+    setSuccess(`Custom crop size set to ${width} × ${height}px.`);
+    clearOutput();
+
+    if (!cropper) return;
+
+    const ratio = width / height;
+    cropper.setAspectRatio(ratio);
+    cropper.crop();
+
+    window.setTimeout(() => {
+      fitCropBoxToCurrentView(ratio);
+      alignCropBox("center");
+    }, 40);
+  }
+
+  function fitCropBoxToCurrentView(ratio = aspectRatio) {
+    const cropper = cropperRef.current?.cropper;
+
+    if (!cropper) return;
+
+    const container = cropper.getContainerData();
+
+    if (!container?.width || !container?.height) return;
+
+    const maxWidth = container.width * 0.72;
+    const maxHeight = container.height * 0.72;
+    let width = maxWidth;
+    let height = Number.isFinite(ratio) ? width / ratio : maxHeight;
+
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = Number.isFinite(ratio) ? height * ratio : maxWidth;
+    }
+
+    cropper.setCropBoxData({
+      width,
+      height,
+      left: (container.width - width) / 2,
+      top: (container.height - height) / 2,
+    });
+  }
+
+  function alignCropBox(direction) {
+    const cropper = cropperRef.current?.cropper;
+
+    if (!cropper) {
+      setError("Please upload an image first.");
+      return;
+    }
+
+    const cropBox = cropper.getCropBoxData();
+    const container = cropper.getContainerData();
+
+    if (!cropBox || !container) return;
+
+    const nextData = {};
+
+    if (direction === "left") nextData.left = 0;
+    if (direction === "right") nextData.left = container.width - cropBox.width;
+    if (direction === "center-x" || direction === "center") {
+      nextData.left = (container.width - cropBox.width) / 2;
+    }
+
+    if (direction === "top") nextData.top = 0;
+    if (direction === "bottom") nextData.top = container.height - cropBox.height;
+    if (direction === "center-y" || direction === "center") {
+      nextData.top = (container.height - cropBox.height) / 2;
+    }
+
+    cropper.setCropBoxData(nextData);
+    clearOutput();
+    setSuccess("Crop selection aligned perfectly.");
   }
 
   function resetCropBox() {
@@ -422,12 +547,14 @@ export default function ImageCropperTool() {
     setIsProcessing(true);
     setError("");
     setSuccess("");
+    setProcessingPhase(downloadAfterCreate ? "Preparing crop for download..." : "Preparing crop preview...");
     setProgress(5);
 
     const startTime = performance.now();
 
     try {
       await wait(40);
+      setProcessingPhase("Reading selected crop area...");
       setProgress(20);
 
       const canvasOptions = {
@@ -436,14 +563,15 @@ export default function ImageCropperTool() {
       };
 
       if (isFixedSize) {
-        canvasOptions.width = selectedPreset.width;
-        canvasOptions.height = selectedPreset.height;
+        canvasOptions.width = outputDimensions.width;
+        canvasOptions.height = outputDimensions.height;
       }
 
       if (outputFormat === "image/jpeg") {
         canvasOptions.fillColor = "#ffffff";
       }
 
+      setProcessingPhase("Creating high-quality cropped image...");
       const canvas = cropper.getCroppedCanvas(canvasOptions);
 
       if (!canvas) {
@@ -452,6 +580,7 @@ export default function ImageCropperTool() {
 
       setProgress(35);
 
+      setProcessingPhase("Preparing output file...");
       const blob = await canvasToBlob(canvas, outputFormat, quality);
 
       setProgress(75);
@@ -480,12 +609,17 @@ export default function ImageCropperTool() {
       setProcessingTimeMs(actualProcessingTime);
       setProgress(100);
 
-      setSuccess(
-        `Crop created in ${(actualProcessingTime / 1000).toFixed(1)}s.`
-      );
-
       if (downloadAfterCreate) {
-        downloadBlob(blob);
+        setProcessingPhase("Starting download...");
+        downloadBlob(blob, true);
+        setSuccess(
+          `Crop created and download started in ${(actualProcessingTime / 1000).toFixed(1)}s.`
+        );
+      } else {
+        setProcessingPhase("Preview ready.");
+        setSuccess(
+          `Crop preview created in ${(actualProcessingTime / 1000).toFixed(1)}s.`
+        );
       }
     } catch {
       setError("Could not create the crop. Please adjust the crop area and try again.");
@@ -498,10 +632,14 @@ export default function ImageCropperTool() {
     }
   }
 
-  function downloadBlob(blob = croppedBlob) {
+  function downloadBlob(blob = croppedBlob, silent = false) {
     if (!blob) {
       setError("Please create the cropped image first.");
       return;
+    }
+
+    if (!silent) {
+      setSuccess("Download started.");
     }
 
     const link = document.createElement("a");
@@ -532,6 +670,8 @@ export default function ImageCropperTool() {
     setImage(null);
     setImageInfo(null);
     setPresetId("free");
+    setCustomWidth("");
+    setCustomHeight("");
     setCropperKey((current) => current + 1);
     setDragMode("crop");
     setOutputFormat("image/png");
@@ -543,6 +683,7 @@ export default function ImageCropperTool() {
     setIsLoadingImage(false);
     setIsProcessing(false);
     setProgress(0);
+    setProcessingPhase("");
     setProcessingTimeMs(0);
     setError("");
     setSuccess("");
@@ -762,23 +903,6 @@ export default function ImageCropperTool() {
               Download Crop
             </button>
           </div>
-
-          {image && (
-            <div className="mt-3 grid md:grid-cols-4 gap-3">
-              <InfoCard label="Selected Size" value={selectedPreset.label} />
-              <InfoCard label="Output" value={outputDimensionText} />
-              <InfoCard label="Ratio" value={selectedPreset.ratioLabel} />
-              <InfoCard
-                label="Processing"
-                value={
-                  processingTimeMs
-                    ? `${(processingTimeMs / 1000).toFixed(1)}s`
-                    : estimatedText
-                }
-                green={Boolean(processingTimeMs)}
-              />
-            </div>
-          )}
         </div>
 
         {/* FEEDBACK */}
@@ -801,7 +925,7 @@ export default function ImageCropperTool() {
             {isProcessing && (
               <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-xl p-4 md:col-span-2">
                 <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                  <span>Creating final crop...</span>
+                  <span>{processingPhase || "Creating final crop..."}</span>
                   <span>{progress}%</span>
                 </div>
 
@@ -813,7 +937,7 @@ export default function ImageCropperTool() {
                 </div>
 
                 <p className="text-xs text-[var(--text-secondary)] mt-3">
-                  Creating your crop with high-quality image smoothing.
+                  {processingPhase || "Creating your crop with high-quality image smoothing."}
                 </p>
               </div>
             )}
@@ -844,6 +968,59 @@ export default function ImageCropperTool() {
                   <Download size={16} />
                   Create & Download
                 </button>
+              </div>
+
+              <div className="rounded-2xl border border-[var(--border)] bg-white p-3 mb-4">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold">Crop Alignment</h3>
+                    <p className="text-xs text-[var(--text-secondary)] mt-1">
+                      Place the crop selection accurately, or set an exact custom size.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex rounded-xl border border-[var(--border)] bg-white overflow-hidden">
+                      <button type="button" onClick={() => alignCropBox("left")} disabled={!image} className="align-btn" title="Align left">←</button>
+                      <button type="button" onClick={() => alignCropBox("center-x")} disabled={!image} className="align-btn" title="Center horizontally">↔</button>
+                      <button type="button" onClick={() => alignCropBox("right")} disabled={!image} className="align-btn" title="Align right">→</button>
+                      <button type="button" onClick={() => alignCropBox("top")} disabled={!image} className="align-btn" title="Align top">↑</button>
+                      <button type="button" onClick={() => alignCropBox("center-y")} disabled={!image} className="align-btn" title="Center vertically">↕</button>
+                      <button type="button" onClick={() => alignCropBox("bottom")} disabled={!image} className="align-btn" title="Align bottom">↓</button>
+                      <button type="button" onClick={() => alignCropBox("center")} disabled={!image} className="align-btn font-bold" title="Center crop">◎</button>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2">
+                      <input
+                        type="number"
+                        min="1"
+                        value={customWidth}
+                        onChange={(event) => setCustomWidth(event.target.value)}
+                        placeholder="Width"
+                        className="custom-size-input"
+                        aria-label="Custom crop width"
+                      />
+                      <span className="text-xs font-bold text-[var(--text-secondary)]">×</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={customHeight}
+                        onChange={(event) => setCustomHeight(event.target.value)}
+                        placeholder="Height"
+                        className="custom-size-input"
+                        aria-label="Custom crop height"
+                      />
+                      <button
+                        type="button"
+                        onClick={applyCustomSize}
+                        disabled={!image}
+                        className="h-9 rounded-lg bg-[var(--primary)] px-3 text-xs font-bold text-white disabled:opacity-40"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="rounded-2xl overflow-hidden border border-[var(--border)] bg-white">
@@ -881,6 +1058,10 @@ export default function ImageCropperTool() {
                     if (cropper) {
                       cropper.setAspectRatio(Number.isFinite(aspectRatio) ? aspectRatio : NaN);
                       cropper.setDragMode(dragMode);
+
+                      if (Number.isFinite(aspectRatio)) {
+                        window.setTimeout(() => fitCropBoxToCurrentView(aspectRatio), 60);
+                      }
                     }
                   }}
                   cropstart={() => clearOutput()}
@@ -1071,6 +1252,44 @@ export default function ImageCropperTool() {
           </p>
         </div>
       </section>
+
+      <style>{`
+        .align-btn {
+          height: 38px;
+          min-width: 38px;
+          padding: 0 0.6rem;
+          border-right: 1px solid var(--border);
+          font-size: 1rem;
+          font-weight: 800;
+          color: #374151;
+          transition: 160ms ease;
+        }
+        .align-btn:last-child {
+          border-right: 0;
+        }
+        .align-btn:hover:not(:disabled) {
+          background: #f8f4ff;
+          color: var(--primary);
+        }
+        .align-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+        .custom-size-input {
+          height: 36px;
+          width: 86px;
+          border: 1px solid var(--border);
+          border-radius: 0.6rem;
+          padding: 0 0.65rem;
+          font-size: 0.8rem;
+          font-weight: 700;
+          outline: none;
+        }
+        .custom-size-input:focus {
+          border-color: var(--primary);
+          box-shadow: 0 0 0 2px rgba(155, 108, 227, 0.14);
+        }
+      `}</style>
 
       <SuggestedTools currentToolId="image-cropper-tool" />
     </div>
