@@ -66,6 +66,7 @@ const MAX_CANVAS_LONG_SIDE = 2200;
 const MIN_PROCESSING_TIME_MS = 6000;
 const MAX_HISTORY = 30;
 const SNAP_DISTANCE = 10;
+const BACKGROUND_LAYER_NAME = "Artboard Background";
 
 const TOOLS = [
   { id: "select", label: "Select", icon: MousePointer2 },
@@ -237,6 +238,8 @@ export default function QuickPhotoEditor() {
   const optionsPanelRef = useRef(null);
   const editorClipboardRef = useRef(null);
   const spacePressedRef = useRef(false);
+  const colorPreviewThrottleRef = useRef(0);
+  const guideThrottleRef = useRef(0);
 
   const visibleCanvasRef = useRef(null);
   const workingCanvasRef = useRef(document.createElement("canvas"));
@@ -401,6 +404,7 @@ export default function QuickPhotoEditor() {
 
     const item = selectedObjects[0];
 
+    if (item?.type === "background") return item.color || canvasBackgroundColor;
     if (item?.type === "text") return item.color || textColor;
     if (item?.type === "arrow") return item.stroke || shapeStrokeColor;
     if (SHAPE_TYPES.some((shape) => shape.id === item?.type)) {
@@ -408,7 +412,7 @@ export default function QuickPhotoEditor() {
     }
 
     return shapeFillColor;
-  }, [selectedObjects, shapeFillColor, shapeStrokeColor, textColor]);
+  }, [selectedObjects, shapeFillColor, shapeStrokeColor, textColor, canvasBackgroundColor]);
 
   const quickSelectedFontSize = selectedObject?.type === "text"
     ? Math.round(Number(selectedObject.fontSize || fontSize))
@@ -578,6 +582,12 @@ export default function QuickPhotoEditor() {
         backgroundColor: canvasBackgroundColor,
       });
 
+      const backgroundLayer = createBackgroundLayer(
+        uploadCanvasSize.width,
+        uploadCanvasSize.height,
+        canvasBackgroundColor
+      );
+
       const baseImageObject = {
         id: createId(),
         type: "image",
@@ -604,7 +614,8 @@ export default function QuickPhotoEditor() {
 
       setCanvasSize(uploadCanvasSize);
       setDraftSize(uploadCanvasSize);
-      setObjects([baseImageObject]);
+      setObjects([backgroundLayer, baseImageObject]);
+      setLockedObjectIds([backgroundLayer.id]);
       setDraftObject(null);
     setSelectionRect(null);
       setSelectedObjectId(baseImageObject.id);
@@ -857,6 +868,46 @@ export default function QuickPhotoEditor() {
     };
   }, []);
 
+  function createBackgroundLayer(width = canvasSize.width, height = canvasSize.height, color = canvasBackgroundColor) {
+    return {
+      id: createId(),
+      type: "background",
+      name: BACKGROUND_LAYER_NAME,
+      x: 0,
+      y: 0,
+      w: width,
+      h: height,
+      color: normalizeColor(color),
+      opacity: 1,
+      isBackground: true,
+    };
+  }
+
+  function getBackgroundLayer() {
+    return objects.find((item) => item.type === "background") || null;
+  }
+
+  function updateLiveGuideInfo(info) {
+    const now = performance.now();
+
+    if (now - guideThrottleRef.current < 70) return;
+
+    guideThrottleRef.current = now;
+    setGuideInfo(info);
+  }
+
+  function sampleVisibleColor(point) {
+    const canvas = visibleCanvasRef.current || workingCanvasRef.current;
+
+    if (!canvas || !point) return pickedColor;
+
+    try {
+      return sampleColorAtPoint(canvas, point);
+    } catch {
+      return pickedColor;
+    }
+  }
+
   function setupBlankCanvas({ width, height, transparent = false, backgroundColor = "#ffffff" }) {
     const workingCanvas = workingCanvasRef.current;
     const originalCanvas = originalCanvasRef.current;
@@ -872,53 +923,46 @@ export default function QuickPhotoEditor() {
     workingCtx.clearRect(0, 0, width, height);
     originalCtx.clearRect(0, 0, width, height);
 
-    if (!transparent) {
-      fillCanvasBackground(workingCtx, width, height, backgroundColor || "#ffffff");
-      fillCanvasBackground(originalCtx, width, height, backgroundColor || "#ffffff");
-    }
+    // Background is controlled by the locked Artboard Background layer.
+    // Keeping this canvas transparent makes background changes instant.
   }
 
   function changeArtboardBackgroundColor(nextColor) {
     const color = normalizeColor(nextColor);
+    const backgroundLayer = getBackgroundLayer();
 
-    setCanvasBackgroundColor(color);
-
-    if (!hasImage) return;
-
-    pushHistory();
-
-    const baseImage = objects.find((item) => item.isBaseImage);
-
-    if (imageInfo?.isSolidColorPage || baseImage) {
-      setupBlankCanvas({
-        width: canvasSize.width,
-        height: canvasSize.height,
-        transparent: false,
-        backgroundColor: color,
-      });
-      clearOutput();
-      window.setTimeout(renderVisibleCanvas, 0);
+    if (!backgroundLayer) {
+      setCanvasBackgroundColor(color);
       return;
     }
 
-    const repaintCanvas = (canvas) => {
-      const temp = document.createElement("canvas");
-      temp.width = canvas.width;
-      temp.height = canvas.height;
-      const tempCtx = temp.getContext("2d");
-      tempCtx.drawImage(canvas, 0, 0);
+    setSelectedObjectId(backgroundLayer.id);
+    setSelectedObjectIds([backgroundLayer.id]);
 
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(temp, 0, 0);
-    };
+    if (isObjectLocked(backgroundLayer.id)) {
+      setErrorMessage("Unlock the Artboard Background layer from Layers or the top bar before changing its color.");
+      setGuideInfo(buildGuideInfo(getObjectBox(backgroundLayer), canvasSize, "Background layer locked"));
+      return;
+    }
 
-    repaintCanvas(workingCanvasRef.current);
-    repaintCanvas(originalCanvasRef.current);
+    pushHistory();
+    setCanvasBackgroundColor(color);
+
+    setObjects((current) =>
+      current.map((item) =>
+        item.id === backgroundLayer.id
+          ? {
+              ...item,
+              color,
+              w: canvasSize.width,
+              h: canvasSize.height,
+            }
+          : item
+      )
+    );
+
+    setGuideInfo(buildGuideInfo(getObjectBox(backgroundLayer), canvasSize, "Background color changed"));
     clearOutput();
-    window.setTimeout(renderVisibleCanvas, 0);
   }
 
   function commitBaseImageToCanvasIfNeeded({ withHistory = true } = {}) {
@@ -1018,9 +1062,15 @@ export default function QuickPhotoEditor() {
     setupBlankCanvas({
       width: nextSize.width,
       height: nextSize.height,
-      transparent: false,
+      transparent: true,
       backgroundColor: canvasBackgroundColor,
     });
+
+    const backgroundLayer = createBackgroundLayer(
+      nextSize.width,
+      nextSize.height,
+      canvasBackgroundColor
+    );
 
     setImageInfo({
       name: "Solid color page",
@@ -1035,7 +1085,8 @@ export default function QuickPhotoEditor() {
 
     setCanvasSize(nextSize);
     setDraftSize(nextSize);
-    setObjects([]);
+    setObjects([backgroundLayer]);
+    setLockedObjectIds([backgroundLayer.id]);
     setDraftObject(null);
     setSelectionRect(null);
     setSelectedObjectId(null);
@@ -1300,6 +1351,8 @@ export default function QuickPhotoEditor() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    drawBackgroundLayer(ctx, objects, canvas.width, canvas.height, canvasBackgroundColor);
+
     if (showOriginal) {
       ctx.drawImage(originalCanvasRef.current, 0, 0);
       return;
@@ -1400,6 +1453,7 @@ export default function QuickPhotoEditor() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
+    drawBackgroundLayer(ctx, objects, canvas.width, canvas.height, canvasBackgroundColor);
     ctx.drawImage(workingCanvasRef.current, 0, 0);
 
     if (includeObjects) {
@@ -1522,7 +1576,7 @@ export default function QuickPhotoEditor() {
 
   function handleColorPick(point) {
     try {
-      const color = sampleColorAtPoint(renderFinalCanvas({ includeObjects: true }), point);
+      const color = sampleVisibleColor(point);
 
       setPickedColor(color);
 
@@ -2297,10 +2351,15 @@ export default function QuickPhotoEditor() {
     const point = getCanvasPoint(event);
 
     if (point && colorPickerTarget && !pointerRef.current.active) {
-      try {
-        setPickedColor(sampleColorAtPoint(renderFinalCanvas({ includeObjects: true }), point));
-      } catch {
-        // Ignore live color preview errors while moving.
+      const now = performance.now();
+
+      if (now - colorPreviewThrottleRef.current > 80) {
+        colorPreviewThrottleRef.current = now;
+
+        const nextColor = sampleVisibleColor(point);
+        if (nextColor !== pickedColor) {
+          setPickedColor(nextColor);
+        }
       }
     }
 
@@ -2337,7 +2396,7 @@ export default function QuickPhotoEditor() {
       });
 
       setSelectionRect(nextBox);
-      setGuideInfo(buildGuideInfo(nextBox, canvasSize, "Selecting items"));
+      updateLiveGuideInfo(buildGuideInfo(nextBox, canvasSize, "Selecting items"));
       pointerRef.current.lastPoint = point;
       return;
     }
@@ -2362,7 +2421,7 @@ export default function QuickPhotoEditor() {
       });
 
       setSelectionRect(clampBoxToCanvas(nextBox, workingCanvasRef.current));
-      setGuideInfo(buildGuideInfo(nextBox, canvasSize, selectionShape === "ellipseSelect" ? "Circle selection" : selectionShape === "squareSelect" ? "Square selection" : "Rectangular selection"));
+      updateLiveGuideInfo(buildGuideInfo(nextBox, canvasSize, selectionShape === "ellipseSelect" ? "Circle selection" : selectionShape === "squareSelect" ? "Square selection" : "Rectangular selection"));
       pointerRef.current.lastPoint = point;
       return;
     }
@@ -2375,7 +2434,7 @@ export default function QuickPhotoEditor() {
         const dy = point.y - lastPoint.y;
         const movedSelection = moveFreeSelection(freeSelectionDraft, dx, dy);
         setFreeSelectionDraft(movedSelection);
-        setGuideInfo(buildGuideInfo(movedSelection.box, canvasSize, "Moving selection"));
+        updateLiveGuideInfo(buildGuideInfo(movedSelection.box, canvasSize, "Moving selection"));
         pointerRef.current.lastPoint = point;
         return;
       }
@@ -2383,7 +2442,7 @@ export default function QuickPhotoEditor() {
       if (distanceBetweenPoints(lastPoint, point) >= 2) {
         const nextSelection = addPointToFreeSelection(freeSelectionDraft, point);
         setFreeSelectionDraft(nextSelection);
-        setGuideInfo(buildGuideInfo(nextSelection.box, canvasSize, "Free Select"));
+        updateLiveGuideInfo(buildGuideInfo(nextSelection.box, canvasSize, "Free Select"));
         pointerRef.current.lastPoint = point;
       }
 
@@ -2403,7 +2462,7 @@ export default function QuickPhotoEditor() {
 
       setActiveSelection(movedSelection);
       setSelectionActionBox(movedSelection.box);
-      setGuideInfo(buildGuideInfo(movedSelection.box, canvasSize, "Moving selection"));
+      updateLiveGuideInfo(buildGuideInfo(movedSelection.box, canvasSize, "Moving selection"));
       return;
     }
 
@@ -2413,7 +2472,7 @@ export default function QuickPhotoEditor() {
       if (distanceBetweenPoints(lastPoint, point) >= 2) {
         const nextSelection = addPointToFreeSelection(freeSelectionDraft, point);
         setFreeSelectionDraft(nextSelection);
-        setGuideInfo(buildGuideInfo(nextSelection.box, canvasSize, "Draw around problem area"));
+        updateLiveGuideInfo(buildGuideInfo(nextSelection.box, canvasSize, "Draw around problem area"));
         pointerRef.current.lastPoint = point;
       }
 
@@ -2450,7 +2509,7 @@ export default function QuickPhotoEditor() {
         setIsSettingPatchTarget(false);
         setActiveSelection(finalSelection);
         setSelectionActionBox(finalSelection.box);
-        setGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Problem area selected"));
+        updateLiveGuideInfo(buildGuideInfo(finalSelection.box, canvasSize, "Problem area selected"));
         setSuccessMessage("Problem area selected. Drag this outline over a good texture area to repair it.");
       } else {
         setErrorMessage("Patch selection is too small. Draw around the problem area again.");
@@ -2466,7 +2525,7 @@ export default function QuickPhotoEditor() {
         const dy = point.y - pointerRef.current.lastPoint.y;
         const movedDraft = translateDraftObject(draftObject, dx, dy);
         setDraftObject(movedDraft);
-        setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(movedDraft)), canvasSize, "Moving selection"));
+        updateLiveGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(movedDraft)), canvasSize, "Moving selection"));
         pointerRef.current.startPoint = translatePoint(pointerRef.current.startPoint, dx, dy);
         pointerRef.current.lastPoint = point;
         return;
@@ -2479,7 +2538,7 @@ export default function QuickPhotoEditor() {
       const draftBox = getObjectBox(normalizeObject(nextDraft));
       const referenceBoxes = objects.map(getObjectBox).filter(Boolean);
       const snapResult = draftBox ? snapBoxToGuides(draftBox, canvasSize, referenceBoxes) : null;
-      setGuideInfo(buildGuideInfo(draftBox, canvasSize, snapResult?.message || "Drawing", snapResult));
+      updateLiveGuideInfo(buildGuideInfo(draftBox, canvasSize, snapResult?.message || "Drawing", snapResult));
       pointerRef.current.lastPoint = point;
       return;
     }
@@ -2490,7 +2549,7 @@ export default function QuickPhotoEditor() {
         const dy = point.y - pointerRef.current.lastPoint.y;
         const movedDraft = translateDraftObject(draftObject, dx, dy);
         setDraftObject(movedDraft);
-        setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(movedDraft)), canvasSize, "Moving patch selection"));
+        updateLiveGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(movedDraft)), canvasSize, "Moving patch selection"));
         pointerRef.current.startPoint = translatePoint(pointerRef.current.startPoint, dx, dy);
         pointerRef.current.lastPoint = point;
         return;
@@ -2500,7 +2559,7 @@ export default function QuickPhotoEditor() {
         shiftKey: event.shiftKey,
       });
       setDraftObject(nextDraft);
-      setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Patch Source"));
+      updateLiveGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Patch Source"));
       pointerRef.current.lastPoint = point;
       return;
     }
@@ -2514,7 +2573,7 @@ export default function QuickPhotoEditor() {
       const nextBox = clampBoxToCanvas(snapResult.box, workingCanvasRef.current);
 
       setPatchSourcePreviewBox(nextBox);
-      setGuideInfo(buildGuideInfo(nextBox, canvasSize, snapResult.message || "Patch target"));
+      updateLiveGuideInfo(buildGuideInfo(nextBox, canvasSize, snapResult.message || "Patch target"));
       return;
     }
 
@@ -2524,7 +2583,7 @@ export default function QuickPhotoEditor() {
         const dy = point.y - pointerRef.current.lastPoint.y;
         const movedDraft = translateDraftObject(draftObject, dx, dy);
         setDraftObject(movedDraft);
-        setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(movedDraft)), canvasSize, "Moving clone selection"));
+        updateLiveGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(movedDraft)), canvasSize, "Moving clone selection"));
         pointerRef.current.startPoint = translatePoint(pointerRef.current.startPoint, dx, dy);
         pointerRef.current.lastPoint = point;
         return;
@@ -2534,7 +2593,7 @@ export default function QuickPhotoEditor() {
         shiftKey: event.shiftKey,
       });
       setDraftObject(nextDraft);
-      setGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Clone Source"));
+      updateLiveGuideInfo(buildGuideInfo(getObjectBox(normalizeObject(nextDraft)), canvasSize, "Clone Source"));
       pointerRef.current.lastPoint = point;
       return;
     }
@@ -2548,7 +2607,7 @@ export default function QuickPhotoEditor() {
       const nextBox = clampBoxToCanvas(snapResult.box, workingCanvasRef.current);
 
       setCloneTargetPreviewBox(nextBox);
-      setGuideInfo(buildGuideInfo(nextBox, canvasSize, snapResult.message || "Paste Here"));
+      updateLiveGuideInfo(buildGuideInfo(nextBox, canvasSize, snapResult.message || "Paste Here"));
       return;
     }
 
@@ -3276,19 +3335,33 @@ export default function QuickPhotoEditor() {
   }
 
   function updateQuickColor(value) {
+    const color = normalizeColor(value);
+
     if (!selectedObjects.length) {
-      setTextColor(value);
-      setShapeFillColor(value);
-      setShapeStrokeColor(value);
-      setBrushColor(value);
+      setTextColor(color);
+      setShapeFillColor(color);
+      setShapeStrokeColor(color);
+      setBrushColor(color);
       return;
     }
 
+    if (selectedObjects.some((item) => item.type === "background")) {
+      setCanvasBackgroundColor(color);
+    }
+
     updateSelectedItems((item) => {
-      if (item.type === "text") return { color: value };
-      if (item.type === "arrow") return { stroke: value };
+      if (item.type === "background") {
+        return {
+          color,
+          w: canvasSize.width,
+          h: canvasSize.height,
+        };
+      }
+
+      if (item.type === "text") return { color };
+      if (item.type === "arrow") return { stroke: color };
       if (SHAPE_TYPES.some((shape) => shape.id === item.type)) {
-        return { fill: value, fillGradient: null, stroke: item.stroke || value };
+        return { fill: color, fillGradient: null, stroke: item.stroke || color };
       }
 
       return {};
@@ -3505,6 +3578,11 @@ export default function QuickPhotoEditor() {
         : [];
   }
 
+  function activeSelectionHasBackground(ids = getActiveSelectedIds()) {
+    return ids.some((id) => objects.some((item) => item.id === id && item.type === "background"));
+  }
+
+
   function isObjectLocked(id) {
     return lockedObjectIds.includes(id);
   }
@@ -3552,6 +3630,11 @@ export default function QuickPhotoEditor() {
     const activeIds = getActiveSelectedIds();
 
     if (!activeIds.length) return;
+
+    if (activeSelectionHasBackground(activeIds)) {
+      setErrorMessage("The Artboard Background layer must stay at the bottom. Unlock it only to change color.");
+      return;
+    }
 
     if (activeSelectionHasLockedItem(activeIds)) {
       setErrorMessage("This layer is locked. Unlock it before reordering.");
@@ -3669,6 +3752,11 @@ export default function QuickPhotoEditor() {
 
     if (!activeIds.length) return;
 
+    if (activeSelectionHasBackground(activeIds)) {
+      setErrorMessage("The Artboard Background layer cannot be deleted. Unlock it to change color.");
+      return;
+    }
+
     if (activeSelectionHasLockedItem(activeIds)) {
       setErrorMessage("This layer is locked. Unlock it before deleting.");
       return;
@@ -3740,7 +3828,19 @@ export default function QuickPhotoEditor() {
     workingCanvasRef.current = resizeCanvas(workingCanvasRef.current, nextWidth, nextHeight);
     originalCanvasRef.current = resizeCanvas(originalCanvasRef.current, nextWidth, nextHeight);
 
-    setObjects((current) => current.map((object) => scaleObject(object, scaleX, scaleY)));
+    setObjects((current) =>
+      current.map((object) =>
+        object.type === "background"
+          ? {
+              ...object,
+              x: 0,
+              y: 0,
+              w: nextWidth,
+              h: nextHeight,
+            }
+          : scaleObject(object, scaleX, scaleY)
+      )
+    );
 
     if (patchTargetBox) {
       setPatchTargetBox(scaleBox(patchTargetBox, scaleX, scaleY));
@@ -4031,6 +4131,11 @@ export default function QuickPhotoEditor() {
 
     if (!selectedItems.length) return;
 
+    if (activeSelectionHasBackground(activeIds)) {
+      setErrorMessage("The Artboard Background layer cannot be duplicated.");
+      return;
+    }
+
     if (activeSelectionHasLockedItem(activeIds)) {
       setErrorMessage("This layer is locked. Unlock it before duplicating.");
       return;
@@ -4056,6 +4161,40 @@ export default function QuickPhotoEditor() {
       setSuccessMessage(`Duplicated ${duplicated.length} item${duplicated.length === 1 ? "" : "s"}. Press Ctrl/Cmd + D again for another copy.`);
     } catch {
       setErrorMessage("Could not duplicate the selected item. Please try again.");
+    }
+  }
+
+  async function duplicateLayerById(id) {
+    const item = objects.find((layer) => layer.id === id);
+
+    if (!item) return;
+
+    if (item.type === "background") {
+      setErrorMessage("The Artboard Background layer cannot be duplicated.");
+      return;
+    }
+
+    if (isObjectLocked(id)) {
+      setErrorMessage("Unlock this layer before duplicating it.");
+      return;
+    }
+
+    try {
+      const hydrated = await hydrateCopiedObject(item);
+      const duplicated = offsetCopiedObject(hydrated, 28, 28);
+
+      pushHistory();
+      setObjects((current) => [...current, duplicated]);
+      setSelectedObjectId(duplicated.id);
+      setSelectedObjectIds([duplicated.id]);
+      setActiveTool("select");
+      setActivePanel("layers");
+      setToolPopupOpen(true);
+      setGuideInfo(buildGuideInfo(getObjectBox(duplicated), canvasSize, "Layer duplicated"));
+      clearOutput();
+      setSuccessMessage("Layer duplicated.");
+    } catch {
+      setErrorMessage("Could not duplicate this layer.");
     }
   }
 
@@ -4089,6 +4228,7 @@ export default function QuickPhotoEditor() {
     setActivePanel("");
     setToolPopupOpen(false);
     setObjects([]);
+    setLockedObjectIds([]);
     setDraftObject(null);
     setSelectionRect(null);
     setSelectedObjectId(null);
@@ -5561,51 +5701,61 @@ export default function QuickPhotoEditor() {
                       <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
                         <p className="font-bold">Layers</p>
                         <p className="text-xs text-[var(--text-secondary)] mt-1">
-                          Top item in this list appears above other items. Hold Shift while clicking layers to select multiple.
+                          Select, lock, duplicate, reorder, and control layers directly. Background starts locked; unlock it to change color.
                         </p>
                       </div>
 
-                      <div className="space-y-2 max-h-[460px] overflow-auto pr-1">
+                      <div className="space-y-2 max-h-[500px] overflow-auto pr-1">
                         {objects.length ? (
                           [...objects].reverse().map((item, reverseIndex) => {
                             const layerIndex = objects.length - 1 - reverseIndex;
                             const isSelected = selectedObjectIds.includes(item.id) || selectedObjectId === item.id;
                             const isLocked = lockedObjectIds.includes(item.id);
                             const label = getLayerDisplayName(item, layerIndex);
+                            const isBackgroundLayer = item.type === "background";
+
+                            const selectLayer = (event) => {
+                              const activeIds = selectedObjectIds.length
+                                ? selectedObjectIds
+                                : selectedObjectId
+                                  ? [selectedObjectId]
+                                  : [];
+
+                              if (event.shiftKey && !isBackgroundLayer) {
+                                const nextIds = activeIds.includes(item.id)
+                                  ? activeIds.filter((id) => id !== item.id)
+                                  : [...activeIds, item.id];
+
+                                setSelectedObjectIds(nextIds);
+                                setSelectedObjectId(nextIds[nextIds.length - 1] || null);
+                                setGuideInfo(
+                                  buildGuideInfo(
+                                    getGroupBox(objects.filter((layer) => nextIds.includes(layer.id))) || getObjectBox(item),
+                                    canvasSize,
+                                    `${nextIds.length} layer${nextIds.length === 1 ? "" : "s"} selected`
+                                  )
+                                );
+                              } else {
+                                setSelectedObjectId(item.id);
+                                setSelectedObjectIds([item.id]);
+                                setGuideInfo(buildGuideInfo(getObjectBox(item), canvasSize, label));
+                              }
+
+                              setActiveTool("select");
+                              clearOutput();
+                            };
 
                             return (
-                              <button
+                              <div
                                 key={item.id}
-                                type="button"
-                                onClick={(event) => {
-                                  const activeIds = selectedObjectIds.length
-                                    ? selectedObjectIds
-                                    : selectedObjectId
-                                      ? [selectedObjectId]
-                                      : [];
-
-                                  if (event.shiftKey) {
-                                    const nextIds = activeIds.includes(item.id)
-                                      ? activeIds.filter((id) => id !== item.id)
-                                      : [...activeIds, item.id];
-
-                                    setSelectedObjectIds(nextIds);
-                                    setSelectedObjectId(nextIds[nextIds.length - 1] || null);
-                                    setGuideInfo(
-                                      buildGuideInfo(
-                                        getGroupBox(objects.filter((layer) => nextIds.includes(layer.id))) || getObjectBox(item),
-                                        canvasSize,
-                                        `${nextIds.length} layer${nextIds.length === 1 ? "" : "s"} selected`
-                                      )
-                                    );
-                                  } else {
-                                    setSelectedObjectId(item.id);
-                                    setSelectedObjectIds([item.id]);
-                                    setGuideInfo(buildGuideInfo(getObjectBox(item), canvasSize, label));
+                                role="button"
+                                tabIndex={0}
+                                onClick={selectLayer}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    selectLayer(event);
                                   }
-
-                                  setActiveTool("select");
-                                  clearOutput();
                                 }}
                                 className={`w-full rounded-xl border p-3 text-left transition ${
                                   isSelected
@@ -5617,14 +5767,12 @@ export default function QuickPhotoEditor() {
                                   <div className="min-w-0">
                                     <p className="font-semibold text-sm truncate">{label}</p>
                                     <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                      {item.isBaseImage ? "Base photo" : item.type} • Layer {layerIndex + 1}{isLocked ? " • Locked" : ""}
+                                      {isBackgroundLayer ? "Background color layer" : item.isBaseImage ? "Base photo" : item.type} • Layer {layerIndex + 1}{isLocked ? " • Locked" : ""}
                                     </p>
                                   </div>
 
                                   <div className="flex items-center gap-2 shrink-0">
-                                    {isLocked && (
-                                      <Lock size={14} className="text-[var(--primary)]" />
-                                    )}
+                                    {isLocked && <Lock size={14} className="text-[var(--primary)]" />}
                                     {isSelected && (
                                       <span className="text-xs font-bold text-[var(--primary)]">
                                         Selected
@@ -5632,7 +5780,107 @@ export default function QuickPhotoEditor() {
                                     )}
                                   </div>
                                 </div>
-                              </button>
+
+                                <div className="mt-3 grid grid-cols-5 gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedObjectId(item.id);
+                                      setSelectedObjectIds([item.id]);
+                                      window.setTimeout(toggleLockSelected, 0);
+                                    }}
+                                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold hover:bg-[#f8f4ff]"
+                                    title={isLocked ? "Unlock layer" : "Lock layer"}
+                                  >
+                                    {isLocked ? "Unlock" : "Lock"}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      duplicateLayerById(item.id);
+                                    }}
+                                    disabled={isLocked || isBackgroundLayer}
+                                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold hover:bg-[#f8f4ff] disabled:opacity-40"
+                                    title="Duplicate layer"
+                                  >
+                                    Duplicate
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedObjectId(item.id);
+                                      setSelectedObjectIds([item.id]);
+                                      window.setTimeout(() => reorderSelectedObjects("up"), 0);
+                                    }}
+                                    disabled={isLocked || isBackgroundLayer}
+                                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold hover:bg-[#f8f4ff] disabled:opacity-40"
+                                    title="Bring layer up"
+                                  >
+                                    Up
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedObjectId(item.id);
+                                      setSelectedObjectIds([item.id]);
+                                      window.setTimeout(() => reorderSelectedObjects("down"), 0);
+                                    }}
+                                    disabled={isLocked || isBackgroundLayer}
+                                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold hover:bg-[#f8f4ff] disabled:opacity-40"
+                                    title="Bring layer down"
+                                  >
+                                    Down
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedObjectId(item.id);
+                                      setSelectedObjectIds([item.id]);
+                                      window.setTimeout(deleteSelectedObject, 0);
+                                    }}
+                                    disabled={isLocked || isBackgroundLayer}
+                                    className="rounded-lg border border-red-200 bg-red-50 px-2 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-40"
+                                    title="Delete layer"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+
+                                {isBackgroundLayer && isSelected && (
+                                  <div className="mt-3 rounded-xl border border-[var(--border)] bg-white p-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-xs font-bold text-[var(--text-secondary)]">
+                                        Background color
+                                      </span>
+                                      <input
+                                        type="color"
+                                        value={normalizeColor(item.color || canvasBackgroundColor)}
+                                        onClick={(event) => event.stopPropagation()}
+                                        onChange={(event) => {
+                                          event.stopPropagation();
+                                          changeArtboardBackgroundColor(event.target.value);
+                                        }}
+                                        disabled={isLocked}
+                                        className="h-9 w-12 rounded-lg border border-[var(--border)] bg-white disabled:opacity-40"
+                                      />
+                                    </div>
+                                    {isLocked && (
+                                      <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                                        Unlock this layer first, then change the artboard background color instantly.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             );
                           })
                         ) : (
@@ -5840,7 +6088,7 @@ export default function QuickPhotoEditor() {
                       {selectedObjects.length > 1
                         ? `${selectedObjects.length} items selected`
                         : selectedObject
-                          ? `${selectedObject.type} selected`
+                          ? `${selectedObject.type === "background" ? "background" : selectedObject.type} selected${selectedLocked ? " • Locked" : ""}`
                           : "Select an item to edit quickly"}
                     </div>
 
@@ -5922,7 +6170,7 @@ export default function QuickPhotoEditor() {
                     </div>
 
                     <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
-                      Artboard BG
+                      BG Layer
                       <input
                         type="color"
                         value={canvasBackgroundColor}
@@ -6372,8 +6620,22 @@ function createSelectionPathFromBox(box, mode = "rectSelect") {
   ];
 }
 
+function drawBackgroundLayer(ctx, objects, width, height, fallbackColor = "#ffffff") {
+  const background = objects.find((object) => object.type === "background");
+
+  fillCanvasBackground(
+    ctx,
+    width,
+    height,
+    background?.color || fallbackColor || "#ffffff"
+  );
+}
+
 function drawObjects(ctx, objects) {
-  objects.forEach((object) => drawObject(ctx, object));
+  objects.forEach((object) => {
+    if (object.type === "background") return;
+    drawObject(ctx, object);
+  });
 }
 
 function drawObject(ctx, object) {
@@ -7101,6 +7363,7 @@ function drawHandle(ctx, x, y, size) {
 
 function getObjectAtPoint(point, objects) {
   for (let i = objects.length - 1; i >= 0; i -= 1) {
+    if (objects[i]?.type === "background") continue;
     const box = getObjectBox(objects[i]);
 
     if (!box) continue;
@@ -7120,6 +7383,15 @@ function getObjectAtPoint(point, objects) {
 
 function getObjectBox(object) {
   if (!object) return null;
+
+  if (object.type === "background") {
+    return {
+      x: 0,
+      y: 0,
+      w: Math.max(1, Number(object.w || 1)),
+      h: Math.max(1, Number(object.h || 1)),
+    };
+  }
 
   if (object.type === "image") {
     return {
@@ -7179,6 +7451,14 @@ function getLayerDisplayName(item, index = 0) {
 }
 
 function moveObject(object, dx, dy) {
+  if (object.type === "background") {
+    return {
+      ...object,
+      x: 0,
+      y: 0,
+    };
+  }
+
   if (object.type === "arrow") {
     return {
       ...object,
@@ -7198,6 +7478,16 @@ function moveObject(object, dx, dy) {
 
 function scaleObject(object, scaleX, scaleY) {
   const averageScale = (scaleX + scaleY) / 2;
+
+  if (object.type === "background") {
+    return {
+      ...object,
+      x: 0,
+      y: 0,
+      w: Number(object.w || 1) * scaleX,
+      h: Number(object.h || 1) * scaleY,
+    };
+  }
 
   if (object.type === "image") {
     return {
@@ -7667,6 +7957,16 @@ function resizeBoxFromHandle(startBox, point, handle, { keepRatio = false, fromC
 
 function resizeObjectToBox(object, box) {
   const startBox = getObjectBox(object) || box;
+
+  if (object.type === "background") {
+    return {
+      ...object,
+      x: 0,
+      y: 0,
+      w: Math.max(1, box.w),
+      h: Math.max(1, box.h),
+    };
+  }
 
   if (object.type === "text") {
     const scaleX = box.w / Math.max(1, startBox.w);
