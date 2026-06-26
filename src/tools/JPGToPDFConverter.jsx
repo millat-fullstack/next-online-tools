@@ -41,7 +41,11 @@ const MAX_PROCESSING_TIME_MS = 14000;
 
 const PAGE_SIZES = [
   { value: "a4", label: "A4" },
+  { value: "original", label: "Keep Original" },
   { value: "letter", label: "Letter" },
+  { value: "legal", label: "Legal" },
+  { value: "a5", label: "A5" },
+  { value: "a3", label: "A3" },
 ];
 
 const ORIENTATION_OPTIONS = [
@@ -355,34 +359,55 @@ export default function JpgToPdfConverter() {
 
         const imageWidth = loadedImage.naturalWidth || loadedImage.width;
         const imageHeight = loadedImage.naturalHeight || loadedImage.height;
-        const pageOrientation = getPageOrientation(orientation, imageWidth, imageHeight);
+        const pageSetup = getPdfPageSetup({
+          pageSize,
+          orientation,
+          imageWidth,
+          imageHeight,
+        });
 
         if (!pdfDocument) {
           pdfDocument = new jsPDF({
-            orientation: pageOrientation,
+            orientation: pageSetup.orientation,
             unit: "mm",
-            format: pageSize,
+            format: pageSetup.format,
             compress: true,
           });
         } else {
-          pdfDocument.addPage(pageSize, pageOrientation);
+          pdfDocument.addPage(pageSetup.format, pageSetup.orientation);
         }
 
         const pageWidth = pdfDocument.internal.pageSize.getWidth();
         const pageHeight = pdfDocument.internal.pageSize.getHeight();
-        const safeMargin = Math.min(Number(marginMm) || 0, Math.floor(Math.min(pageWidth, pageHeight) / 3));
+
+        const safeMargin = pageSize === "original"
+          ? 0
+          : Math.min(Number(marginMm) || 0, Math.floor(Math.min(pageWidth, pageHeight) / 3));
+
         const contentWidth = Math.max(1, pageWidth - safeMargin * 2);
         const contentHeight = Math.max(1, pageHeight - safeMargin * 2);
 
-        const optimizedImageDataUrl = imageToJpegDataUrl(loadedImage, imageQuality, 4096);
-        const imagePlacement = getImagePlacement({
-          imageWidth,
-          imageHeight,
-          contentWidth,
-          contentHeight,
-          margin: safeMargin,
-          fitMode,
-        });
+        const optimizedImageDataUrl = imageToJpegDataUrl(
+          loadedImage,
+          pageSize === "original" ? 1 : imageQuality,
+          pageSize === "original" ? Math.max(imageWidth, imageHeight) : 4096
+        );
+
+        const imagePlacement = pageSize === "original"
+          ? {
+              x: 0,
+              y: 0,
+              width: pageWidth,
+              height: pageHeight,
+            }
+          : getImagePlacement({
+              imageWidth,
+              imageHeight,
+              contentWidth,
+              contentHeight,
+              margin: safeMargin,
+              fitMode,
+            });
 
         pdfDocument.addImage(
           optimizedImageDataUrl,
@@ -619,7 +644,7 @@ export default function JpgToPdfConverter() {
                   <div>
                     <h3 className="font-semibold">PDF Settings</h3>
                     <p className="text-sm text-[var(--text-secondary)] mt-1">
-                      Default high-quality settings are ready. Open only if you need to change them.
+                      Default A4 high-quality settings are ready. Use Keep Original when the PDF page must match the image exactly.
                     </p>
                   </div>
                 </div>
@@ -666,13 +691,17 @@ export default function JpgToPdfConverter() {
                           </option>
                         ))}
                       </select>
+
+                      <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">
+                        Keep Original makes each PDF page match the image size and removes margin scaling.
+                      </p>
                     </FormControl>
 
                     <FormControl label="Image Fit">
                       <select
                         value={fitMode}
                         onChange={(event) => handleSettingChange(setFitMode, event.target.value)}
-                        disabled={isProcessing}
+                        disabled={isProcessing || pageSize === "original"}
                         className="tool-input"
                       >
                         {FIT_OPTIONS.map((fit) => (
@@ -691,7 +720,7 @@ export default function JpgToPdfConverter() {
                         step="1"
                         value={marginMm}
                         onChange={(event) => handleSettingChange(setMarginMm, Number(event.target.value))}
-                        disabled={isProcessing}
+                        disabled={isProcessing || pageSize === "original"}
                         className="w-full accent-[var(--primary)]"
                       />
                     </FormControl>
@@ -825,7 +854,7 @@ export default function JpgToPdfConverter() {
                 <div>
                   <h3 className="font-semibold">Full PDF Preview</h3>
                   <p className="text-xs text-[var(--text-secondary)] mt-1">
-                    Review the complete PDF before saving it.
+                    Review the complete PDF before saving it. Keep Original uses the image's own page size.
                   </p>
                 </div>
 
@@ -1038,6 +1067,27 @@ function PreviewActionButton({ children, title, disabled, onClick, danger = fals
       {children}
     </button>
   );
+}
+
+function getPdfPageSetup({ pageSize, orientation, imageWidth, imageHeight }) {
+  if (pageSize === "original") {
+    const pageWidth = Math.max(1, pixelsToMm(imageWidth));
+    const pageHeight = Math.max(1, pixelsToMm(imageHeight));
+
+    return {
+      format: [pageWidth, pageHeight],
+      orientation: pageWidth > pageHeight ? "landscape" : "portrait",
+    };
+  }
+
+  return {
+    format: pageSize,
+    orientation: getPageOrientation(orientation, imageWidth, imageHeight),
+  };
+}
+
+function pixelsToMm(pixels) {
+  return Number(pixels || 1) * 0.2645833333;
 }
 
 function getPageOrientation(selectedOrientation, imageWidth, imageHeight) {
