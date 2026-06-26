@@ -9,6 +9,7 @@ import {
   Settings2,
   AlertCircle,
   CheckCircle,
+  ChevronDown,
   Type,
   Trash2,
   Sparkles,
@@ -38,7 +39,7 @@ export const toolData = {
 const MAX_BACKGROUND_SIZE_MB = 5;
 const DEFAULT_QUOTE =
   "Believe in yourself and keep moving forward. Great things take time.";
-const DEFAULT_AUTHOR = "Unknown";
+const DEFAULT_AUTHOR = "";
 
 const SIZE_PRESETS = [
   {
@@ -828,13 +829,17 @@ export default function MotivationalQuoteImageMaker() {
 
       const dataUrl = format === "jpg" ? result.jpgDataUrl : result.pngDataUrl;
       const filename = `motivational-quote-${result.width}x${result.height}.${format}`;
-      downloadDataUrl(dataUrl, filename);
+      await downloadDataUrl(dataUrl, filename, format === "jpg" ? "image/jpeg" : "image/png");
 
       const actualTime = Math.max(1, Math.round(performance.now() - startTime));
       setProcessingTimeMs(actualTime);
       setSuccess(`Final ${format.toUpperCase()} image downloaded in ${(actualTime / 1000).toFixed(1)}s.`);
-    } catch {
-      setError("Could not create the final image. Please try again.");
+    } catch (downloadError) {
+      if (downloadError?.name === "AbortError") {
+        setSuccess("Download cancelled.");
+      } else {
+        setError("Could not download the final image. Please try again.");
+      }
     } finally {
       window.setTimeout(() => setIsCreating(false), 350);
     }
@@ -896,7 +901,6 @@ export default function MotivationalQuoteImageMaker() {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* HEADER */}
       <section className="card p-6 sm:p-8">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
           <ImageIcon size={28} className="text-[var(--primary)]" />
@@ -907,19 +911,15 @@ export default function MotivationalQuoteImageMaker() {
         </h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Create social media-ready motivational quote images with custom text,
-          backgrounds, fonts, colors, templates, and post sizes. Generate the
-          final image in your browser and download it as PNG or JPG.
+          Create clean quote images for social media. Add your text first,
+          adjust only what you need, preview the design, and download as PNG or JPG.
         </p>
       </section>
 
-      {/* TOOL BODY */}
       <section className="card p-4 sm:p-6">
         <div className="grid lg:grid-cols-[minmax(0,1fr)_430px] gap-5 lg:gap-6">
-          {/* LEFT COLUMN */}
-          <div className="order-2 lg:order-1 flex flex-col gap-5">
-            {/* TEXT INPUT */}
-            <div className="border border-[var(--border)] rounded-2xl p-5">
+          <div className="order-1 flex flex-col gap-5">
+            <div className="border border-[var(--border)] rounded-2xl p-5 bg-white">
               <div className="flex items-center gap-2 mb-4">
                 <Quote size={20} className="text-[var(--primary)]" />
                 <h2 className="text-xl font-semibold">Quote Text</h2>
@@ -932,33 +932,101 @@ export default function MotivationalQuoteImageMaker() {
                 placeholder="Type your motivational quote here..."
                 rows={5}
               />
+            </div>
 
-              <div className="mt-4">
+            <CollapsibleSection
+              title="Optional Details"
+              subtitle="Author name and brand text are hidden by default."
+              icon={Quote}
+            >
+              <div className="grid sm:grid-cols-2 gap-4">
                 <InputField
                   label="Author / Name"
                   value={authorText}
                   onChange={(value) => handleInputChange(setAuthorText, value)}
-                  placeholder="Unknown"
+                  placeholder="Optional"
                 />
-              </div>
 
-              <div className="mt-4">
                 <InputField
                   label="Brand / Handle / Website"
                   value={brandText}
                   onChange={(value) => handleInputChange(setBrandText, value)}
                   placeholder="@yourbrand or yourwebsite.com"
                 />
+
+                <ColorField
+                  label="Brand Text Color"
+                  value={brandColor}
+                  onChange={(value) => handleInputChange(setBrandColor, value)}
+                />
               </div>
+            </CollapsibleSection>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleCreateImage}
+                disabled={isCreating}
+                className={`btn-primary inline-flex items-center justify-center gap-2 ${
+                  isCreating ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                {isCreating ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
+                {isCreating ? "Creating..." : "Create Image"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={isCreating}
+                className={`btn-secondary inline-flex items-center justify-center gap-2 ${
+                  isCreating ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                <RotateCcw size={18} />
+                Reset
+              </button>
             </div>
 
-            {/* SIZE PRESETS */}
-            <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <FileImage size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Image Size</h3>
-              </div>
+            {isCreating && (
+              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+                <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                  <span>Processing final image...</span>
+                  <span>{progress}%</span>
+                </div>
 
+                <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--primary)] transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+
+                <p className="text-xs text-[var(--text-secondary)] mt-3">
+                  Estimated time: {Math.ceil(lastEstimatedTimeMs / 1000)}s
+                </p>
+              </div>
+            )}
+
+            {error && (
+              <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
+                <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                <p>{error}</p>
+              </div>
+            )}
+
+            {success && (
+              <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
+                <CheckCircle size={18} className="shrink-0 mt-0.5" />
+                <p>{success}</p>
+              </div>
+            )}
+
+            <CollapsibleSection
+              title="Image Size"
+              subtitle={`${selectedSize.label} • ${selectedSize.width}×${selectedSize.height}`}
+              icon={FileImage}
+            >
               <div className="grid sm:grid-cols-2 gap-3">
                 {SIZE_PRESETS.map((preset) => (
                   <button
@@ -967,7 +1035,7 @@ export default function MotivationalQuoteImageMaker() {
                     onClick={() => handleInputChange(setSizePreset, preset.id)}
                     className={`rounded-xl border p-3 text-left transition ${
                       sizePreset === preset.id
-                        ? "border-[var(--primary)] bg-white text-[var(--primary)]"
+                        ? "border-[var(--primary)] bg-[#f8f4ff] text-[var(--primary)]"
                         : "border-[var(--border)] bg-white"
                     }`}
                   >
@@ -1002,25 +1070,21 @@ export default function MotivationalQuoteImageMaker() {
                   />
                 </div>
               )}
-            </div>
+            </CollapsibleSection>
 
-            {/* TEMPLATES */}
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={20} className="text-[var(--primary)]" />
-                  <h3 className="font-semibold">Quick Templates</h3>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleRandomDesign}
-                  className="btn-secondary inline-flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={16} />
-                  Random
-                </button>
-              </div>
+            <CollapsibleSection
+              title="Quick Templates"
+              subtitle="Apply ready-made design styles."
+              icon={Sparkles}
+            >
+              <button
+                type="button"
+                onClick={handleRandomDesign}
+                className="btn-secondary inline-flex items-center justify-center gap-2 mb-4"
+              >
+                <Sparkles size={16} />
+                Random Design
+              </button>
 
               <div className="grid sm:grid-cols-2 gap-3">
                 {TEMPLATE_PRESETS.map((template) => (
@@ -1032,20 +1096,18 @@ export default function MotivationalQuoteImageMaker() {
                   >
                     <p className="font-semibold text-sm">{template.name}</p>
                     <p className="text-xs text-[var(--text-secondary)] mt-1">
-                      Apply background, font, color, and layout.
+                      Background, font, color, and layout.
                     </p>
                   </button>
                 ))}
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* BACKGROUND */}
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Palette size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Background</h3>
-              </div>
-
+            <CollapsibleSection
+              title="Background"
+              subtitle={backgroundMode === "image" ? "Image background" : backgroundMode}
+              icon={Palette}
+            >
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <ModeButton
                   label="Gradient"
@@ -1155,15 +1217,13 @@ export default function MotivationalQuoteImageMaker() {
                   }
                 />
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* TEXT STYLE */}
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Type size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Text Style</h3>
-              </div>
-
+            <CollapsibleSection
+              title="Text Style"
+              subtitle="Font, colors, size, position, and alignment."
+              icon={Type}
+            >
               <div className="grid sm:grid-cols-2 gap-4">
                 <SelectField
                   label="Font Family"
@@ -1239,12 +1299,6 @@ export default function MotivationalQuoteImageMaker() {
                   value={authorColor}
                   onChange={(value) => handleInputChange(setAuthorColor, value)}
                 />
-
-                <ColorField
-                  label="Brand Text Color"
-                  value={brandColor}
-                  onChange={(value) => handleInputChange(setBrandColor, value)}
-                />
               </div>
 
               <div className="mt-5">
@@ -1289,15 +1343,13 @@ export default function MotivationalQuoteImageMaker() {
                   onChange={(value) => handleInputChange(setTextShadow, value)}
                 />
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* TEXT BOX */}
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <SlidersHorizontal size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Readable Text Box</h3>
-              </div>
-
+            <CollapsibleSection
+              title="Readable Text Box"
+              subtitle="Optional box behind the quote."
+              icon={SlidersHorizontal}
+            >
               <ToggleField
                 label="Add background box behind quote"
                 checked={textBoxEnabled}
@@ -1326,101 +1378,21 @@ export default function MotivationalQuoteImageMaker() {
                   />
                 </div>
               )}
-            </div>
-
-            {/* ACTIONS */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={handleCreateImage}
-                disabled={isCreating}
-                className={`btn-primary flex-1 inline-flex items-center justify-center gap-2 ${
-                  isCreating ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                <Zap size={18} />
-                {isCreating ? "Creating Final Image..." : "Create Final Image"}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleReset}
-                disabled={isCreating}
-                className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                  isCreating ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                <RotateCcw size={18} />
-                Reset
-              </button>
-            </div>
-
-            {/* PROGRESS */}
-            {isCreating && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
-                <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                  <span>Processing final image...</span>
-                  <span>{progress}%</span>
-                </div>
-
-                <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
-                  <div
-                    className="h-full bg-[var(--primary)] transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-
-                <p className="text-xs text-[var(--text-secondary)] mt-3">
-                  Estimated processing time:{" "}
-                  {Math.ceil(lastEstimatedTimeMs / 1000)}s
-                </p>
-              </div>
-            )}
-
-            {/* FEEDBACK */}
-            {error && (
-              <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{error}</p>
-              </div>
-            )}
-
-            {success && (
-              <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
-                <CheckCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{success}</p>
-              </div>
-            )}
-
-            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
-              <p className="text-sm text-yellow-800">
-                Use your own quotes and background images, or images you have
-                permission to use. This tool runs in the browser and does not
-                upload your background image to a server.
-              </p>
-            </div>
+            </CollapsibleSection>
           </div>
 
-          {/* RIGHT COLUMN */}
-          <div className="order-1 lg:order-2 lg:sticky lg:top-4 h-fit flex flex-col gap-5">
-            {/* PREVIEW */}
+          <div className="order-2 lg:sticky lg:top-4 h-fit flex flex-col gap-5">
             <div>
               <div className="flex justify-between items-start gap-3 mb-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <ImageIcon size={20} className="text-[var(--primary)]" />
-                    <h2 className="text-xl font-semibold">Image Preview</h2>
+                    <h2 className="text-xl font-semibold">Preview</h2>
                   </div>
 
                   <p className="text-xs text-[var(--text-secondary)] mt-1">
-                    Preview your design before creating the final downloadable
-                    image.
+                    {selectedSize.width} × {selectedSize.height}px
                   </p>
-                </div>
-
-                <div className="text-right text-xs text-[var(--text-secondary)]">
-                  <p>{selectedSize.width} × {selectedSize.height}px</p>
-                  <p>Est. {Math.ceil(estimatedProcessingTime / 1000)}s</p>
                 </div>
               </div>
 
@@ -1441,19 +1413,15 @@ export default function MotivationalQuoteImageMaker() {
                         style={{ maxHeight: "min(68vh, 520px)" }}
                       />
                     </div>
-
-                    <p className="text-sm text-[var(--text-secondary)] mt-4">
-                      This live preview uses the same renderer as the exported image.
-                    </p>
                   </div>
                 ) : (
                   <div className="text-center text-sm text-[var(--text-secondary)] px-4">
                     Enter a quote to prepare the live preview.
                   </div>
                 )}
-              </div>            </div>
+              </div>
+            </div>
 
-            {/* DOWNLOAD BUTTONS */}
             <div className="grid sm:grid-cols-2 gap-3">
               <button
                 type="button"
@@ -1479,74 +1447,44 @@ export default function MotivationalQuoteImageMaker() {
                 Download JPG
               </button>
             </div>
-
-            {/* STATS */}
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard
-                label="Final Size"
-                value={
-                  createdWidth
-                    ? `${createdWidth}×${createdHeight}`
-                    : `${selectedSize.width}×${selectedSize.height}`
-                }
-              />
-
-              <StatCard
-                label="Processing Time"
-                value={
-                  processingTimeMs
-                    ? `${(processingTimeMs / 1000).toFixed(1)}s`
-                    : `Est. ${Math.ceil(estimatedProcessingTime / 1000)}s`
-                }
-                green={Boolean(processingTimeMs)}
-              />
-
-              <StatCard label="Words" value={wordCount} />
-
-              <StatCard
-                label="Background"
-                value={
-                  backgroundMode === "image"
-                    ? "Image"
-                    : backgroundMode === "solid"
-                      ? "Solid"
-                      : "Gradient"
-                }
-              />
-
-              <StatCard
-                label="PNG Size"
-                value={pngSize ? formatBytes(pngSize) : "-"}
-              />
-
-              <StatCard
-                label="JPG Size"
-                value={jpgSize ? formatBytes(jpgSize) : "-"}
-                green
-              />
-            </div>
-
-            {/* QUICK TIPS */}
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock3 size={18} className="text-blue-700" />
-                <h3 className="font-semibold text-blue-900">
-                  Processing time included
-                </h3>
-              </div>
-
-              <p className="text-sm text-blue-800">
-                The tool shows estimated processing time before creation, a
-                progress bar while creating, and the final processing time after
-                the image is generated.
-              </p>
-            </div>
           </div>
         </div>
       </section>
 
       <SuggestedTools currentToolId="motivational-quote-image-maker" />
     </div>
+  );
+}
+
+function CollapsibleSection({ title, subtitle, icon: Icon, children }) {
+  return (
+    <details className="group border border-[var(--border)] rounded-2xl bg-white overflow-hidden">
+      <summary className="list-none cursor-pointer p-5 flex items-center justify-between gap-3 hover:bg-[#f8f4ff] transition">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-[#f4edff] flex items-center justify-center shrink-0">
+            <Icon size={20} className="text-[var(--primary)]" />
+          </div>
+
+          <div className="min-w-0">
+            <h3 className="font-semibold">{title}</h3>
+            {subtitle && (
+              <p className="text-sm text-[var(--text-secondary)] mt-1 truncate">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <ChevronDown
+          size={20}
+          className="text-[var(--primary)] transition-transform group-open:rotate-180"
+        />
+      </summary>
+
+      <div className="border-t border-[var(--border)] bg-[#fafafa] p-5">
+        {children}
+      </div>
+    </details>
   );
 }
 
@@ -1861,15 +1799,50 @@ function estimateDataUrlSize(dataUrl) {
   return Math.round((base64.length * 3) / 4);
 }
 
-function downloadDataUrl(dataUrl, filename) {
+async function downloadDataUrl(dataUrl, filename, mimeType = "image/png") {
+  const blob = dataUrlToBlob(dataUrl, mimeType);
+  const file = new File([blob], filename, { type: mimeType });
+
+  const canShareFile =
+    typeof navigator !== "undefined" &&
+    typeof navigator.canShare === "function" &&
+    typeof navigator.share === "function" &&
+    navigator.canShare({ files: [file] });
+
+  if (canShareFile) {
+    await navigator.share({
+      files: [file],
+      title: filename,
+    });
+    return;
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
-  link.href = dataUrl;
+  link.href = objectUrl;
   link.download = filename;
+  link.rel = "noopener";
 
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1200);
+}
+
+function dataUrlToBlob(dataUrl, fallbackType = "image/png") {
+  const [header, base64] = String(dataUrl || "").split(",");
+  const mimeMatch = /data:([^;]+);base64/.exec(header || "");
+  const mimeType = mimeMatch?.[1] || fallbackType;
+  const binary = atob(base64 || "");
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: mimeType });
 }
 
 function clampNumber(value, min, max) {
