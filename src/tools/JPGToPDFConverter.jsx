@@ -1,23 +1,23 @@
 import { useMemo, useRef, useState } from "react";
 import {
-  Upload,
-  Download,
-  RotateCcw,
-  Zap,
-  CheckCircle,
   AlertCircle,
-  Loader2,
-  FileImage,
-  Images,
-  Trash2,
-  SlidersHorizontal,
-  FileText,
-  Archive,
-  ArrowUp,
   ArrowDown,
+  ArrowUp,
+  CheckCircle,
   ChevronDown,
-  Info,
+  Download,
+  Eye,
+  FileImage,
+  FileText,
+  Images,
+  Loader2,
+  Maximize2,
+  RotateCcw,
+  SlidersHorizontal,
+  Trash2,
+  Upload,
   X,
+  Zap,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
@@ -27,15 +27,17 @@ export const toolData = {
   path: "/jpg-to-pdf-converter",
   category: "PDF Tools",
   description:
-    "Convert JPG images to PDF in seconds. Easily adjust orientation and margins.",
+    "Convert JPG, PNG, or WEBP images to one high-quality PDF with ordered page preview and full PDF view.",
   metaTitle: "JPG to PDF Converter Online Free | Convert Images to PDF",
   metaDescription:
-    "Convert JPG images to PDF online for free. Upload or drop JPG images, adjust orientation, page size, margins, image fit, and download a PDF instantly.",
+    "Convert JPG, PNG, or WEBP images to PDF online. Upload images, arrange pages, preview the full PDF, and download a high-quality PDF.",
 };
 
 const MAX_FILES = 20;
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const MIN_PROCESSING_TIME_MS = 900;
+const MAX_PROCESSING_TIME_MS = 14000;
 
 const PAGE_SIZES = [
   { value: "a4", label: "A4" },
@@ -43,34 +45,14 @@ const PAGE_SIZES = [
 ];
 
 const ORIENTATION_OPTIONS = [
-  {
-    value: "auto",
-    label: "Auto",
-    description: "Match each image shape",
-  },
-  {
-    value: "portrait",
-    label: "Portrait",
-    description: "Vertical PDF pages",
-  },
-  {
-    value: "landscape",
-    label: "Landscape",
-    description: "Horizontal PDF pages",
-  },
+  { value: "auto", label: "Auto" },
+  { value: "portrait", label: "Portrait" },
+  { value: "landscape", label: "Landscape" },
 ];
 
 const FIT_OPTIONS = [
-  {
-    value: "contain",
-    label: "Fit Page",
-    description: "Keep full image visible",
-  },
-  {
-    value: "cover",
-    label: "Fill Page",
-    description: "Fill page, may crop edges",
-  },
+  { value: "contain", label: "Fit Page" },
+  { value: "cover", label: "Fill Page" },
 ];
 
 export default function JpgToPdfConverter() {
@@ -81,17 +63,20 @@ export default function JpgToPdfConverter() {
   const [pageSize, setPageSize] = useState("a4");
   const [marginMm, setMarginMm] = useState(10);
   const [fitMode, setFitMode] = useState("contain");
-  const [imageQuality, setImageQuality] = useState(0.92);
+  const [imageQuality, setImageQuality] = useState(0.96);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [pdfBlob, setPdfBlob] = useState(null);
   const [pdfUrl, setPdfUrl] = useState("");
-  const [pdfSize, setPdfSize] = useState(0);
+  const [showFullPdfView, setShowFullPdfView] = useState(false);
+  const [fullPageImage, setFullPageImage] = useState(null);
 
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [processingPhase, setProcessingPhase] = useState("");
   const [processingTimeMs, setProcessingTimeMs] = useState(0);
+  const [downloadProcessingTimeMs, setDownloadProcessingTimeMs] = useState(0);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -104,9 +89,9 @@ export default function JpgToPdfConverter() {
     if (!images.length) return 0;
 
     const sizeMb = totalImageSize / (1024 * 1024);
-    const estimated = 1200 + images.length * 350 + sizeMb * 120;
+    const estimated = MIN_PROCESSING_TIME_MS + images.length * 420 + sizeMb * 160;
 
-    return Math.min(12000, Math.max(1500, Math.round(estimated)));
+    return clampNumber(Math.round(estimated), MIN_PROCESSING_TIME_MS, MAX_PROCESSING_TIME_MS);
   }, [images.length, totalImageSize]);
 
   const canConvert = images.length > 0 && !isProcessing;
@@ -116,6 +101,12 @@ export default function JpgToPdfConverter() {
     setSuccess("");
   }
 
+  function resetFileInput() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
   function clearPdfOutput() {
     if (pdfUrl) {
       URL.revokeObjectURL(pdfUrl);
@@ -123,15 +114,11 @@ export default function JpgToPdfConverter() {
 
     setPdfBlob(null);
     setPdfUrl("");
-    setPdfSize(0);
+    setShowFullPdfView(false);
     setProgress(0);
+    setProcessingPhase("");
     setProcessingTimeMs(0);
-  }
-
-  function resetFileInput() {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setDownloadProcessingTimeMs(0);
   }
 
   function createImageItem(file) {
@@ -151,13 +138,17 @@ export default function JpgToPdfConverter() {
     if (!file) return "No file selected.";
 
     const fileName = file.name.toLowerCase();
-    const isJpg =
+    const isSupportedImage =
       file.type === "image/jpeg" ||
+      file.type === "image/png" ||
+      file.type === "image/webp" ||
       fileName.endsWith(".jpg") ||
-      fileName.endsWith(".jpeg");
+      fileName.endsWith(".jpeg") ||
+      fileName.endsWith(".png") ||
+      fileName.endsWith(".webp");
 
-    if (!isJpg) {
-      return "Only JPG/JPEG images are allowed.";
+    if (!isSupportedImage) {
+      return "Only JPG, PNG, or WEBP images are allowed.";
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
@@ -168,6 +159,8 @@ export default function JpgToPdfConverter() {
   }
 
   function addFiles(fileList) {
+    if (isProcessing) return;
+
     clearFeedback();
     clearPdfOutput();
 
@@ -196,8 +189,8 @@ export default function JpgToPdfConverter() {
     if (!acceptedFiles.length) {
       setError(
         images.length >= MAX_FILES
-          ? `Maximum ${MAX_FILES} JPG images are allowed.`
-          : "Please upload valid JPG/JPEG images."
+          ? `Maximum ${MAX_FILES} images are allowed.`
+          : "Please upload valid JPG, PNG, or WEBP images."
       );
       resetFileInput();
       return;
@@ -216,23 +209,18 @@ export default function JpgToPdfConverter() {
           });
         })
         .catch(() => {
-          updateImage(item.id, {
-            status: "error",
-          });
+          updateImage(item.id, { status: "error" });
         });
     });
 
-    const messages = [];
-    messages.push(`${acceptedFiles.length} JPG image(s) added.`);
+    const messages = [`${acceptedFiles.length} image${acceptedFiles.length === 1 ? "" : "s"} added.`];
 
     if (rejectedCount > 0) {
-      messages.push(`${rejectedCount} invalid file(s) ignored.`);
+      messages.push(`${rejectedCount} unsupported file${rejectedCount === 1 ? "" : "s"} ignored.`);
     }
 
     if (skippedByLimit > 0) {
-      messages.push(
-        `${skippedByLimit} file(s) skipped because the limit is ${MAX_FILES}.`
-      );
+      messages.push(`${skippedByLimit} file${skippedByLimit === 1 ? "" : "s"} skipped because the limit is ${MAX_FILES}.`);
     }
 
     setSuccess(messages.join(" "));
@@ -246,8 +234,6 @@ export default function JpgToPdfConverter() {
   function handleDrop(event) {
     event.preventDefault();
     setIsDragging(false);
-
-    if (isProcessing) return;
 
     addFiles(event.dataTransfer.files);
   }
@@ -325,11 +311,11 @@ export default function JpgToPdfConverter() {
     });
 
     clearPdfOutput();
-
     setImages([]);
     setError("");
     setSuccess("");
     setSettingsOpen(false);
+    setFullPageImage(null);
     resetFileInput();
   }
 
@@ -339,10 +325,10 @@ export default function JpgToPdfConverter() {
     clearPdfOutput();
   }
 
-  async function convertToPdf() {
+  async function convertToPdf({ openPreview = false } = {}) {
     if (!images.length) {
-      setError("Please upload at least one JPG image first.");
-      return;
+      setError("Please upload at least one image first.");
+      return null;
     }
 
     clearFeedback();
@@ -350,6 +336,7 @@ export default function JpgToPdfConverter() {
 
     setIsProcessing(true);
     setProgress(0);
+    setProcessingPhase("Preparing images for PDF...");
 
     const startTime = performance.now();
 
@@ -359,21 +346,16 @@ export default function JpgToPdfConverter() {
       for (let index = 0; index < images.length; index += 1) {
         const imageItem = images[index];
 
-        updateImage(imageItem.id, {
-          status: "processing",
-        });
+        setProcessingPhase(`Adding page ${index + 1} of ${images.length}...`);
+
+        updateImage(imageItem.id, { status: "processing" });
 
         const imageDataUrl = await fileToDataUrl(imageItem.file);
         const loadedImage = await loadImage(imageDataUrl);
 
         const imageWidth = loadedImage.naturalWidth || loadedImage.width;
         const imageHeight = loadedImage.naturalHeight || loadedImage.height;
-
-        const pageOrientation = getPageOrientation(
-          orientation,
-          imageWidth,
-          imageHeight
-        );
+        const pageOrientation = getPageOrientation(orientation, imageWidth, imageHeight);
 
         if (!pdfDocument) {
           pdfDocument = new jsPDF({
@@ -388,21 +370,11 @@ export default function JpgToPdfConverter() {
 
         const pageWidth = pdfDocument.internal.pageSize.getWidth();
         const pageHeight = pdfDocument.internal.pageSize.getHeight();
-
-        const safeMargin = Math.min(
-          Number(marginMm),
-          Math.floor(Math.min(pageWidth, pageHeight) / 3)
-        );
-
+        const safeMargin = Math.min(Number(marginMm) || 0, Math.floor(Math.min(pageWidth, pageHeight) / 3));
         const contentWidth = Math.max(1, pageWidth - safeMargin * 2);
         const contentHeight = Math.max(1, pageHeight - safeMargin * 2);
 
-        const optimizedImageDataUrl = imageToJpegDataUrl(
-          loadedImage,
-          imageQuality,
-          2400
-        );
-
+        const optimizedImageDataUrl = imageToJpegDataUrl(loadedImage, imageQuality, 4096);
         const imagePlacement = getImagePlacement({
           imageWidth,
           imageHeight,
@@ -420,7 +392,7 @@ export default function JpgToPdfConverter() {
           imagePlacement.width,
           imagePlacement.height,
           undefined,
-          "FAST"
+          "SLOW"
         );
 
         updateImage(imageItem.id, {
@@ -429,31 +401,33 @@ export default function JpgToPdfConverter() {
           height: imageHeight,
         });
 
-        setProgress(Math.round(((index + 1) / images.length) * 100));
+        setProgress(Math.round(((index + 1) / images.length) * 82));
       }
 
       if (!pdfDocument) {
         throw new Error("Could not create PDF.");
       }
 
+      setProcessingPhase("Finalizing high-quality PDF...");
+      setProgress(90);
+
+      await waitRemaining(startTime, estimatedProcessingTime);
+
       const generatedBlob = pdfDocument.output("blob");
       const generatedUrl = URL.createObjectURL(generatedBlob);
-
-      const actualProcessingTime = Math.max(
-        1,
-        Math.round(performance.now() - startTime)
-      );
+      const actualProcessingTime = Math.max(1, Math.round(performance.now() - startTime));
 
       setPdfBlob(generatedBlob);
       setPdfUrl(generatedUrl);
-      setPdfSize(generatedBlob.size);
       setProcessingTimeMs(actualProcessingTime);
       setProgress(100);
+      setProcessingPhase("PDF ready.");
+      setShowFullPdfView(openPreview);
       setSuccess(
-        `PDF created successfully from ${images.length} image${
-          images.length === 1 ? "" : "s"
-        }.`
+        `PDF created successfully from ${images.length} image${images.length === 1 ? "" : "s"} in ${(actualProcessingTime / 1000).toFixed(1)}s.`
       );
+
+      return { blob: generatedBlob, url: generatedUrl };
     } catch (err) {
       console.error("JPG to PDF conversion error:", err);
 
@@ -464,29 +438,69 @@ export default function JpgToPdfConverter() {
         }))
       );
 
-      setError("Could not convert JPG images to PDF. Please try again.");
+      setError("Could not convert images to PDF. Please try again.");
+      return null;
     } finally {
       setIsProcessing(false);
+      window.setTimeout(() => setProgress(0), 800);
     }
   }
 
-  function handleDownload() {
-    if (!pdfBlob || !pdfUrl) {
-      setError("Please convert JPG images to PDF first.");
+  async function handleCheckFullPdfView() {
+    if (pdfBlob && pdfUrl) {
+      setShowFullPdfView(true);
       return;
     }
 
-    const link = document.createElement("a");
+    await convertToPdf({ openPreview: true });
+  }
 
-    link.href = pdfUrl;
-    link.download =
-      images.length === 1
-        ? `${getFileBaseName(images[0].name)}.pdf`
-        : "converted-jpg-images.pdf";
+  async function handleDownload() {
+    if (!pdfBlob || !pdfUrl) {
+      setError("Please convert images to PDF first.");
+      return;
+    }
 
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    setError("");
+    setSuccess("");
+    setIsProcessing(true);
+    setProgress(0);
+    setProcessingPhase("Preparing PDF download...");
+
+    const startTime = performance.now();
+
+    try {
+      await wait(160);
+      setProgress(45);
+      setProcessingPhase("Creating download file...");
+
+      await wait(260);
+      setProgress(82);
+      setProcessingPhase("Starting download...");
+
+      const link = document.createElement("a");
+
+      link.href = pdfUrl;
+      link.download =
+        images.length === 1
+          ? `${getFileBaseName(images[0].name)}.pdf`
+          : "converted-images.pdf";
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      const actualProcessingTime = Math.max(1, Math.round(performance.now() - startTime));
+
+      setDownloadProcessingTimeMs(actualProcessingTime);
+      setProgress(100);
+      setSuccess(`Download started in ${(actualProcessingTime / 1000).toFixed(1)}s.`);
+    } catch {
+      setError("Could not start the download. Please try again.");
+    } finally {
+      setIsProcessing(false);
+      window.setTimeout(() => setProgress(0), 800);
+    }
   }
 
   function handleReset() {
@@ -505,17 +519,20 @@ export default function JpgToPdfConverter() {
     setPageSize("a4");
     setMarginMm(10);
     setFitMode("contain");
-    setImageQuality(0.92);
+    setImageQuality(0.96);
     setSettingsOpen(false);
+    setFullPageImage(null);
+    setShowFullPdfView(false);
 
     setPdfBlob(null);
     setPdfUrl("");
-    setPdfSize(0);
 
     setIsDragging(false);
     setIsProcessing(false);
     setProgress(0);
+    setProcessingPhase("");
     setProcessingTimeMs(0);
+    setDownloadProcessingTimeMs(0);
 
     setError("");
     setSuccess("");
@@ -525,7 +542,6 @@ export default function JpgToPdfConverter() {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* HEADER */}
       <section className="card p-6 sm:p-8">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
           <FileImage size={28} className="text-[var(--primary)]" />
@@ -534,455 +550,377 @@ export default function JpgToPdfConverter() {
         <h1 className="text-3xl font-bold mb-3">JPG to PDF Converter</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Convert JPG images to PDF in seconds. Upload images, arrange their
-          order, keep the default smart settings, or open PDF settings only when
-          you need more control.
+          Convert JPG, PNG, or WEBP images into one clean high-quality PDF.
+          Arrange pages, preview the final PDF, and download when ready.
         </p>
       </section>
 
-      {/* TOOL BODY */}
       <section className="card p-6 sm:p-8">
-        <div className="grid lg:grid-cols-[1.35fr_0.85fr] gap-6">
-          {/* LEFT COLUMN */}
-          <div className="flex flex-col gap-5">
-            {/* UPLOAD AREA */}
-            <label
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              className={`block border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition ${
-                isDragging
-                  ? "border-[var(--primary)] bg-[#f4edff]"
-                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
-              } ${isProcessing ? "opacity-60 cursor-not-allowed" : ""}`}
-            >
-              <Upload size={38} className="mx-auto mb-4 text-[var(--primary)]" />
+        <div className="flex flex-col gap-5">
+          <label
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={`block border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition ${
+              isDragging
+                ? "border-[var(--primary)] bg-[#f4edff]"
+                : "border-[var(--border)] hover:bg-[#f8f4ff]"
+            } ${isProcessing ? "opacity-60 cursor-not-allowed" : ""}`}
+          >
+            <Upload size={38} className="mx-auto mb-4 text-[var(--primary)]" />
 
-              <h2 className="text-xl font-semibold mb-2">
-                Choose file or drop JPG images here
-              </h2>
+            <h2 className="text-xl font-semibold mb-2">
+              Choose or drop images here
+            </h2>
 
-              <p className="text-sm text-[var(--text-secondary)]">
-                Upload up to {MAX_FILES} JPG/JPEG images. Each image must be
-                under <strong>{MAX_FILE_SIZE_MB} MB</strong>.
-              </p>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Upload up to {MAX_FILES} JPG, PNG, or WEBP images. Each image must be
+              under <strong>{MAX_FILE_SIZE_MB} MB</strong>.
+            </p>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,.jpg,.jpeg"
-                multiple
-                onChange={handleFileInputChange}
-                className="hidden"
-                disabled={isProcessing}
-              />
-            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+              multiple
+              onChange={handleFileInputChange}
+              className="hidden"
+              disabled={isProcessing}
+            />
+          </label>
 
-            {/* FEEDBACK */}
-            {error && (
-              <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{error}</p>
-              </div>
-            )}
-
-            {success && (
-              <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
-                <CheckCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{success}</p>
-              </div>
-            )}
-
-            {/* SETTINGS ACCORDION */}
-            {images.length > 0 && (
-              <div className="border border-[var(--border)] rounded-2xl bg-white overflow-visible">
-                <button
-                  type="button"
-                  onClick={() => setSettingsOpen((current) => !current)}
-                  className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 text-left hover:bg-[#f8f4ff] transition"
-                  disabled={isProcessing}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#f4edff] flex items-center justify-center shrink-0">
-                      <SlidersHorizontal
-                        size={20}
-                        className="text-[var(--primary)]"
-                      />
-                    </div>
-
-                    <div>
-                      <h3 className="font-semibold">PDF Settings</h3>
-                      <p className="text-sm text-[var(--text-secondary)] mt-1">
-                        Default settings are ready. Open only if you want to
-                        change page size, margin, fit, or quality.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-start sm:self-center">
-                    <span className="text-xs font-semibold rounded-full bg-[#f4edff] text-[var(--primary)] px-3 py-1">
-                      {orientation === "auto" ? "Auto" : orientation}
-                    </span>
-                    <span className="text-xs font-semibold rounded-full bg-gray-100 px-3 py-1">
-                      {pageSize.toUpperCase()}
-                    </span>
-                    <ChevronDown
-                      size={20}
-                      className={`text-[var(--primary)] transition-transform ${
-                        settingsOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </div>
-                </button>
-
-                {settingsOpen && (
-                  <div className="border-t border-[var(--border)] bg-[#fafafa] p-5">
-                    <div className="grid sm:grid-cols-3 gap-3">
-                      {ORIENTATION_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() =>
-                            handleSettingChange(setOrientation, option.value)
-                          }
-                          disabled={isProcessing}
-                          className={`rounded-2xl border p-4 text-left transition ${
-                            orientation === option.value
-                              ? "border-[var(--primary)] bg-white text-[var(--primary)]"
-                              : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                          }`}
-                        >
-                          <p className="font-semibold">{option.label}</p>
-                          <p className="text-xs text-[var(--text-secondary)] mt-1">
-                            {option.description}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="grid sm:grid-cols-2 gap-4 mt-5">
-                      <div>
-                        <label className="block text-sm font-semibold mb-2">
-                          Page Size
-                        </label>
-
-                        <select
-                          value={pageSize}
-                          onChange={(event) =>
-                            handleSettingChange(setPageSize, event.target.value)
-                          }
-                          disabled={isProcessing}
-                          className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
-                        >
-                          {PAGE_SIZES.map((size) => (
-                            <option key={size.value} value={size.value}>
-                              {size.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold mb-2">
-                          Image Fit
-                        </label>
-
-                        <select
-                          value={fitMode}
-                          onChange={(event) =>
-                            handleSettingChange(setFitMode, event.target.value)
-                          }
-                          disabled={isProcessing}
-                          className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
-                        >
-                          {FIT_OPTIONS.map((fit) => (
-                            <option key={fit.value} value={fit.value}>
-                              {fit.label} — {fit.description}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="relative rounded-2xl border border-[var(--border)] bg-white p-4">
-                        <InfoTooltip text="Most documents use 10mm. Use 0mm for full-page images or 10–15mm for a clean professional PDF." />
-
-                        <label className="block text-sm font-semibold mb-3 pr-9">
-                          Margin: {marginMm}mm
-                        </label>
-
-                        <input
-                          type="range"
-                          min="0"
-                          max="30"
-                          step="1"
-                          value={marginMm}
-                          onChange={(event) =>
-                            handleSettingChange(
-                              setMarginMm,
-                              Number(event.target.value)
-                            )
-                          }
-                          disabled={isProcessing}
-                          className="w-full accent-[var(--primary)]"
-                        />
-                      </div>
-
-                      <div className="relative rounded-2xl border border-[var(--border)] bg-white p-4">
-                        <InfoTooltip text="90–95% is best for professional PDFs. Lower quality makes smaller files but may reduce image sharpness." />
-
-                        <label className="block text-sm font-semibold mb-3 pr-9">
-                          Image Quality: {Math.round(imageQuality * 100)}%
-                        </label>
-
-                        <input
-                          type="range"
-                          min="0.6"
-                          max="1"
-                          step="0.01"
-                          value={imageQuality}
-                          onChange={(event) =>
-                            handleSettingChange(
-                              setImageQuality,
-                              Number(event.target.value)
-                            )
-                          }
-                          disabled={isProcessing}
-                          className="w-full accent-[var(--primary)]"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5 text-sm">
-                      <InfoBox label="Images" value={images.length} />
-                      <InfoBox label="Total Size" value={formatBytes(totalImageSize)} />
-                      <InfoBox
-                        label="Margin"
-                        value={`${marginMm}mm`}
-                      />
-                      <InfoBox
-                        label="Est. Time"
-                        value={`${Math.ceil(estimatedProcessingTime / 1000)}s`}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ACTIONS */}
-            {images.length > 0 && (
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={convertToPdf}
-                  disabled={!canConvert}
-                  className={`btn-primary flex-1 inline-flex items-center justify-center gap-2 ${
-                    !canConvert ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  {isProcessing ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <Zap size={18} />
-                  )}
-                  {isProcessing
-                    ? "Converting..."
-                    : images.length > 1
-                      ? "Convert Images to PDF"
-                      : "Convert JPG to PDF"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={clearAllImages}
-                  disabled={isProcessing}
-                  className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                    isProcessing ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <Trash2 size={18} />
-                  Clear
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  disabled={isProcessing}
-                  className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                    isProcessing ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <RotateCcw size={18} />
-                  Reset
-                </button>
-              </div>
-            )}
-
-            {/* PROGRESS */}
-            {isProcessing && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
-                <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
-                  <span>Creating PDF...</span>
-                  <span>{progress}%</span>
-                </div>
-
-                <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
-                  <div
-                    className="h-full bg-[var(--primary)] transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* IMAGE LIST */}
-            {images.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Images size={20} className="text-[var(--primary)]" />
-                    <h3 className="font-semibold">Selected JPG Images</h3>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isProcessing}
-                    className={`text-sm font-semibold text-[var(--primary)] ${
-                      isProcessing ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
-                  >
-                    Add more
-                  </button>
-                </div>
-
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {images.map((image, index) => (
-                    <ImageCard
-                      key={image.id}
-                      image={image}
-                      index={index}
-                      total={images.length}
-                      isProcessing={isProcessing}
-                      onRemove={() => removeImage(image.id)}
-                      onMoveUp={() => moveImage(image.id, "up")}
-                      onMoveDown={() => moveImage(image.id, "down")}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {!images.length && (
-              <div className="text-center py-8 border border-dashed border-[var(--border)] rounded-2xl bg-gray-50">
-                <FileImage size={42} className="mx-auto mb-3 text-gray-300" />
-                <p className="text-[var(--text-secondary)]">
-                  Upload JPG images to create a PDF.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT COLUMN */}
-          <div className="flex flex-col gap-5">
-            {/* RESULT */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <FileText size={20} className="text-[var(--primary)]" />
-                <h2 className="text-xl font-semibold">PDF Result</h2>
-              </div>
-
-              <div className="border border-[var(--border)] rounded-2xl p-6 bg-gray-50 min-h-[360px] flex items-center justify-center">
-                {pdfUrl ? (
-                  <div className="w-full text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle size={32} className="text-green-600" />
-                    </div>
-
-                    <h3 className="font-semibold mb-2">PDF Ready</h3>
-
-                    <p className="text-sm text-[var(--text-secondary)] mb-5">
-                      Your JPG images have been converted into a PDF.
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={handleDownload}
-                      className="btn-primary w-full inline-flex items-center justify-center gap-2"
-                    >
-                      <Download size={18} />
-                      Download PDF
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <Archive size={54} className="mx-auto mb-3 text-gray-300" />
-                    <p className="text-[var(--text-secondary)]">
-                      Converted PDF will appear here.
-                    </p>
-                  </div>
-                )}
-              </div>
+          {error && (
+            <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
+              <AlertCircle size={18} className="shrink-0 mt-0.5" />
+              <p>{error}</p>
             </div>
+          )}
 
-            {/* PDF PREVIEW */}
-            {pdfUrl && (
-              <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white">
-                <div className="p-4 border-b border-[var(--border)]">
-                  <h3 className="font-semibold">PDF Preview</h3>
+          {success && (
+            <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
+              <CheckCircle size={18} className="shrink-0 mt-0.5" />
+              <p>{success}</p>
+            </div>
+          )}
+
+          {images.length > 0 && (
+            <div className="border border-[var(--border)] rounded-2xl bg-white overflow-visible">
+              <button
+                type="button"
+                onClick={() => setSettingsOpen((current) => !current)}
+                className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 text-left hover:bg-[#f8f4ff] transition"
+                disabled={isProcessing}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#f4edff] flex items-center justify-center shrink-0">
+                    <SlidersHorizontal size={20} className="text-[var(--primary)]" />
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold">PDF Settings</h3>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">
+                      Default high-quality settings are ready. Open only if you need to change them.
+                    </p>
+                  </div>
                 </div>
 
-                <iframe
-                  src={pdfUrl}
-                  title="Converted PDF Preview"
-                  className="w-full h-[420px] bg-gray-50"
+                <ChevronDown
+                  size={20}
+                  className={`text-[var(--primary)] transition-transform ${
+                    settingsOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {settingsOpen && (
+                <div className="border-t border-[var(--border)] bg-[#fafafa] p-5">
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    {ORIENTATION_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleSettingChange(setOrientation, option.value)}
+                        disabled={isProcessing}
+                        className={`rounded-2xl border p-4 text-left transition ${
+                          orientation === option.value
+                            ? "border-[var(--primary)] bg-white text-[var(--primary)]"
+                            : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                        }`}
+                      >
+                        <p className="font-semibold">{option.label}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4 mt-5">
+                    <FormControl label="Page Size">
+                      <select
+                        value={pageSize}
+                        onChange={(event) => handleSettingChange(setPageSize, event.target.value)}
+                        disabled={isProcessing}
+                        className="tool-input"
+                      >
+                        {PAGE_SIZES.map((size) => (
+                          <option key={size.value} value={size.value}>
+                            {size.label}
+                          </option>
+                        ))}
+                      </select>
+                    </FormControl>
+
+                    <FormControl label="Image Fit">
+                      <select
+                        value={fitMode}
+                        onChange={(event) => handleSettingChange(setFitMode, event.target.value)}
+                        disabled={isProcessing}
+                        className="tool-input"
+                      >
+                        {FIT_OPTIONS.map((fit) => (
+                          <option key={fit.value} value={fit.value}>
+                            {fit.label}
+                          </option>
+                        ))}
+                      </select>
+                    </FormControl>
+
+                    <FormControl label={`Margin: ${marginMm}mm`}>
+                      <input
+                        type="range"
+                        min="0"
+                        max="30"
+                        step="1"
+                        value={marginMm}
+                        onChange={(event) => handleSettingChange(setMarginMm, Number(event.target.value))}
+                        disabled={isProcessing}
+                        className="w-full accent-[var(--primary)]"
+                      />
+                    </FormControl>
+
+                    <FormControl label={`Image Quality: ${Math.round(imageQuality * 100)}%`}>
+                      <input
+                        type="range"
+                        min="0.75"
+                        max="1"
+                        step="0.01"
+                        value={imageQuality}
+                        onChange={(event) => handleSettingChange(setImageQuality, Number(event.target.value))}
+                        disabled={isProcessing}
+                        className="w-full accent-[var(--primary)]"
+                      />
+                    </FormControl>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {images.length > 0 && (
+            <div className="grid sm:grid-cols-4 gap-3">
+              <button
+                type="button"
+                onClick={() => convertToPdf({ openPreview: false })}
+                disabled={!canConvert}
+                className={`btn-primary sm:col-span-2 inline-flex items-center justify-center gap-2 ${
+                  !canConvert ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
+                {isProcessing ? "Converting..." : "Convert to PDF"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCheckFullPdfView}
+                disabled={isProcessing || !images.length}
+                className={`btn-secondary inline-flex items-center justify-center gap-2 ${
+                  isProcessing || !images.length ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                <Maximize2 size={18} />
+                Check Full PDF View
+              </button>
+
+              <button
+                type="button"
+                onClick={clearAllImages}
+                disabled={isProcessing}
+                className={`btn-secondary inline-flex items-center justify-center gap-2 ${
+                  isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                <Trash2 size={18} />
+                Clear
+              </button>
+            </div>
+          )}
+
+          {isProcessing && (
+            <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
+              <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                <span>{processingPhase || "Processing..."}</span>
+                <span>{progress}%</span>
+              </div>
+
+              <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                <div
+                  className="h-full bg-[var(--primary)] transition-all duration-300"
+                  style={{ width: `${progress}%` }}
                 />
               </div>
-            )}
+            </div>
+          )}
 
-            {/* STATS */}
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard label="Images" value={images.length || "-"} />
-              <StatCard label="Page Size" value={pageSize.toUpperCase()} />
-              <StatCard label="Margin" value={`${marginMm}mm`} />
-              <StatCard
-                label="PDF Size"
-                value={pdfSize ? formatBytes(pdfSize) : "-"}
-                green={Boolean(pdfSize)}
-              />
-              <StatCard
-                label="Processing Time"
-                value={
-                  processingTimeMs
-                    ? `${(processingTimeMs / 1000).toFixed(1)}s`
-                    : estimatedProcessingTime
-                      ? `Est. ${Math.ceil(estimatedProcessingTime / 1000)}s`
-                      : "-"
-                }
-                green={Boolean(processingTimeMs)}
-              />
-              <StatCard
-                label="Fit Mode"
-                value={fitMode === "contain" ? "Fit" : "Fill"}
+          {!isProcessing && (processingTimeMs > 0 || downloadProcessingTimeMs > 0) && (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-green-100 bg-green-50 p-4 text-sm text-green-800">
+              <span className="font-semibold">
+                {downloadProcessingTimeMs > 0 ? "Download processing completed" : "PDF processing completed"}
+              </span>
+              <span className="font-bold">
+                {((downloadProcessingTimeMs || processingTimeMs) / 1000).toFixed(1)}s
+              </span>
+            </div>
+          )}
+
+          {images.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Images size={20} className="text-[var(--primary)]" />
+                  <h3 className="font-semibold">PDF Pages</h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isProcessing}
+                  className={`text-sm font-semibold text-[var(--primary)] ${
+                    isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  Add more
+                </button>
+              </div>
+
+              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {images.map((image, index) => (
+                  <ImageCard
+                    key={image.id}
+                    image={image}
+                    index={index}
+                    total={images.length}
+                    isProcessing={isProcessing}
+                    onRemove={() => removeImage(image.id)}
+                    onMoveUp={() => moveImage(image.id, "up")}
+                    onMoveDown={() => moveImage(image.id, "down")}
+                    onFullView={() => setFullPageImage(image)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pdfUrl && showFullPdfView && (
+            <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white">
+              <div className="p-4 border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold">Full PDF Preview</h3>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    Review the complete PDF before saving it.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={isProcessing}
+                  className={`btn-primary inline-flex items-center justify-center gap-2 ${
+                    isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  <Download size={18} />
+                  Download
+                </button>
+              </div>
+
+              <iframe
+                src={pdfUrl}
+                title="Converted PDF Preview"
+                className="w-full h-[720px] bg-gray-50"
               />
             </div>
+          )}
 
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-              <h3 className="font-semibold text-blue-900 mb-2">
-                Browser-based JPG to PDF conversion
-              </h3>
-
-              <p className="text-sm text-blue-800">
-                Your JPG images are converted to PDF directly in your browser.
-                No paid API is required.
+          {!images.length && (
+            <div className="text-center py-8 border border-dashed border-[var(--border)] rounded-2xl bg-gray-50">
+              <FileImage size={42} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-[var(--text-secondary)]">
+                Upload images to create a PDF.
               </p>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
+      {fullPageImage && (
+        <div className="fixed inset-0 z-50 bg-black/75 p-4 flex items-center justify-center">
+          <div className="w-full max-w-5xl max-h-[92vh] rounded-2xl bg-white overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold">Page Full View</h3>
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                  {fullPageImage.name}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFullPageImage(null)}
+                className="h-10 w-10 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]"
+                aria-label="Close full page view"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="h-[78vh] bg-[#f8f4ff] flex items-center justify-center p-4">
+              <img
+                src={fullPageImage.previewUrl}
+                alt={fullPageImage.name}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .tool-input {
+          width: 100%;
+          height: 44px;
+          border: 1px solid var(--border);
+          border-radius: 0.75rem;
+          padding: 0 0.9rem;
+          background: white;
+          outline: none;
+          font-weight: 600;
+        }
+        .tool-input:focus {
+          border-color: var(--primary);
+          box-shadow: 0 0 0 2px rgba(155, 108, 227, 0.16);
+        }
+      `}</style>
+
       <SuggestedTools currentToolId="jpg-to-pdf-converter" />
     </div>
+  );
+}
+
+function FormControl({ label, children }) {
+  return (
+    <label className="block rounded-2xl border border-[var(--border)] bg-white p-4">
+      <span className="block text-sm font-semibold mb-3">{label}</span>
+      {children}
+    </label>
   );
 }
 
@@ -994,6 +932,7 @@ function ImageCard({
   onRemove,
   onMoveUp,
   onMoveDown,
+  onFullView,
 }) {
   const statusText = {
     ready: "Ready",
@@ -1004,14 +943,14 @@ function ImageCard({
 
   return (
     <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white shadow-sm">
-      <div className="relative bg-[#f8f4ff] h-44 flex items-center justify-center">
+      <div className="relative bg-[#f8f4ff] h-56 flex items-center justify-center">
         <div className="absolute left-3 top-3 z-10 rounded-full bg-white/95 border border-[var(--border)] px-3 py-1 text-xs font-bold text-[var(--primary)] shadow-sm">
           Page {index + 1}
         </div>
 
         <div className="absolute right-3 top-3 z-10 flex gap-1">
           <PreviewActionButton
-            title="Move image up"
+            title="Move page up"
             disabled={isProcessing || index === 0}
             onClick={onMoveUp}
           >
@@ -1019,7 +958,7 @@ function ImageCard({
           </PreviewActionButton>
 
           <PreviewActionButton
-            title="Move image down"
+            title="Move page down"
             disabled={isProcessing || index === total - 1}
             onClick={onMoveDown}
           >
@@ -1027,7 +966,7 @@ function ImageCard({
           </PreviewActionButton>
 
           <PreviewActionButton
-            title="Remove image"
+            title="Remove page"
             disabled={isProcessing}
             onClick={onRemove}
             danger
@@ -1041,62 +980,39 @@ function ImageCard({
           alt={image.name}
           className="max-h-full max-w-full object-contain"
         />
+
+        <button
+          type="button"
+          onClick={onFullView}
+          disabled={isProcessing}
+          className={`absolute bottom-3 right-3 z-10 h-10 w-10 rounded-xl border border-[var(--border)] bg-white/95 shadow-sm inline-flex items-center justify-center transition ${
+            isProcessing
+              ? "opacity-50 cursor-not-allowed"
+              : "hover:bg-[#f4edff] hover:text-[var(--primary)]"
+          }`}
+          title={`View page ${index + 1} full size`}
+          aria-label={`View page ${index + 1} full size`}
+        >
+          <Eye size={18} />
+        </button>
       </div>
 
       <div className="p-4">
-        <p className="font-semibold text-sm truncate" title={image.name}>
-          {image.name}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-sm truncate" title={image.name}>
+              {image.name}
+            </p>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              {formatBytes(image.size)} • {statusText}
+            </p>
+          </div>
 
-        <div className="flex items-center justify-between gap-3 mt-2 text-xs text-[var(--text-secondary)]">
-          <span>{formatBytes(image.size)}</span>
-          <span>{statusText}</span>
-        </div>
-
-        {image.width > 0 && image.height > 0 && (
-          <p className="text-xs text-[var(--text-secondary)] mt-1">
-            {image.width} × {image.height}px
-          </p>
-        )}
-
-        <div className="grid grid-cols-3 gap-2 mt-4">
-          <button
-            type="button"
-            onClick={onMoveUp}
-            disabled={isProcessing || index === 0}
-            className={`btn-secondary inline-flex items-center justify-center gap-1 text-xs ${
-              isProcessing || index === 0 ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            <ArrowUp size={14} />
-            Up
-          </button>
-
-          <button
-            type="button"
-            onClick={onMoveDown}
-            disabled={isProcessing || index === total - 1}
-            className={`btn-secondary inline-flex items-center justify-center gap-1 text-xs ${
-              isProcessing || index === total - 1
-                ? "opacity-50 cursor-not-allowed"
-                : ""
-            }`}
-          >
-            <ArrowDown size={14} />
-            Down
-          </button>
-
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={isProcessing}
-            className={`btn-secondary inline-flex items-center justify-center gap-1 text-xs hover:text-red-600 ${
-              isProcessing ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            <Trash2 size={14} />
-            Remove
-          </button>
+          {image.width > 0 && image.height > 0 && (
+            <span className="text-xs text-[var(--text-secondary)] shrink-0">
+              {image.width}×{image.height}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -1121,49 +1037,6 @@ function PreviewActionButton({ children, title, disabled, onClick, danger = fals
     >
       {children}
     </button>
-  );
-}
-
-function InfoTooltip({ text }) {
-  return (
-    <div className="absolute right-3 top-3 group">
-      <button
-        type="button"
-        className="w-6 h-6 rounded-full border border-[var(--border)] bg-[#f8f4ff] text-[var(--primary)] inline-flex items-center justify-center"
-        aria-label={text}
-        title={text}
-      >
-        <Info size={14} />
-      </button>
-
-      <div className="pointer-events-none absolute right-0 top-8 z-30 hidden w-64 rounded-xl border border-[var(--border)] bg-white p-3 text-xs leading-5 text-[var(--text-secondary)] shadow-xl group-hover:block">
-        {text}
-      </div>
-    </div>
-  );
-}
-
-function InfoBox({ label, value }) {
-  return (
-    <div className="bg-white border border-[var(--border)] rounded-xl p-3 text-center">
-      <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
-      <p className="font-semibold text-[var(--primary)] break-all">{value}</p>
-    </div>
-  );
-}
-
-function StatCard({ label, value, green = false }) {
-  return (
-    <div className="bg-white border border-[var(--border)] rounded-2xl p-4 text-center">
-      <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
-      <p
-        className={`text-xl font-bold break-all ${
-          green ? "text-green-600" : "text-[var(--primary)]"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -1235,16 +1108,12 @@ function loadImage(source) {
   });
 }
 
-function imageToJpegDataUrl(image, quality, maxLongSide = 2400) {
+function imageToJpegDataUrl(image, quality, maxLongSide = 4096) {
   const originalWidth = image.naturalWidth || image.width;
   const originalHeight = image.naturalHeight || image.height;
-
-  const ratio = Math.min(
-    1,
-    maxLongSide / Math.max(originalWidth, originalHeight)
-  );
-
+  const ratio = Math.min(1, maxLongSide / Math.max(originalWidth, originalHeight));
   const canvas = document.createElement("canvas");
+
   canvas.width = Math.max(1, Math.round(originalWidth * ratio));
   canvas.height = Math.max(1, Math.round(originalHeight * ratio));
 
@@ -1254,6 +1123,8 @@ function imageToJpegDataUrl(image, quality, maxLongSide = 2400) {
     throw new Error("Canvas is not supported.");
   }
 
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -1274,6 +1145,29 @@ function getFileBaseName(fileName) {
   return String(fileName || "converted").replace(/\.[^/.]+$/, "");
 }
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function waitRemaining(startTime, minimumMs) {
+  const elapsed = performance.now() - startTime;
+  const remaining = Math.max(0, minimumMs - elapsed);
+
+  if (remaining > 0) {
+    await wait(remaining);
+  }
+}
+
+function clampNumber(value, min, max) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return min;
+
+  return Math.min(max, Math.max(min, number));
+}
+
 function formatBytes(bytes) {
   if (!bytes) return "0 B";
 
@@ -1282,7 +1176,6 @@ function formatBytes(bytes) {
     Math.floor(Math.log(bytes) / Math.log(1024)),
     units.length - 1
   );
-
   const size = bytes / Math.pow(1024, sizeIndex);
 
   return `${size.toFixed(sizeIndex === 0 ? 0 : 1)} ${units[sizeIndex]}`;
