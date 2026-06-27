@@ -469,13 +469,16 @@ export default function MotivationalQuoteImageMaker() {
   }
 
   function handleContentModeChange(mode) {
-    setContentMode(mode);
+    const nextMode = ["quote", "list", "note"].includes(mode) ? mode : "quote";
 
-    if (mode === "quote") {
+    setContentMode(nextMode);
+
+    if (nextMode === "quote") {
       setQuoteMarks(true);
+      setTextAlign("center");
     } else {
       setQuoteMarks(false);
-      setTextAlign(mode === "list" ? "left" : "center");
+      setTextAlign(nextMode === "list" ? "left" : "center");
     }
 
     clearOutput();
@@ -1100,24 +1103,44 @@ export default function MotivationalQuoteImageMaker() {
                 <ContentModeButton
                   icon={Quote}
                   label="Quote"
+                  value="quote"
                   active={contentMode === "quote"}
-                  onClick={() => handleContentModeChange("quote")}
+                  onChange={handleContentModeChange}
                 />
 
                 <ContentModeButton
                   icon={List}
                   label="List"
+                  value="list"
                   active={contentMode === "list"}
-                  onClick={() => handleContentModeChange("list")}
+                  onChange={handleContentModeChange}
                 />
 
                 <ContentModeButton
                   icon={StickyNote}
                   label="Note"
+                  value="note"
                   active={contentMode === "note"}
-                  onClick={() => handleContentModeChange("note")}
+                  onChange={handleContentModeChange}
                 />
               </div>
+
+              <select
+                value={contentMode}
+                onChange={(event) => handleContentModeChange(event.target.value)}
+                className="sm:hidden w-full mb-4 border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)] font-semibold"
+                aria-label="Choose content mode"
+              >
+                <option value="quote">Quote mode</option>
+                <option value="list">List mode</option>
+                <option value="note">Note mode</option>
+              </select>
+
+              <p className="mb-3 text-sm text-[var(--text-secondary)]">
+                {contentMode === "quote" && "Write one quote and download it as an image."}
+                {contentMode === "list" && "Write each list item on a new line. The image will download as a clean bullet list."}
+                {contentMode === "note" && "Write a clean note without quote marks."}
+              </p>
 
               <TextAreaField
                 label={contentMode === "quote" ? "Motivational Quote" : contentMode === "list" ? "List Items" : "Note"}
@@ -1606,20 +1629,45 @@ export default function MotivationalQuoteImageMaker() {
   );
 }
 
-function ContentModeButton({ icon: Icon, label, active, onClick }) {
+function ContentModeButton({ icon: Icon, label, value, active, onChange }) {
+  function selectMode(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
+    if (!active) {
+      onChange(value);
+    }
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === "Enter" || event.key === " ") {
+      selectMode(event);
+    }
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`min-h-12 rounded-xl border px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2 transition ${
+    <div
+      role="radio"
+      aria-checked={active}
+      tabIndex={0}
+      onClick={selectMode}
+      onTouchEnd={selectMode}
+      onPointerUp={(event) => {
+        if (event.pointerType === "touch") {
+          selectMode(event);
+        }
+      }}
+      onKeyDown={handleKeyDown}
+      className={`min-h-14 rounded-xl border px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2 transition select-none cursor-pointer touch-manipulation relative z-10 ${
         active
-          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
-          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)] shadow-sm"
+          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff] active:bg-[#f4edff]"
       }`}
+      style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
     >
-      <Icon size={17} />
-      <span>{label}</span>
-    </button>
+      <Icon size={18} className="pointer-events-none" />
+      <span className="pointer-events-none">{label}</span>
+    </div>
   );
 }
 
