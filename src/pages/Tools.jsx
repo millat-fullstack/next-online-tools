@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import * as Icons from "lucide-react";
 
 import tools from "../data/tools.json";
+import SmartLink from "../components/ui/SmartLink";
+import EmptyState from "../components/ui/EmptyState";
 
 const SITE_URL = "https://nextonlinetools.com";
 const TOOLS_URL = `${SITE_URL}/tools`;
@@ -30,37 +32,62 @@ function getCategoryPath(category) {
   return `/tools?category=${encodeURIComponent(category)}`;
 }
 
+function getToolSearchText(tool) {
+  return [
+    tool.name,
+    tool.description,
+    tool.category,
+    tool.id,
+    tool.slug,
+    tool.keywords,
+    tool.tags,
+  ]
+    .filter(Boolean)
+    .flat()
+    .join(" ")
+    .toLowerCase();
+}
+
 function ToolIcon({ icon }) {
   const IconComponent = Icons[icon] || Icons.Wrench;
 
   return (
-    <div className="tool-clean-icon" aria-hidden="true">
-      <IconComponent size={22} strokeWidth={2} />
+    <div className="tools-pro-icon" aria-hidden="true">
+      <IconComponent size={22} strokeWidth={2.1} />
     </div>
   );
 }
 
 function ToolCard({ tool }) {
   return (
-    <Link
-      to={`/tool/${tool.id}/`}
-      className="tool-clean-card"
+    <SmartLink
+      to={`/tool/${tool.id}`}
+      className="tools-pro-card"
       aria-label={`Open ${tool.name}`}
     >
-      <div className="tool-clean-card-head">
+      <div className="tools-pro-card-top">
         <ToolIcon icon={tool.icon} />
-        {tool.trending && <span className="tool-clean-badge">Popular</span>}
+
+        {tool.trending && (
+          <span className="tools-pro-badge">
+            <Icons.Flame size={13} />
+            Popular
+          </span>
+        )}
       </div>
 
-      <h2>{tool.name}</h2>
+      <h3>{tool.name}</h3>
 
       <p>{tool.description || "Simple, fast, and free online tool."}</p>
 
-      <div className="tool-clean-card-foot">
+      <div className="tools-pro-card-bottom">
         <span>{tool.category || "Online Tool"}</span>
-        <Icons.ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+
+        <div aria-hidden="true">
+          <Icons.ArrowRight size={16} strokeWidth={2.2} />
+        </div>
       </div>
-    </Link>
+    </SmartLink>
   );
 }
 
@@ -70,11 +97,15 @@ export default function Tools() {
 
   const selectedCategory = normalizeText(queryParams.get("category"));
   const initialSearchTerm = normalizeText(queryParams.get("search"));
+
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [sortBy, setSortBy] = useState("popular");
 
   const categories = useMemo(() => {
     const uniqueCategories = [
-      ...new Set(tools.map((tool) => normalizeText(tool.category)).filter(Boolean)),
+      ...new Set(
+        tools.map((tool) => normalizeText(tool.category)).filter(Boolean)
+      ),
     ];
 
     return uniqueCategories.sort((a, b) => {
@@ -92,29 +123,51 @@ export default function Tools() {
   const categoryCounts = useMemo(() => {
     return tools.reduce((counts, tool) => {
       const category = normalizeText(tool.category);
+
       if (!category) return counts;
+
       counts[category] = (counts[category] || 0) + 1;
       return counts;
     }, {});
   }, []);
 
+  const totalCategories = categories.length;
+  const totalTools = tools.length;
+  const popularToolsCount = tools.filter((tool) => tool.trending).length;
+
   const filteredTools = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
 
-    return tools.filter((tool) => {
+    const results = tools.filter((tool) => {
       const category = normalizeText(tool.category);
-      const matchCategory = selectedCategory ? category === selectedCategory : true;
 
-      const searchableText = [tool.name, tool.description, tool.category, tool.id]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+      const matchesCategory = selectedCategory
+        ? category === selectedCategory
+        : true;
 
-      const matchSearch = search ? searchableText.includes(search) : true;
+      const matchesSearch = search
+        ? getToolSearchText(tool).includes(search)
+        : true;
 
-      return matchCategory && matchSearch;
+      return matchesCategory && matchesSearch;
     });
-  }, [selectedCategory, searchTerm]);
+
+    return [...results].sort((a, b) => {
+      if (sortBy === "az") {
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      }
+
+      if (sortBy === "category") {
+        return String(a.category || "").localeCompare(String(b.category || ""));
+      }
+
+      if (sortBy === "popular") {
+        return Number(Boolean(b.trending)) - Number(Boolean(a.trending));
+      }
+
+      return 0;
+    });
+  }, [selectedCategory, searchTerm, sortBy]);
 
   const canonicalUrl = selectedCategory
     ? `${TOOLS_URL}?category=${encodeURIComponent(selectedCategory)}`
@@ -147,13 +200,15 @@ export default function Tools() {
           inLanguage: "en",
           mainEntity: {
             "@type": "ItemList",
-            name: selectedCategory ? `${selectedCategory} Tools` : "All Free Online Tools",
+            name: selectedCategory
+              ? `${selectedCategory} Tools`
+              : "All Free Online Tools",
             numberOfItems: filteredTools.length,
             itemListElement: filteredTools.map((tool, index) => ({
               "@type": "ListItem",
               position: index + 1,
               name: tool.name,
-              url: `${SITE_URL}/tool/${tool.id}/`,
+              url: `${SITE_URL}/tool/${tool.id}`,
             })),
           },
         },
@@ -189,6 +244,10 @@ export default function Tools() {
     };
   }, [canonicalUrl, filteredTools, selectedCategory, seoDescription, seoTitle]);
 
+  function clearFilters() {
+    setSearchTerm("");
+  }
+
   return (
     <>
       <Helmet>
@@ -214,11 +273,12 @@ export default function Tools() {
         </script>
       </Helmet>
 
-      <main className="tools-clean-page">
-        <nav className="tools-clean-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">Home</Link>
+      <main className="tools-pro-page">
+        <nav className="tools-pro-breadcrumb" aria-label="Breadcrumb">
+          <SmartLink to="/">Home</SmartLink>
           <Icons.ChevronRight size={14} aria-hidden="true" />
-          <Link to="/tools">Tools</Link>
+          <SmartLink to="/tools">Tools</SmartLink>
+
           {selectedCategory && (
             <>
               <Icons.ChevronRight size={14} aria-hidden="true" />
@@ -227,85 +287,200 @@ export default function Tools() {
           )}
         </nav>
 
-        <header className="tools-clean-header">
-          <div>
-            <span className="tools-clean-label">Next Online Tools</span>
-            <h1>{selectedCategory ? selectedCategory : "All Online Tools"}</h1>
+        <section className="tools-pro-hero">
+          <div className="tools-pro-hero-content">
+            <span className="tools-pro-kicker">Free browser-based tools</span>
+
+            <h1>
+              {selectedCategory ? selectedCategory : "All Online Tools"}
+            </h1>
+
             <p>
               {selectedCategory
-                ? `Browse ${selectedCategory.toLowerCase()} with a clean and simple interface.`
-                : "Find simple browser-based tools for PDF, images, text, SEO, spreadsheets, converters, and daily work."}
+                ? `Browse clean and simple ${selectedCategory.toLowerCase()} for everyday digital work.`
+                : "A clean collection of practical tools for PDF, images, text, SEO, spreadsheets, converters, colors, and productivity."}
             </p>
+
+            <div className="tools-pro-actions">
+              <SmartLink to="/blog" className="tools-pro-secondary-btn">
+                Read Guides
+              </SmartLink>
+
+              <SmartLink to="/contact" className="tools-pro-primary-btn">
+                Request a Tool
+              </SmartLink>
+            </div>
           </div>
 
-          <div className="tools-clean-total">
-            <strong>{filteredTools.length}</strong>
-            <span>{filteredTools.length === 1 ? "tool" : "tools"}</span>
+          <div className="tools-pro-stats" aria-label="Tools overview">
+            <div>
+              <strong>{totalTools}</strong>
+              <span>Total tools</span>
+            </div>
+
+            <div>
+              <strong>{totalCategories}</strong>
+              <span>Categories</span>
+            </div>
+
+            <div>
+              <strong>{popularToolsCount}</strong>
+              <span>Popular tools</span>
+            </div>
           </div>
-        </header>
+        </section>
 
-        <section className="tools-clean-filter" aria-label="Tool filters">
-          <label className="tools-clean-search">
-            <Icons.Search size={18} aria-hidden="true" />
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search tools, e.g. compress image, merge PDF, link extractor"
-              aria-label="Search tools"
-            />
-            {searchTerm && (
-              <button type="button" onClick={() => setSearchTerm("")}>Clear</button>
-            )}
-          </label>
+        <section className="tools-pro-panel" aria-label="Search and filter tools">
+          <div className="tools-pro-search-row">
+            <label className="tools-pro-search">
+              <Icons.Search size={18} aria-hidden="true" />
 
-          <div className="tools-clean-categories" aria-label="Tool categories">
-            <Link
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search tools like compress image, merge PDF, link extractor"
+                aria-label="Search tools"
+              />
+
+              {searchTerm && (
+                <button type="button" onClick={() => setSearchTerm("")}>
+                  Clear
+                </button>
+              )}
+            </label>
+
+            <label className="tools-pro-sort">
+              <span>Sort</span>
+
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                aria-label="Sort tools"
+              >
+                <option value="popular">Popular first</option>
+                <option value="az">A to Z</option>
+                <option value="category">Category</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="tools-pro-categories" aria-label="Tool categories">
+            <SmartLink
               to="/tools"
               className={!selectedCategory ? "active" : ""}
               aria-current={!selectedCategory ? "page" : undefined}
             >
-              All <span>{tools.length}</span>
-            </Link>
+              All
+              <span>{totalTools}</span>
+            </SmartLink>
 
             {categories.map((category) => (
-              <Link
+              <SmartLink
                 key={category}
                 to={getCategoryPath(category)}
                 className={selectedCategory === category ? "active" : ""}
-                aria-current={selectedCategory === category ? "page" : undefined}
+                aria-current={
+                  selectedCategory === category ? "page" : undefined
+                }
               >
                 {category.replace(" Tools", "")}
                 <span>{categoryCounts[category] || 0}</span>
-              </Link>
+              </SmartLink>
             ))}
           </div>
+
+          {(selectedCategory || searchTerm) && (
+            <div className="tools-pro-active-filter">
+              <p>
+                Showing{" "}
+                <strong>{filteredTools.length}</strong>{" "}
+                {filteredTools.length === 1 ? "tool" : "tools"}
+                {selectedCategory && (
+                  <>
+                    {" "}
+                    in <strong>{selectedCategory}</strong>
+                  </>
+                )}
+                {searchTerm && (
+                  <>
+                    {" "}
+                    for <strong>“{searchTerm}”</strong>
+                  </>
+                )}
+              </p>
+
+              {searchTerm && (
+                <button type="button" onClick={clearFilters}>
+                  Reset search
+                </button>
+              )}
+            </div>
+          )}
         </section>
 
-        <section className="tools-clean-results" aria-label="Tools list">
-          <div className="tools-clean-results-head">
-            <h2>{selectedCategory ? `${selectedCategory}` : "Tools Collection"}</h2>
+        <section className="tools-pro-results" aria-label="Tools collection">
+          <div className="tools-pro-section-head">
+            <div>
+              <span>Tools collection</span>
+              <h2>
+                {selectedCategory ? selectedCategory : "Choose a tool to start"}
+              </h2>
+            </div>
+
             <p>
-              {searchTerm
-                ? `Showing results for “${searchTerm}”`
-                : "Choose a tool and start working."}
+              {filteredTools.length}{" "}
+              {filteredTools.length === 1 ? "result" : "results"}
             </p>
           </div>
 
           {filteredTools.length === 0 ? (
-            <div className="tools-clean-empty">
-              <Icons.SearchX size={34} aria-hidden="true" />
-              <h2>No tools found</h2>
-              <p>Try a different keyword or choose another category.</p>
-              <button type="button" onClick={() => setSearchTerm("")}>Reset search</button>
-            </div>
+            <EmptyState
+              title="No tools found"
+              message="Try searching with another keyword or choose a different category."
+              action={
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="tools-pro-primary-btn"
+                >
+                  Reset search
+                </button>
+              }
+            />
           ) : (
-            <div className="tools-clean-grid">
+            <div className="tools-pro-grid">
               {filteredTools.map((tool) => (
                 <ToolCard key={tool.id} tool={tool} />
               ))}
             </div>
           )}
+        </section>
+
+        <section className="tools-pro-support">
+          <article>
+            <Icons.Zap size={22} />
+            <div>
+              <h3>Fast and simple</h3>
+              <p>Open a tool, complete your task, and get your output quickly.</p>
+            </div>
+          </article>
+
+          <article>
+            <Icons.ShieldCheck size={22} />
+            <div>
+              <h3>Browser-based workflow</h3>
+              <p>Use practical tools without installing heavy software.</p>
+            </div>
+          </article>
+
+          <article>
+            <Icons.Layers size={22} />
+            <div>
+              <h3>Organized categories</h3>
+              <p>Find tools faster with clean categories and search.</p>
+            </div>
+          </article>
         </section>
       </main>
     </>
