@@ -310,17 +310,18 @@ export default function VideoToImagesConverter() {
     setError("");
     setSuccess("");
     setIsProcessing(true);
-    setProgress(0);
-    setProcessingPhase(`Preparing Frame ${capture.number} download...`);
+    setProgress(20);
+    setProcessingPhase(`Starting Frame ${capture.number} download...`);
 
     const startTime = performance.now();
 
     try {
-      await wait(150);
-      setProgress(65);
-      setProcessingPhase("Starting download...");
-
       await saveBlob(capture.blob, capture.fileName);
+
+      setProgress(82);
+      setProcessingPhase("Download started...");
+
+      await wait(120);
 
       const actualTime = Math.max(1, Math.round(performance.now() - startTime));
 
@@ -360,23 +361,36 @@ export default function VideoToImagesConverter() {
         const capture = captures[index];
 
         setProcessingPhase(`Adding image ${index + 1} of ${captures.length}...`);
-        zip.file(capture.fileName, capture.blob);
-        setProgress(Math.round(((index + 1) / captures.length) * 72));
-        await wait(20);
+        zip.file(capture.fileName, capture.blob, {
+          binary: true,
+          compression: "STORE",
+        });
+        setProgress(Math.round(((index + 1) / captures.length) * 62));
+        await wait(12);
       }
 
-      setProcessingPhase("Creating download file...");
-      const zipBlob = await zip.generateAsync({
-        type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: { level: 6 },
-      });
+      setProcessingPhase("Creating ZIP file...");
+      const generatedZipBlob = await zip.generateAsync(
+        {
+          type: "blob",
+          streamFiles: true,
+          compression: "STORE",
+          mimeType: "application/zip",
+        },
+        (metadata) => {
+          const zipProgress = 62 + Math.round((metadata.percent || 0) * 0.25);
+          setProgress(Math.min(88, zipProgress));
+        }
+      );
 
-      setProgress(88);
+      const zipBlob = generatedZipBlob.type === "application/zip"
+        ? generatedZipBlob
+        : new Blob([generatedZipBlob], { type: "application/zip" });
 
-      await waitRemaining(startTime, Math.max(900, captures.length * 180));
+      await waitRemaining(startTime, Math.max(700, captures.length * 120));
 
-      setProcessingPhase("Starting download...");
+      setProcessingPhase("Starting ZIP download...");
+      setProgress(92);
       await saveBlob(zipBlob, "captured-video-images.zip");
 
       const actualTime = Math.max(1, Math.round(performance.now() - startTime));
@@ -386,7 +400,7 @@ export default function VideoToImagesConverter() {
       setSuccess(`All images prepared in ${(actualTime / 1000).toFixed(1)}s.`);
     } catch (zipError) {
       console.error("Download all captures error:", zipError);
-      setError("Could not prepare the ZIP file. Please try again.");
+      setError("Could not create the ZIP file. Try JPG or 1080px size if the captured images are very large.");
     } finally {
       setIsProcessing(false);
       window.setTimeout(() => setProgress(0), 700);
@@ -898,23 +912,25 @@ function CaptureCard({ capture, onDownload, onFullView, onRemove }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 mt-4">
+        <div className="flex items-center justify-end gap-2 mt-4">
           <button
             type="button"
             onClick={onDownload}
-            className="btn-secondary inline-flex items-center justify-center gap-2 text-xs"
+            className="h-10 w-10 rounded-xl border border-[var(--border)] bg-white inline-flex items-center justify-center text-[var(--primary)] hover:bg-[#f8f4ff] transition"
+            title={`Download frame ${capture.number}`}
+            aria-label={`Download frame ${capture.number}`}
           >
-            <Download size={15} />
-            Download
+            <Download size={18} />
           </button>
 
           <button
             type="button"
             onClick={onRemove}
-            className="btn-secondary inline-flex items-center justify-center gap-2 text-xs text-red-600"
+            className="h-10 w-10 rounded-xl border border-red-200 bg-red-50 inline-flex items-center justify-center text-red-600 hover:bg-red-100 transition"
+            title={`Remove frame ${capture.number}`}
+            aria-label={`Remove frame ${capture.number}`}
           >
-            <Trash2 size={15} />
-            Remove
+            <Trash2 size={18} />
           </button>
         </div>
       </div>
@@ -963,30 +979,74 @@ function canvasToBlob(canvas, mimeType, quality) {
 }
 
 async function saveBlob(blob, filename) {
-  const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
-  const canShareFile =
+  const safeBlob = blob instanceof Blob
+    ? blob
+    : new Blob([blob], { type: "application/octet-stream" });
+
+  const safeName = sanitizeDownloadFileName(filename || "download");
+  const mimeType = safeBlob.type || getMimeTypeFromFileName(safeName);
+  const file = new File([safeBlob], safeName, { type: mimeType });
+
+  const canUseNativeShare =
+    isIosLikeDevice() &&
     typeof navigator !== "undefined" &&
     typeof navigator.canShare === "function" &&
-    navigator.canShare({ files: [file] }) &&
-    typeof navigator.share === "function";
+    typeof navigator.share === "function" &&
+    navigator.canShare({ files: [file] });
 
-  if (canShareFile) {
-    await navigator.share({ files: [file], title: filename });
+  if (canUseNativeShare) {
+    await navigator.share({
+      files: [file],
+      title: safeName,
+    });
     return;
   }
 
-  const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(safeBlob);
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = filename;
+  link.download = safeName;
   link.rel = "noopener";
+  link.style.display = "none";
 
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 
-  window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function isIosLikeDevice() {
+  if (typeof navigator === "undefined") return false;
+
+  const userAgent = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+
+  return (
+    /iPad|iPhone|iPod/i.test(userAgent) ||
+    (platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1)
+  );
+}
+
+function sanitizeDownloadFileName(fileName) {
+  const cleanName = String(fileName || "download")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleanName || "download";
+}
+
+function getMimeTypeFromFileName(fileName) {
+  const name = String(fileName || "").toLowerCase();
+
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".zip")) return "application/zip";
+
+  return "application/octet-stream";
 }
 
 function makeId() {
