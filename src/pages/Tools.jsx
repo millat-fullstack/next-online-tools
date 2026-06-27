@@ -2,26 +2,66 @@ import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import * as Icons from "lucide-react";
+
 import tools from "../data/tools.json";
-import CategorySelector from "../components/CategorySelector";
 
 const SITE_URL = "https://nextonlinetools.com";
 const TOOLS_URL = `${SITE_URL}/tools`;
-const CONTACT_URL = `${SITE_URL}/contact`;
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
+
+const CATEGORY_PRIORITY = [
+  "Image Tools",
+  "PDF Tools",
+  "Text Tools",
+  "Spreadsheet Tools",
+  "SEO Tools",
+  "Converter Tools",
+  "Color Tools",
+  "Calculator Tools",
+  "Social Media Tools",
+];
+
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function getCategoryPath(category) {
+  if (!category) return "/tools";
+  return `/tools?category=${encodeURIComponent(category)}`;
+}
 
 function ToolIcon({ icon }) {
   const IconComponent = Icons[icon] || Icons.Wrench;
 
   return (
-    <div className="tools-icon">
-      <IconComponent size={26} strokeWidth={2.1} />
+    <div className="tool-clean-icon" aria-hidden="true">
+      <IconComponent size={22} strokeWidth={2} />
     </div>
   );
 }
 
-function normalizeText(value) {
-  return String(value || "").trim();
+function ToolCard({ tool }) {
+  return (
+    <Link
+      to={`/tool/${tool.id}/`}
+      className="tool-clean-card"
+      aria-label={`Open ${tool.name}`}
+    >
+      <div className="tool-clean-card-head">
+        <ToolIcon icon={tool.icon} />
+        {tool.trending && <span className="tool-clean-badge">Popular</span>}
+      </div>
+
+      <h2>{tool.name}</h2>
+
+      <p>{tool.description || "Simple, fast, and free online tool."}</p>
+
+      <div className="tool-clean-card-foot">
+        <span>{tool.category || "Online Tool"}</span>
+        <Icons.ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+      </div>
+    </Link>
+  );
 }
 
 export default function Tools() {
@@ -30,24 +70,45 @@ export default function Tools() {
 
   const selectedCategory = normalizeText(queryParams.get("category"));
   const initialSearchTerm = normalizeText(queryParams.get("search"));
-
-  const [searchTerm] = useState(initialSearchTerm);
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
 
   const categories = useMemo(() => {
-    return [...new Set(tools.map((tool) => tool.category).filter(Boolean))];
+    const uniqueCategories = [
+      ...new Set(tools.map((tool) => normalizeText(tool.category)).filter(Boolean)),
+    ];
+
+    return uniqueCategories.sort((a, b) => {
+      const aIndex = CATEGORY_PRIORITY.indexOf(a);
+      const bIndex = CATEGORY_PRIORITY.indexOf(b);
+
+      if (aIndex !== -1 || bIndex !== -1) {
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      }
+
+      return a.localeCompare(b);
+    });
+  }, []);
+
+  const categoryCounts = useMemo(() => {
+    return tools.reduce((counts, tool) => {
+      const category = normalizeText(tool.category);
+      if (!category) return counts;
+      counts[category] = (counts[category] || 0) + 1;
+      return counts;
+    }, {});
   }, []);
 
   const filteredTools = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
 
     return tools.filter((tool) => {
-      const matchCategory = selectedCategory
-        ? tool.category === selectedCategory
-        : true;
+      const category = normalizeText(tool.category);
+      const matchCategory = selectedCategory ? category === selectedCategory : true;
 
-      const searchableText = `${tool.name || ""} ${tool.description || ""} ${
-        tool.category || ""
-      }`.toLowerCase();
+      const searchableText = [tool.name, tool.description, tool.category, tool.id]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
       const matchSearch = search ? searchableText.includes(search) : true;
 
@@ -55,73 +116,22 @@ export default function Tools() {
     });
   }, [selectedCategory, searchTerm]);
 
-  const canonicalUrl = useMemo(() => {
-    if (!selectedCategory) return TOOLS_URL;
-
-    const params = new URLSearchParams();
-    params.set("category", selectedCategory);
-
-    return `${TOOLS_URL}?${params.toString()}`;
-  }, [selectedCategory]);
-
-  const isSearchResultPage = Boolean(initialSearchTerm);
-
-  const robotsContent = isSearchResultPage
-    ? "noindex, follow, max-image-preview:large"
-    : "index, follow, max-image-preview:large";
+  const canonicalUrl = selectedCategory
+    ? `${TOOLS_URL}?category=${encodeURIComponent(selectedCategory)}`
+    : TOOLS_URL;
 
   const seoTitle = selectedCategory
-    ? `${selectedCategory} Tools Online Free | Next Online Tools`
-    : "Free Online Tools | Image, Text, PDF, SEO, Converter & Utility Tools";
+    ? `${selectedCategory} Online Free | Next Online Tools`
+    : "Free Online Tools | Next Online Tools";
 
   const seoDescription = selectedCategory
-    ? `Explore free ${selectedCategory.toLowerCase()} tools online at Next Online Tools. Use fast, simple, browser-based tools for daily digital tasks without complicated steps.`
-    : "Explore free online tools for images, text, PDF, SEO, colors, converters, calculators, and daily productivity tasks. Fast browser-based tools from Next Online Tools.";
-
-  const pageHeading = selectedCategory
-    ? `${selectedCategory} Tools Online`
-    : "All Free Online Tools";
-
-  const pageIntro = selectedCategory
-    ? `Browse useful ${selectedCategory.toLowerCase()} tools designed to help you complete everyday digital tasks faster. Choose a tool, open it in your browser, and finish your work with a clean and simple interface.`
-    : "Browse all free online tools from Next Online Tools in one place. Find image tools, text tools, PDF tools, SEO tools, color tools, converters, calculators, and useful browser-based utilities.";
-
-  const itemList = useMemo(() => {
-    return filteredTools.map((tool, index) => ({
-      "@type": "ListItem",
-      position: index + 1,
-      name: tool.name,
-      url: `${SITE_URL}/tool/${tool.id}`,
-      description: tool.description || "Simple, fast, and free online tool.",
-    }));
-  }, [filteredTools]);
+    ? `Browse free ${selectedCategory.toLowerCase()} online. Simple browser-based tools from Next Online Tools.`
+    : "Browse free online tools for PDF, images, text, SEO, converters, colors, calculators, spreadsheets, and daily digital work.";
 
   const structuredData = useMemo(() => {
     return {
       "@context": "https://schema.org",
       "@graph": [
-        {
-          "@type": "WebSite",
-          "@id": `${SITE_URL}/#website`,
-          name: "Next Online Tools",
-          url: SITE_URL,
-          description:
-            "Free browser-based online tools for images, text, PDF, SEO, conversions, colors, productivity, and daily digital tasks.",
-        },
-        {
-          "@type": "Organization",
-          "@id": `${SITE_URL}/#organization`,
-          name: "Next Online Tools",
-          url: SITE_URL,
-          logo: DEFAULT_OG_IMAGE,
-          contactPoint: {
-            "@type": "ContactPoint",
-            contactType: "customer support",
-            areaServed: "Worldwide",
-            availableLanguage: ["English"],
-            url: CONTACT_URL,
-          },
-        },
         {
           "@type": "CollectionPage",
           "@id": `${canonicalUrl}#webpage`,
@@ -129,20 +139,22 @@ export default function Tools() {
           name: seoTitle,
           description: seoDescription,
           isPartOf: {
+            "@type": "WebSite",
             "@id": `${SITE_URL}/#website`,
+            name: "Next Online Tools",
+            url: SITE_URL,
           },
-          about: selectedCategory
-            ? `${selectedCategory} online tools`
-            : "Free online tools collection",
           inLanguage: "en",
           mainEntity: {
             "@type": "ItemList",
-            name: selectedCategory
-              ? `${selectedCategory} Tools`
-              : "All Free Online Tools",
+            name: selectedCategory ? `${selectedCategory} Tools` : "All Free Online Tools",
             numberOfItems: filteredTools.length,
-            itemListOrder: "https://schema.org/ItemListOrderAscending",
-            itemListElement: itemList,
+            itemListElement: filteredTools.map((tool, index) => ({
+              "@type": "ListItem",
+              position: index + 1,
+              name: tool.name,
+              url: `${SITE_URL}/tool/${tool.id}/`,
+            })),
           },
         },
         {
@@ -166,63 +178,24 @@ export default function Tools() {
                   {
                     "@type": "ListItem",
                     position: 3,
-                    name: `${selectedCategory} Tools`,
+                    name: selectedCategory,
                     item: canonicalUrl,
                   },
                 ]
               : []),
           ],
         },
-        {
-          "@type": "FAQPage",
-          "@id": `${canonicalUrl}#faq`,
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "What tools are available on Next Online Tools?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Next Online Tools provides free browser-based tools for images, text, PDF tasks, SEO, colors, conversions, calculators, productivity, and other daily digital work.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Are these online tools free to use?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Yes. The tools on Next Online Tools are designed to be simple and free to use directly from the browser.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Do I need to install software to use these tools?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "No. The tools are browser-based, so users can open a tool page and complete their task online without installing extra software.",
-              },
-            },
-          ],
-        },
       ],
     };
-  }, [
-    canonicalUrl,
-    filteredTools.length,
-    itemList,
-    selectedCategory,
-    seoDescription,
-    seoTitle,
-  ]);
+  }, [canonicalUrl, filteredTools, selectedCategory, seoDescription, seoTitle]);
 
   return (
     <>
       <Helmet>
         <title>{seoTitle}</title>
-
         <meta name="description" content={seoDescription} />
-        <meta name="robots" content={robotsContent} />
-        <meta name="googlebot" content={robotsContent} />
-        <meta name="bingbot" content={robotsContent} />
+        <link rel="canonical" href={canonicalUrl} />
+        <meta name="robots" content="index, follow, max-image-preview:large" />
 
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Next Online Tools" />
@@ -230,255 +203,109 @@ export default function Tools() {
         <meta property="og:description" content={seoDescription} />
         <meta property="og:url" content={canonicalUrl} />
         <meta property="og:image" content={DEFAULT_OG_IMAGE} />
-        <meta property="og:image:alt" content={pageHeading} />
-        <meta property="og:locale" content="en_US" />
 
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={seoTitle} />
         <meta name="twitter:description" content={seoDescription} />
         <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
 
-        <meta name="author" content="Next Online Tools" />
-        <meta name="publisher" content="Next Online Tools" />
-        <meta name="application-name" content="Next Online Tools" />
-        <meta name="theme-color" content="#9B6CE3" />
-
         <script type="application/ld+json">
           {JSON.stringify(structuredData)}
         </script>
       </Helmet>
 
-      <main className="tools-page">
-        {/* HERO */}
-        <section className="tools-hero">
-          <div className="tools-hero-badge">
-            <Icons.Sparkles size={16} />
-            <span>{selectedCategory || "All Tools"}</span>
+      <main className="tools-clean-page">
+        <nav className="tools-clean-breadcrumb" aria-label="Breadcrumb">
+          <Link to="/">Home</Link>
+          <Icons.ChevronRight size={14} aria-hidden="true" />
+          <Link to="/tools">Tools</Link>
+          {selectedCategory && (
+            <>
+              <Icons.ChevronRight size={14} aria-hidden="true" />
+              <span>{selectedCategory}</span>
+            </>
+          )}
+        </nav>
+
+        <header className="tools-clean-header">
+          <div>
+            <span className="tools-clean-label">Next Online Tools</span>
+            <h1>{selectedCategory ? selectedCategory : "All Online Tools"}</h1>
+            <p>
+              {selectedCategory
+                ? `Browse ${selectedCategory.toLowerCase()} with a clean and simple interface.`
+                : "Find simple browser-based tools for PDF, images, text, SEO, spreadsheets, converters, and daily work."}
+            </p>
           </div>
 
-          <h1>{pageHeading}</h1>
+          <div className="tools-clean-total">
+            <strong>{filteredTools.length}</strong>
+            <span>{filteredTools.length === 1 ? "tool" : "tools"}</span>
+          </div>
+        </header>
 
-          <p>{pageIntro}</p>
+        <section className="tools-clean-filter" aria-label="Tool filters">
+          <label className="tools-clean-search">
+            <Icons.Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search tools, e.g. compress image, merge PDF, link extractor"
+              aria-label="Search tools"
+            />
+            {searchTerm && (
+              <button type="button" onClick={() => setSearchTerm("")}>Clear</button>
+            )}
+          </label>
 
-          <div className="mt-5">
-            <div className="tools-hero-badge mx-auto mb-4">
-              <Icons.Grid3X3 size={16} />
-              <span>Browse by Category</span>
-            </div>
+          <div className="tools-clean-categories" aria-label="Tool categories">
+            <Link
+              to="/tools"
+              className={!selectedCategory ? "active" : ""}
+              aria-current={!selectedCategory ? "page" : undefined}
+            >
+              All <span>{tools.length}</span>
+            </Link>
 
-            <CategorySelector categories={categories} />
+            {categories.map((category) => (
+              <Link
+                key={category}
+                to={getCategoryPath(category)}
+                className={selectedCategory === category ? "active" : ""}
+                aria-current={selectedCategory === category ? "page" : undefined}
+              >
+                {category.replace(" Tools", "")}
+                <span>{categoryCounts[category] || 0}</span>
+              </Link>
+            ))}
           </div>
         </section>
 
-        {/* TOOLS */}
-        <section className="tools-list-section">
-          <div className="tools-section-head">
-            <div>
-              <span>Tools Collection</span>
-              <h2>
-                {selectedCategory
-                  ? `${selectedCategory} Tools`
-                  : "Available Tools"}
-              </h2>
-            </div>
-
+        <section className="tools-clean-results" aria-label="Tools list">
+          <div className="tools-clean-results-head">
+            <h2>{selectedCategory ? `${selectedCategory}` : "Tools Collection"}</h2>
             <p>
-              {filteredTools.length} tool
-              {filteredTools.length !== 1 ? "s" : ""} found
+              {searchTerm
+                ? `Showing results for “${searchTerm}”`
+                : "Choose a tool and start working."}
             </p>
           </div>
 
           {filteredTools.length === 0 ? (
-            <div className="tools-empty">
-              <Icons.SearchX size={38} />
-              <h3>No tools found</h3>
-              <p>Try another keyword or select another category.</p>
+            <div className="tools-clean-empty">
+              <Icons.SearchX size={34} aria-hidden="true" />
+              <h2>No tools found</h2>
+              <p>Try a different keyword or choose another category.</p>
+              <button type="button" onClick={() => setSearchTerm("")}>Reset search</button>
             </div>
           ) : (
-            <div className="tools-grid">
-              {filteredTools.map((tool, index) => (
-                <Link
-                  key={tool.id || index}
-                  to={`/tool/${tool.id}/`}
-                  className="tool-card"
-                  aria-label={`Open ${tool.name}`}
-                >
-                  <div className="tool-card-top">
-                    <ToolIcon icon={tool.icon} />
-
-                    {tool.trending && (
-                      <span className="tool-trending">
-                        <Icons.Flame size={13} />
-                        Trending
-                      </span>
-                    )}
-                  </div>
-
-                  <h3>{tool.name}</h3>
-
-                  <p>
-                    {tool.description || "Simple, fast, and free online tool."}
-                  </p>
-
-                  <div className="tool-card-bottom">
-                    <span>{tool.category}</span>
-
-                    <div>
-                      <Icons.ArrowRight size={17} />
-                    </div>
-                  </div>
-                </Link>
+            <div className="tools-clean-grid">
+              {filteredTools.map((tool) => (
+                <ToolCard key={tool.id} tool={tool} />
               ))}
             </div>
           )}
-        </section>
-
-        {/* WHY USE */}
-        <section className="tools-list-section">
-          <div className="tools-section-head">
-            <div>
-              <span>Why Use Next Online Tools</span>
-              <h2>Built for simple, fast, browser-based tasks</h2>
-            </div>
-
-            <p>Useful tools without unnecessary complexity.</p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
-            <div className="tool-card">
-              <div className="tool-card-top">
-                <div className="tools-icon">
-                  <Icons.Zap size={26} strokeWidth={2.1} />
-                </div>
-              </div>
-
-              <h3>Fast Workflow</h3>
-
-              <p>
-                Open a tool, complete your task, and move forward without
-                dealing with complicated menus or extra steps.
-              </p>
-
-              <div className="tool-card-bottom">
-                <span>Speed</span>
-                <div>
-                  <Icons.Zap size={17} />
-                </div>
-              </div>
-            </div>
-
-            <div className="tool-card">
-              <div className="tool-card-top">
-                <div className="tools-icon">
-                  <Icons.MousePointerClick size={26} strokeWidth={2.1} />
-                </div>
-              </div>
-
-              <h3>Easy to Use</h3>
-
-              <p>
-                Each tool page is designed with clear inputs, simple actions,
-                and helpful results for everyday users.
-              </p>
-
-              <div className="tool-card-bottom">
-                <span>Simple</span>
-                <div>
-                  <Icons.MousePointerClick size={17} />
-                </div>
-              </div>
-            </div>
-
-            <div className="tool-card">
-              <div className="tool-card-top">
-                <div className="tools-icon">
-                  <Icons.Layers size={26} strokeWidth={2.1} />
-                </div>
-              </div>
-
-              <h3>Multiple Categories</h3>
-
-              <p>
-                Find image tools, text tools, PDF tools, SEO tools, color tools,
-                converters, calculators, and productivity utilities.
-              </p>
-
-              <div className="tool-card-bottom">
-                <span>Categories</span>
-                <div>
-                  <Icons.Layers size={17} />
-                </div>
-              </div>
-            </div>
-
-            <div className="tool-card">
-              <div className="tool-card-top">
-                <div className="tools-icon">
-                  <Icons.Globe2 size={26} strokeWidth={2.1} />
-                </div>
-              </div>
-
-              <h3>Browser-Based</h3>
-
-              <p>
-                Use the tools online from your browser, whether you are working
-                on a computer, tablet, or phone.
-              </p>
-
-              <div className="tool-card-bottom">
-                <span>Online</span>
-                <div>
-                  <Icons.Globe2 size={17} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* FAQ */}
-        <section className="tools-list-section">
-          <div className="tools-section-head">
-            <div>
-              <span>Quick Answers</span>
-              <h2>Free Online Tools FAQ</h2>
-            </div>
-
-            <p>Helpful answers for new visitors.</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-5">
-            <div className="card p-6">
-              <h3 className="font-bold text-lg mb-2">
-                What tools are available?
-              </h3>
-
-              <p className="text-sm text-[var(--text-secondary)] leading-6">
-                Next Online Tools includes free tools for images, text, PDF
-                tasks, SEO, colors, conversions, calculators, productivity, and
-                other daily digital work.
-              </p>
-            </div>
-
-            <div className="card p-6">
-              <h3 className="font-bold text-lg mb-2">Are these tools free?</h3>
-
-              <p className="text-sm text-[var(--text-secondary)] leading-6">
-                Yes. The tools are designed to be simple and free to use
-                directly from your browser.
-              </p>
-            </div>
-
-            <div className="card p-6">
-              <h3 className="font-bold text-lg mb-2">
-                Do I need to install anything?
-              </h3>
-
-              <p className="text-sm text-[var(--text-secondary)] leading-6">
-                No. You can open a tool page and complete the task online
-                without installing extra software.
-              </p>
-            </div>
-          </div>
         </section>
       </main>
     </>
