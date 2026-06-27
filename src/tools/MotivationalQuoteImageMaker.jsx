@@ -14,6 +14,8 @@ import {
   Trash2,
   Sparkles,
   Quote,
+  List,
+  StickyNote,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -270,6 +272,7 @@ export default function MotivationalQuoteImageMaker() {
 
   const [quoteText, setQuoteText] = useState(DEFAULT_QUOTE);
   const [authorText, setAuthorText] = useState(DEFAULT_AUTHOR);
+  const [contentMode, setContentMode] = useState("quote");
 
   const [sizePreset, setSizePreset] = useState("instagram-square");
   const [customWidth, setCustomWidth] = useState(1080);
@@ -390,6 +393,7 @@ export default function MotivationalQuoteImageMaker() {
   }, [
     quoteText,
     authorText,
+    contentMode,
     brandText,
     brandColor,
     selectedSize.width,
@@ -461,6 +465,19 @@ export default function MotivationalQuoteImageMaker() {
 
   function handleInputChange(setter, value) {
     setter(value);
+    clearOutput();
+  }
+
+  function handleContentModeChange(mode) {
+    setContentMode(mode);
+
+    if (mode === "quote") {
+      setQuoteMarks(true);
+    } else {
+      setQuoteMarks(false);
+      setTextAlign(mode === "list" ? "left" : "center");
+    }
+
     clearOutput();
   }
 
@@ -689,6 +706,16 @@ export default function MotivationalQuoteImageMaker() {
   }
 
   function drawQuoteContent(ctx, width, height) {
+    if (contentMode === "list") {
+      drawListContent(ctx, width, height);
+      return;
+    }
+
+    if (contentMode === "note") {
+      drawNoteContent(ctx, width, height);
+      return;
+    }
+
     const padding = Math.round(width * 0.09);
     const maxTextWidth = width - padding * 2;
     const cleanQuote = quoteMarks
@@ -748,6 +775,131 @@ export default function MotivationalQuoteImageMaker() {
     ctx.restore();
   }
 
+  function drawListContent(ctx, width, height) {
+    const padding = Math.round(width * 0.09);
+    const bulletGap = Math.round(width * 0.04);
+    const maxTextWidth = width - padding * 2 - bulletGap;
+    const items = quoteText
+      .split(/\n+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const safeFontSize = getResponsiveFontSize(width, height, fontSize);
+    const safeAuthorSize = getResponsiveFontSize(width, height, authorSize);
+    const lineGap = safeFontSize * lineHeight;
+    const itemGap = safeFontSize * 0.42;
+
+    ctx.save();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.font = `${fontWeight} ${safeFontSize}px ${fontFamily}`;
+
+    const wrappedItems = items.map((item) => wrapText(ctx, item, maxTextWidth));
+    const titleLine = authorText.trim();
+    const titleHeight = titleLine ? safeAuthorSize * 2.1 : 0;
+    const totalTextHeight =
+      titleHeight +
+      wrappedItems.reduce((sum, lines) => sum + lines.length * lineGap + itemGap, 0);
+
+    const centerY = getTextCenterY(textPosition, height, totalTextHeight);
+    let y = centerY - totalTextHeight / 2 + lineGap / 2;
+
+    if (textBoxEnabled) {
+      drawTextBox(
+        ctx,
+        width,
+        y,
+        totalTextHeight,
+        padding,
+        textBoxColor,
+        textBoxOpacity
+      );
+    }
+
+    if (textShadow) {
+      ctx.shadowColor = "rgba(0,0,0,0.45)";
+      ctx.shadowBlur = Math.round(safeFontSize * 0.16);
+      ctx.shadowOffsetY = Math.round(safeFontSize * 0.06);
+    }
+
+    if (titleLine) {
+      ctx.font = `800 ${safeAuthorSize}px ${fontFamily}`;
+      ctx.fillStyle = authorColor;
+      ctx.fillText(titleLine, padding, y);
+      y += safeAuthorSize * 2.1;
+    }
+
+    ctx.font = `${fontWeight} ${safeFontSize}px ${fontFamily}`;
+    ctx.fillStyle = textColor;
+
+    wrappedItems.forEach((lines) => {
+      ctx.fillText("•", padding, y);
+
+      lines.forEach((line, lineIndex) => {
+        ctx.fillText(line, padding + bulletGap, y + lineIndex * lineGap);
+      });
+
+      y += lines.length * lineGap + itemGap;
+    });
+
+    ctx.restore();
+  }
+
+  function drawNoteContent(ctx, width, height) {
+    const padding = Math.round(width * 0.09);
+    const maxTextWidth = width - padding * 2;
+    const safeFontSize = getResponsiveFontSize(width, height, fontSize);
+    const safeAuthorSize = getResponsiveFontSize(width, height, authorSize);
+    const lineGap = safeFontSize * lineHeight;
+
+    ctx.save();
+    ctx.textAlign = textAlign;
+    ctx.textBaseline = "middle";
+    ctx.font = `${fontWeight} ${safeFontSize}px ${fontFamily}`;
+
+    const lines = wrapText(ctx, quoteText.trim(), maxTextWidth);
+    const authorLine = authorText.trim() ? authorText.trim() : "";
+    const authorGap = authorLine ? safeAuthorSize * 1.7 : 0;
+    const totalTextHeight = lines.length * lineGap + authorGap;
+
+    const centerY = getTextCenterY(textPosition, height, totalTextHeight);
+    const startY = centerY - totalTextHeight / 2 + lineGap / 2;
+    const textX = getTextX(textAlign, width, padding);
+
+    if (textBoxEnabled) {
+      drawTextBox(
+        ctx,
+        width,
+        startY,
+        totalTextHeight,
+        padding,
+        textBoxColor,
+        textBoxOpacity
+      );
+    }
+
+    if (textShadow) {
+      ctx.shadowColor = "rgba(0,0,0,0.35)";
+      ctx.shadowBlur = Math.round(safeFontSize * 0.13);
+      ctx.shadowOffsetY = Math.round(safeFontSize * 0.05);
+    }
+
+    ctx.fillStyle = textColor;
+
+    lines.forEach((line, index) => {
+      ctx.fillText(line, textX, startY + index * lineGap);
+    });
+
+    if (authorLine) {
+      ctx.shadowBlur = textShadow ? Math.round(safeAuthorSize * 0.1) : 0;
+      ctx.font = `600 ${safeAuthorSize}px ${fontFamily}`;
+      ctx.fillStyle = authorColor;
+      ctx.fillText(authorLine, textX, startY + lines.length * lineGap + authorGap);
+    }
+
+    ctx.restore();
+  }
+
   function drawBrandText(ctx, width, height) {
     if (!brandText.trim()) return;
 
@@ -798,9 +950,11 @@ export default function MotivationalQuoteImageMaker() {
     setProcessingTimeMs(0);
 
     if (!quoteText.trim()) {
-      setError("Please enter a motivational quote first.");
+      setError("Please enter text first.");
       return;
     }
+
+    const iosDownloadWindow = openIosDownloadWindow();
 
     setIsCreating(true);
 
@@ -828,12 +982,22 @@ export default function MotivationalQuoteImageMaker() {
       setJpgSize(result.jpgSize);
 
       const dataUrl = format === "jpg" ? result.jpgDataUrl : result.pngDataUrl;
-      const filename = `motivational-quote-${result.width}x${result.height}.${format}`;
-      await downloadDataUrl(dataUrl, filename, format === "jpg" ? "image/jpeg" : "image/png");
+      const filename = `${contentMode}-image-${result.width}x${result.height}.${format}`;
+      const downloadResult = await downloadDataUrl(
+        dataUrl,
+        filename,
+        format === "jpg" ? "image/jpeg" : "image/png",
+        iosDownloadWindow
+      );
 
       const actualTime = Math.max(1, Math.round(performance.now() - startTime));
       setProcessingTimeMs(actualTime);
-      setSuccess(`Final ${format.toUpperCase()} image downloaded in ${(actualTime / 1000).toFixed(1)}s.`);
+
+      if (downloadResult?.method === "ios-preview") {
+        setSuccess(`Image opened in a new tab in ${(actualTime / 1000).toFixed(1)}s. Use Share or Save Image on iPhone.`);
+      } else {
+        setSuccess(`Final ${format.toUpperCase()} image downloaded in ${(actualTime / 1000).toFixed(1)}s.`);
+      }
     } catch (downloadError) {
       if (downloadError?.name === "AbortError") {
         setSuccess("Download cancelled.");
@@ -848,6 +1012,7 @@ export default function MotivationalQuoteImageMaker() {
   function handleReset() {
     setQuoteText(DEFAULT_QUOTE);
     setAuthorText(DEFAULT_AUTHOR);
+    setContentMode("quote");
 
     setSizePreset("instagram-square");
     setCustomWidth(1080);
@@ -920,17 +1085,52 @@ export default function MotivationalQuoteImageMaker() {
         <div className="grid lg:grid-cols-[minmax(0,1fr)_430px] gap-5 lg:gap-6">
           <div className="order-1 flex flex-col gap-5">
             <div className="border border-[var(--border)] rounded-2xl p-5 bg-white">
-              <div className="flex items-center gap-2 mb-4">
-                <Quote size={20} className="text-[var(--primary)]" />
-                <h2 className="text-xl font-semibold">Quote Text</h2>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  {contentMode === "quote" && <Quote size={20} className="text-[var(--primary)]" />}
+                  {contentMode === "list" && <List size={20} className="text-[var(--primary)]" />}
+                  {contentMode === "note" && <StickyNote size={20} className="text-[var(--primary)]" />}
+                  <h2 className="text-xl font-semibold">
+                    {contentMode === "quote" ? "Quote Text" : contentMode === "list" ? "List Text" : "Note Text"}
+                  </h2>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <ContentModeButton
+                  icon={Quote}
+                  label="Quote"
+                  active={contentMode === "quote"}
+                  onClick={() => handleContentModeChange("quote")}
+                />
+
+                <ContentModeButton
+                  icon={List}
+                  label="List"
+                  active={contentMode === "list"}
+                  onClick={() => handleContentModeChange("list")}
+                />
+
+                <ContentModeButton
+                  icon={StickyNote}
+                  label="Note"
+                  active={contentMode === "note"}
+                  onClick={() => handleContentModeChange("note")}
+                />
               </div>
 
               <TextAreaField
-                label="Motivational Quote"
+                label={contentMode === "quote" ? "Motivational Quote" : contentMode === "list" ? "List Items" : "Note"}
                 value={quoteText}
                 onChange={(value) => handleInputChange(setQuoteText, value)}
-                placeholder="Type your motivational quote here..."
-                rows={5}
+                placeholder={
+                  contentMode === "quote"
+                    ? "Type your motivational quote here..."
+                    : contentMode === "list"
+                      ? "Write each list item on a new line..."
+                      : "Write your short note here..."
+                }
+                rows={contentMode === "list" ? 7 : 5}
               />
             </div>
 
@@ -987,6 +1187,15 @@ export default function MotivationalQuoteImageMaker() {
                 Reset
               </button>
             </div>
+
+            <PreviewDownloadPanel
+              className="lg:hidden"
+              selectedSize={selectedSize}
+              isPreviewRendering={isPreviewRendering}
+              livePreviewDataUrl={livePreviewDataUrl}
+              isCreating={isCreating}
+              onDownload={handleDownload}
+            />
 
             {isCreating && (
               <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
@@ -1381,77 +1590,114 @@ export default function MotivationalQuoteImageMaker() {
             </CollapsibleSection>
           </div>
 
-          <div className="order-2 lg:sticky lg:top-4 h-fit flex flex-col gap-5">
-            <div>
-              <div className="flex justify-between items-start gap-3 mb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <ImageIcon size={20} className="text-[var(--primary)]" />
-                    <h2 className="text-xl font-semibold">Preview</h2>
-                  </div>
-
-                  <p className="text-xs text-[var(--text-secondary)] mt-1">
-                    {selectedSize.width} × {selectedSize.height}px
-                  </p>
-                </div>
-              </div>
-
-              <div className="border border-[var(--border)] rounded-2xl p-3 sm:p-4 bg-gray-50 min-h-[320px] sm:min-h-[520px] flex items-center justify-center overflow-auto relative">
-                {isPreviewRendering && (
-                  <div className="absolute top-3 right-3 z-10 rounded-full bg-white/90 border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--primary)] shadow-sm">
-                    Updating...
-                  </div>
-                )}
-
-                {livePreviewDataUrl ? (
-                  <div className="w-full text-center">
-                    <div className="inline-block bg-white rounded-2xl border border-[var(--border)] p-2 sm:p-3 shadow-sm">
-                      <img
-                        src={livePreviewDataUrl}
-                        alt="Live motivational quote preview"
-                        className="max-w-full h-auto rounded-xl"
-                        style={{ maxHeight: "min(68vh, 520px)" }}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center text-sm text-[var(--text-secondary)] px-4">
-                    Enter a quote to prepare the live preview.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => handleDownload("png")}
-                disabled={isCreating}
-                className={`btn-primary inline-flex items-center justify-center gap-2 ${
-                  isCreating ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                <Download size={18} />
-                Download PNG
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDownload("jpg")}
-                disabled={isCreating}
-                className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-                  isCreating ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                <Download size={18} />
-                Download JPG
-              </button>
-            </div>
-          </div>
+          <PreviewDownloadPanel
+            className="hidden lg:flex order-2 lg:sticky lg:top-4 h-fit"
+            selectedSize={selectedSize}
+            isPreviewRendering={isPreviewRendering}
+            livePreviewDataUrl={livePreviewDataUrl}
+            isCreating={isCreating}
+            onDownload={handleDownload}
+          />
         </div>
       </section>
 
       <SuggestedTools currentToolId="motivational-quote-image-maker" />
+    </div>
+  );
+}
+
+function ContentModeButton({ icon: Icon, label, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-h-12 rounded-xl border px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2 transition ${
+        active
+          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+      }`}
+    >
+      <Icon size={17} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function PreviewDownloadPanel({
+  className = "",
+  selectedSize,
+  isPreviewRendering,
+  livePreviewDataUrl,
+  isCreating,
+  onDownload,
+}) {
+  return (
+    <div className={`${className} flex-col gap-5`}>
+      <div>
+        <div className="flex justify-between items-start gap-3 mb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <ImageIcon size={20} className="text-[var(--primary)]" />
+              <h2 className="text-xl font-semibold">Preview</h2>
+            </div>
+
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              {selectedSize.width} × {selectedSize.height}px
+            </p>
+          </div>
+        </div>
+
+        <div className="border border-[var(--border)] rounded-2xl p-3 sm:p-4 bg-gray-50 min-h-[260px] sm:min-h-[420px] lg:min-h-[520px] flex items-center justify-center overflow-auto relative">
+          {isPreviewRendering && (
+            <div className="absolute top-3 right-3 z-10 rounded-full bg-white/90 border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--primary)] shadow-sm">
+              Updating...
+            </div>
+          )}
+
+          {livePreviewDataUrl ? (
+            <div className="w-full text-center">
+              <div className="inline-block bg-white rounded-2xl border border-[var(--border)] p-2 sm:p-3 shadow-sm">
+                <img
+                  src={livePreviewDataUrl}
+                  alt="Live preview"
+                  className="max-w-full h-auto rounded-xl"
+                  style={{ maxHeight: "min(58vh, 520px)" }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-sm text-[var(--text-secondary)] px-4">
+              Enter text to prepare the live preview.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => onDownload("png")}
+          disabled={isCreating}
+          className={`btn-primary inline-flex items-center justify-center gap-2 ${
+            isCreating ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+        >
+          <Download size={18} />
+          PNG
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onDownload("jpg")}
+          disabled={isCreating}
+          className={`btn-secondary inline-flex items-center justify-center gap-2 ${
+            isCreating ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+        >
+          <Download size={18} />
+          JPG
+        </button>
+      </div>
     </div>
   );
 }
@@ -1799,36 +2045,152 @@ function estimateDataUrlSize(dataUrl) {
   return Math.round((base64.length * 3) / 4);
 }
 
-async function downloadDataUrl(dataUrl, filename, mimeType = "image/png") {
+function openIosDownloadWindow() {
+  if (!isIosLikeDevice()) return null;
+
+  const downloadWindow = window.open("", "_blank");
+
+  if (!downloadWindow) return null;
+
+  downloadWindow.document.open();
+  downloadWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Preparing image...</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style>
+          body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;padding:24px;background:#f8f4ff;color:#222;text-align:center}
+          .card{max-width:520px;margin:10vh auto;background:#fff;border:1px solid #eadcff;border-radius:24px;padding:28px;box-shadow:0 20px 50px rgba(0,0,0,.08)}
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Preparing your image...</h2>
+          <p>Please keep this tab open.</p>
+        </div>
+      </body>
+    </html>
+  `);
+  downloadWindow.document.close();
+
+  return downloadWindow;
+}
+
+async function downloadDataUrl(dataUrl, filename, mimeType = "image/png", iosDownloadWindow = null) {
   const blob = dataUrlToBlob(dataUrl, mimeType);
-  const file = new File([blob], filename, { type: mimeType });
+  const safeFileName = sanitizeDownloadFileName(filename);
+  const objectUrl = URL.createObjectURL(blob);
 
-  const canShareFile =
-    typeof navigator !== "undefined" &&
-    typeof navigator.canShare === "function" &&
-    typeof navigator.share === "function" &&
-    navigator.canShare({ files: [file] });
+  if (isIosLikeDevice()) {
+    if (iosDownloadWindow && !iosDownloadWindow.closed) {
+      writeIosImageSavePage(iosDownloadWindow, objectUrl, safeFileName);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
+      return { method: "ios-preview" };
+    }
 
-  if (canShareFile) {
-    await navigator.share({
-      files: [file],
-      title: filename,
-    });
-    return;
+    const file = new File([blob], safeFileName, { type: mimeType });
+    const canShareFile =
+      typeof navigator !== "undefined" &&
+      typeof navigator.canShare === "function" &&
+      typeof navigator.share === "function" &&
+      navigator.canShare({ files: [file] });
+
+    if (canShareFile) {
+      try {
+        await navigator.share({ files: [file], title: safeFileName });
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
+        return { method: "share" };
+      } catch (shareError) {
+        if (shareError?.name === "AbortError") {
+          URL.revokeObjectURL(objectUrl);
+          throw shareError;
+        }
+      }
+    }
+
+    const opened = window.open(objectUrl, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      window.location.href = objectUrl;
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
+    return { method: "ios-preview" };
   }
 
-  const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
-
   link.href = objectUrl;
-  link.download = filename;
+  link.download = safeFileName;
   link.rel = "noopener";
+  link.style.display = "none";
 
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1200);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+
+  return { method: "download" };
+}
+
+function writeIosImageSavePage(downloadWindow, objectUrl, filename) {
+  downloadWindow.document.open();
+  downloadWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>${escapeHtml(filename)}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style>
+          body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f8f4ff;color:#222}
+          .wrap{max-width:760px;margin:0 auto;padding:18px}
+          .top{position:sticky;top:0;background:rgba(248,244,255,.96);backdrop-filter:blur(12px);padding:14px 0 12px;z-index:2}
+          .card{background:#fff;border:1px solid #eadcff;border-radius:22px;padding:14px;box-shadow:0 18px 48px rgba(0,0,0,.08)}
+          h2{font-size:18px;margin:0 0 8px}
+          p{font-size:14px;line-height:1.5;margin:0;color:#555}
+          img{display:block;width:100%;height:auto;border-radius:16px;margin-top:14px}
+          a{display:inline-flex;align-items:center;justify-content:center;margin-top:12px;width:100%;height:48px;border-radius:14px;background:#9b6ce3;color:#fff;text-decoration:none;font-weight:800}
+        </style>
+      </head>
+      <body>
+        <div class="wrap">
+          <div class="top">
+            <div class="card">
+              <h2>Image ready</h2>
+              <p>Tap the button below, or long-press the image and choose <b>Save to Photos</b>.</p>
+              <a href="${objectUrl}" download="${escapeHtml(filename)}">Download / Open Image</a>
+            </div>
+          </div>
+          <img src="${objectUrl}" alt="${escapeHtml(filename)}" />
+        </div>
+      </body>
+    </html>
+  `);
+  downloadWindow.document.close();
+}
+
+function isIosLikeDevice() {
+  if (typeof navigator === "undefined") return false;
+  const userAgent = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  return /iPad|iPhone|iPod/i.test(userAgent) || (platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1);
+}
+
+function sanitizeDownloadFileName(fileName) {
+  const cleanName = String(fileName || "image.png")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim();
+  return cleanName || "image.png";
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function dataUrlToBlob(dataUrl, fallbackType = "image/png") {
