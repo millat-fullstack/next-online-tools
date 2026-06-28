@@ -440,20 +440,22 @@ export default function QuickPhotoEditor() {
   const quickSelectedStrokeWidth = selectedObject?.strokeWidth || shapeStrokeWidth;
 
   const topBarSizeEditable = Boolean(
-    selectedObject &&
-      selectedObjectBox &&
-      (
-        selectedObject.type === "image" ||
-        SHAPE_TYPES.some((shape) => shape.id === selectedObject.type)
+    selectedObjects.length &&
+      selectedGroupBox &&
+      selectedObjects.every((item) =>
+        item.type === "image" ||
+        item.type === "text" ||
+        item.type === "arrow" ||
+        SHAPE_TYPES.some((shape) => shape.id === item.type)
       )
   );
 
   const quickSelectedWidthValue = topBarSizeEditable
-    ? formatSizeForUnit(selectedObjectBox.w, exactShapeUnit)
+    ? formatSizeForUnit(selectedGroupBox.w, exactShapeUnit)
     : "";
 
   const quickSelectedHeightValue = topBarSizeEditable
-    ? formatSizeForUnit(selectedObjectBox.h, exactShapeUnit)
+    ? formatSizeForUnit(selectedGroupBox.h, exactShapeUnit)
     : "";
 
   const selectedOutputFormat = useMemo(() => {
@@ -705,6 +707,7 @@ export default function QuickPhotoEditor() {
     draftObject,
     selectionRect,
     selectedObjectId,
+    selectedObjectIds,
     activeSelection,
     freeSelectionDraft,
     showOriginal,
@@ -1893,7 +1896,9 @@ export default function QuickPhotoEditor() {
         ? [selectedObjectId]
         : [];
 
-    if (event.shiftKey) {
+    const multiSelectKey = event.shiftKey || event.metaKey || event.ctrlKey;
+
+    if (multiSelectKey) {
       const nextIds = currentlySelectedIds.includes(selected.id)
         ? currentlySelectedIds.filter((id) => id !== selected.id)
         : [...currentlySelectedIds, selected.id];
@@ -2971,7 +2976,7 @@ export default function QuickPhotoEditor() {
 
       if (finalBox && finalBox.w > 6 && finalBox.h > 6) {
         const selectedIds = objects
-          .filter((item) => !item.isBaseImage && boxesIntersect(finalBox, getObjectBox(item)))
+          .filter((item) => item.type !== "background" && boxesIntersect(finalBox, getObjectBox(item)))
           .map((item) => item.id);
 
         const nextIds = event.shiftKey
@@ -3465,9 +3470,11 @@ export default function QuickPhotoEditor() {
   }
 
   function updateSelectedObjectSize(dimension, value) {
-    if (!selectedObject || !selectedObjectBox || !topBarSizeEditable) return;
+    if (!selectedObjects.length || !selectedGroupBox || !topBarSizeEditable) return;
 
-    if (isObjectLocked(selectedObject.id)) {
+    const activeIds = selectedObjects.map((item) => item.id);
+
+    if (activeSelectionHasLockedItem(activeIds)) {
       setErrorMessage("This layer is locked. Unlock it before changing size.");
       return;
     }
@@ -3477,14 +3484,38 @@ export default function QuickPhotoEditor() {
     if (!Number.isFinite(nextPixelValue) || nextPixelValue <= 0) return;
 
     const nextBox = {
-      ...selectedObjectBox,
+      ...selectedGroupBox,
       [dimension]: clampNumber(nextPixelValue, 1, 20000),
     };
 
-    const resizedObject = resizeObjectToBox(selectedObject, nextBox);
+    if (selectedObjects.length > 1) {
+      const resizedObjects = selectedObjects.map((item) =>
+        transformObjectInGroup(item, selectedGroupBox, nextBox)
+      );
+
+      setObjects((current) =>
+        current.map((item) => {
+          const resized = resizedObjects.find((candidate) => candidate.id === item.id);
+          return resized || item;
+        })
+      );
+
+      setGuideInfo(
+        buildGuideInfo(
+          nextBox,
+          canvasSize,
+          `${dimension === "w" ? "Group width" : "Group height"} updated`
+        )
+      );
+
+      clearOutput();
+      return;
+    }
+
+    const resizedObject = resizeObjectToBox(selectedObjects[0], nextBox);
 
     setObjects((current) =>
-      current.map((item) => (item.id === selectedObject.id ? resizedObject : item))
+      current.map((item) => (item.id === selectedObjects[0].id ? resizedObject : item))
     );
 
     setGuideInfo(
@@ -6325,6 +6356,49 @@ export default function QuickPhotoEditor() {
                       </button>
                     )}
 
+
+                    {topBarSizeEditable && (
+                      <div className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold">
+                        <span className="font-bold text-[var(--primary)]">{selectedObjects.length > 1 ? "Group Size" : "Size"}</span>
+
+                        <label className="inline-flex items-center gap-1">
+                          <span>W</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step={exactShapeUnit === "in" ? "0.01" : "1"}
+                            value={quickSelectedWidthValue}
+                            onChange={(event) => updateSelectedObjectSize("w", event.target.value)}
+                            className="w-20 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
+                            title={selectedObjects.length > 1 ? "Selected group width" : `Selected ${selectedObject?.type || "item"} width`}
+                          />
+                        </label>
+
+                        <label className="inline-flex items-center gap-1">
+                          <span>H</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step={exactShapeUnit === "in" ? "0.01" : "1"}
+                            value={quickSelectedHeightValue}
+                            onChange={(event) => updateSelectedObjectSize("h", event.target.value)}
+                            className="w-20 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
+                            title={selectedObjects.length > 1 ? "Selected group height" : `Selected ${selectedObject?.type || "item"} height`}
+                          />
+                        </label>
+
+                        <select
+                          value={exactShapeUnit}
+                          onChange={(event) => setExactShapeUnit(event.target.value)}
+                          className="h-8 rounded-lg border border-[var(--border)] bg-white px-2 outline-none focus:border-[var(--primary)]"
+                          title="Size unit"
+                        >
+                          <option value="px">px</option>
+                          <option value="in">inch</option>
+                        </select>
+                      </div>
+                    )}
+
                     <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
                       Color
                       <input
@@ -6408,48 +6482,6 @@ export default function QuickPhotoEditor() {
                       />
                       <span className="w-9 text-right">{quickSelectedOpacity}%</span>
                     </label>
-
-                    {topBarSizeEditable && (
-                      <div className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold">
-                        <span className="font-bold text-[var(--primary)]">Size</span>
-
-                        <label className="inline-flex items-center gap-1">
-                          <span>W</span>
-                          <input
-                            type="number"
-                            min="0.01"
-                            step={exactShapeUnit === "in" ? "0.01" : "1"}
-                            value={quickSelectedWidthValue}
-                            onChange={(event) => updateSelectedObjectSize("w", event.target.value)}
-                            className="w-20 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
-                            title={`Selected ${selectedObject?.type} width`}
-                          />
-                        </label>
-
-                        <label className="inline-flex items-center gap-1">
-                          <span>H</span>
-                          <input
-                            type="number"
-                            min="0.01"
-                            step={exactShapeUnit === "in" ? "0.01" : "1"}
-                            value={quickSelectedHeightValue}
-                            onChange={(event) => updateSelectedObjectSize("h", event.target.value)}
-                            className="w-20 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
-                            title={`Selected ${selectedObject?.type} height`}
-                          />
-                        </label>
-
-                        <select
-                          value={exactShapeUnit}
-                          onChange={(event) => setExactShapeUnit(event.target.value)}
-                          className="h-8 rounded-lg border border-[var(--border)] bg-white px-2 outline-none focus:border-[var(--primary)]"
-                          title="Size unit"
-                        >
-                          <option value="px">px</option>
-                          <option value="in">inch</option>
-                        </select>
-                      </div>
-                    )}
 
                     {selectedObject?.type === "text" && (
                       <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
@@ -7640,13 +7672,13 @@ function drawSelectionBox(ctx, object) {
 
   const canvasWidth = ctx.canvas?.width || box.x + box.w;
   const canvasHeight = ctx.canvas?.height || box.y + box.h;
-  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.055, 16, 34);
+  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.075, 24, 48);
   const visibleBox = getCanvasVisibleBox(box, canvasWidth, canvasHeight);
 
   ctx.save();
   ctx.strokeStyle = "#9b6ce3";
-  ctx.lineWidth = 3;
-  ctx.setLineDash([8, 6]);
+  ctx.lineWidth = 4;
+  ctx.setLineDash([9, 6]);
   ctx.strokeRect(box.x, box.y, box.w, box.h);
 
   if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
@@ -7660,7 +7692,7 @@ function drawSelectionBox(ctx, object) {
   ctx.strokeStyle = "#9b6ce3";
 
   const handles = getVisibleBoxHandles(box, handleSize, canvasWidth, canvasHeight);
-  handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize));
+  handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize, handle.id));
 
   if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
     drawVisibleEdgeHandles(ctx, visibleBox, handleSize);
@@ -7676,12 +7708,12 @@ function drawGroupSelectionBox(ctx, objects) {
 
   const canvasWidth = ctx.canvas?.width || box.x + box.w;
   const canvasHeight = ctx.canvas?.height || box.y + box.h;
-  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.05, 16, 36);
+  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.07, 24, 50);
   const visibleBox = getCanvasVisibleBox(box, canvasWidth, canvasHeight);
 
   ctx.save();
   ctx.strokeStyle = "#9b6ce3";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 4;
   ctx.setLineDash([12, 7]);
   ctx.strokeRect(box.x, box.y, box.w, box.h);
 
@@ -7696,7 +7728,7 @@ function drawGroupSelectionBox(ctx, objects) {
   ctx.strokeStyle = "#9b6ce3";
 
   const handles = getVisibleBoxHandles(box, handleSize, canvasWidth, canvasHeight);
-  handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize));
+  handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize, handle.id));
 
   if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
     drawVisibleEdgeHandles(ctx, visibleBox, handleSize);
@@ -7726,32 +7758,77 @@ function getCanvasVisibleBox(box, canvasWidth, canvasHeight) {
 }
 
 function drawVisibleEdgeHandles(ctx, box, size) {
-  const cornerSize = clampNumber(size * 1.05, 16, 34);
+  const cornerSize = clampNumber(size * 1.05, 22, 42);
   const edgeHandles = [
-    { x: box.x, y: box.y },
-    { x: box.x + box.w, y: box.y },
-    { x: box.x, y: box.y + box.h },
-    { x: box.x + box.w, y: box.y + box.h },
+    { id: "nw", x: box.x, y: box.y },
+    { id: "n", x: box.x + box.w / 2, y: box.y },
+    { id: "ne", x: box.x + box.w, y: box.y },
+    { id: "e", x: box.x + box.w, y: box.y + box.h / 2 },
+    { id: "se", x: box.x + box.w, y: box.y + box.h },
+    { id: "s", x: box.x + box.w / 2, y: box.y + box.h },
+    { id: "sw", x: box.x, y: box.y + box.h },
+    { id: "w", x: box.x, y: box.y + box.h / 2 },
   ];
 
   ctx.save();
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#7c3aed";
-  ctx.lineWidth = 2;
-  edgeHandles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, cornerSize));
+  ctx.lineWidth = 3;
+  edgeHandles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, cornerSize, handle.id));
   ctx.restore();
 }
 
-function drawHandle(ctx, x, y, size) {
+function drawHandle(ctx, x, y, size, id = "") {
+  const isSide = ["n", "e", "s", "w"].includes(id);
+  const width = isSide && (id === "n" || id === "s") ? size * 1.55 : size;
+  const height = isSide && (id === "e" || id === "w") ? size * 1.55 : size;
+  const radius = Math.min(10, Math.min(width, height) * 0.28);
+
   ctx.save();
-  ctx.shadowColor = "rgba(124,58,237,0.24)";
-  ctx.shadowBlur = Math.max(3, size * 0.18);
-  ctx.lineWidth = Math.max(2.5, size * 0.13);
-  ctx.beginPath();
-  ctx.rect(x - size / 2, y - size / 2, size, size);
+  ctx.shadowColor = "rgba(124,58,237,0.34)";
+  ctx.shadowBlur = Math.max(6, size * 0.22);
+  ctx.lineWidth = Math.max(4, size * 0.16);
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#8b5cf6";
+
+  roundedRectPath(ctx, x - width / 2, y - height / 2, width, height, radius);
   ctx.fill();
   ctx.stroke();
+
+  ctx.fillStyle = "#8b5cf6";
+  ctx.font = `900 ${Math.max(12, Math.round(size * 0.52))}px Arial, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const arrows = {
+    n: "↕",
+    s: "↕",
+    e: "↔",
+    w: "↔",
+    nw: "↖",
+    ne: "↗",
+    sw: "↙",
+    se: "↘",
+  };
+
+  ctx.fillText(arrows[id] || "", x, y + 1);
   ctx.restore();
+}
+
+function roundedRectPath(ctx, x, y, width, height, radius) {
+  const safeRadius = Math.max(0, Math.min(radius, Math.abs(width) / 2, Math.abs(height) / 2));
+
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.lineTo(x + width - safeRadius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  ctx.lineTo(x + width, y + height - safeRadius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  ctx.lineTo(x + safeRadius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  ctx.lineTo(x, y + safeRadius);
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
 }
 
 function getObjectAtPoint(point, objects) {
@@ -8210,7 +8287,7 @@ function getResizeHandleAtPoint(point, object, zoom = 1, canvasSize = null) {
 function getResizeHandleAtBox(point, box, zoom = 1, canvasSize = null) {
   if (!point || !box) return null;
 
-  const hitSize = Math.max(18, 28 / Math.max(0.25, Number(zoom) || 1));
+  const hitSize = Math.max(28, 42 / Math.max(0.25, Number(zoom) || 1));
   const canvasWidth = canvasSize?.width || box.x + box.w;
   const canvasHeight = canvasSize?.height || box.y + box.h;
   const handles = getVisibleBoxHandles(box, hitSize, canvasWidth, canvasHeight);
@@ -8225,18 +8302,28 @@ function getResizeHandleAtBox(point, box, zoom = 1, canvasSize = null) {
 }
 
 function getVisibleBoxHandles(box, handleSize = 10, canvasWidth = Infinity, canvasHeight = Infinity) {
-  const safeHandleSize = clampNumber(handleSize, 16, 36);
-  const edgePadding = Math.max(8, safeHandleSize * 0.75);
+  const safeHandleSize = clampNumber(handleSize, 22, 52);
+  const edgePadding = Math.max(12, safeHandleSize * 0.8);
   const minX = Number.isFinite(canvasWidth) ? edgePadding : box.x;
   const minY = Number.isFinite(canvasHeight) ? edgePadding : box.y;
   const maxX = Number.isFinite(canvasWidth) ? Math.max(edgePadding, canvasWidth - edgePadding) : box.x + box.w;
   const maxY = Number.isFinite(canvasHeight) ? Math.max(edgePadding, canvasHeight - edgePadding) : box.y + box.h;
+  const left = box.x;
+  const centerX = box.x + box.w / 2;
+  const right = box.x + box.w;
+  const top = box.y;
+  const centerY = box.y + box.h / 2;
+  const bottom = box.y + box.h;
 
   return [
-    { id: "nw", x: clampNumber(box.x, minX, maxX), y: clampNumber(box.y, minY, maxY) },
-    { id: "ne", x: clampNumber(box.x + box.w, minX, maxX), y: clampNumber(box.y, minY, maxY) },
-    { id: "sw", x: clampNumber(box.x, minX, maxX), y: clampNumber(box.y + box.h, minY, maxY) },
-    { id: "se", x: clampNumber(box.x + box.w, minX, maxX), y: clampNumber(box.y + box.h, minY, maxY) },
+    { id: "nw", x: clampNumber(left, minX, maxX), y: clampNumber(top, minY, maxY) },
+    { id: "n", x: clampNumber(centerX, minX, maxX), y: clampNumber(top, minY, maxY) },
+    { id: "ne", x: clampNumber(right, minX, maxX), y: clampNumber(top, minY, maxY) },
+    { id: "e", x: clampNumber(right, minX, maxX), y: clampNumber(centerY, minY, maxY) },
+    { id: "se", x: clampNumber(right, minX, maxX), y: clampNumber(bottom, minY, maxY) },
+    { id: "s", x: clampNumber(centerX, minX, maxX), y: clampNumber(bottom, minY, maxY) },
+    { id: "sw", x: clampNumber(left, minX, maxX), y: clampNumber(bottom, minY, maxY) },
+    { id: "w", x: clampNumber(left, minX, maxX), y: clampNumber(centerY, minY, maxY) },
   ];
 }
 
@@ -8283,8 +8370,24 @@ function resizeBoxFromHandle(startBox, point, handle, { keepRatio = false, fromC
   if (fromCenter) {
     const centerX = startBox.x + startBox.w / 2;
     const centerY = startBox.y + startBox.h / 2;
-    let halfW = Math.max(minSize / 2, Math.abs(point.x - centerX));
-    let halfH = Math.max(minSize / 2, Math.abs(point.y - centerY));
+    const affectsWidth = handle.includes("e") || handle.includes("w");
+    const affectsHeight = handle.includes("n") || handle.includes("s");
+
+    let halfW = affectsWidth
+      ? Math.max(minSize / 2, Math.abs(point.x - centerX))
+      : Math.max(minSize / 2, startBox.w / 2);
+
+    let halfH = affectsHeight
+      ? Math.max(minSize / 2, Math.abs(point.y - centerY))
+      : Math.max(minSize / 2, startBox.h / 2);
+
+    if ((handle === "n" || handle === "s") && !keepRatio) {
+      halfW = Math.max(minSize / 2, startBox.w / 2);
+    }
+
+    if ((handle === "e" || handle === "w") && !keepRatio) {
+      halfH = Math.max(minSize / 2, startBox.h / 2);
+    }
 
     if (keepRatio && startBox.w > 0 && startBox.h > 0) {
       const scale = Math.max(
@@ -8318,10 +8421,19 @@ function resizeBoxFromHandle(startBox, point, handle, { keepRatio = false, fromC
     h = bottom - y;
   }
 
+  if (handle === "n") {
+    y = Math.min(point.y, bottom - minSize);
+    h = bottom - y;
+  }
+
   if (handle === "ne") {
     y = Math.min(point.y, bottom - minSize);
     w = Math.max(minSize, point.x - startBox.x);
     h = bottom - y;
+  }
+
+  if (handle === "e") {
+    w = Math.max(minSize, point.x - startBox.x);
   }
 
   if (handle === "sw") {
@@ -8330,9 +8442,18 @@ function resizeBoxFromHandle(startBox, point, handle, { keepRatio = false, fromC
     h = Math.max(minSize, point.y - startBox.y);
   }
 
+  if (handle === "s") {
+    h = Math.max(minSize, point.y - startBox.y);
+  }
+
   if (handle === "se") {
     w = Math.max(minSize, point.x - startBox.x);
     h = Math.max(minSize, point.y - startBox.y);
+  }
+
+  if (handle === "w") {
+    x = Math.min(point.x, right - minSize);
+    w = right - x;
   }
 
   if (keepRatio && startBox.w > 0 && startBox.h > 0) {
@@ -8340,6 +8461,16 @@ function resizeBoxFromHandle(startBox, point, handle, { keepRatio = false, fromC
     const scale = Math.max(w / startBox.w, h / startBox.h);
     w = Math.max(minSize, startBox.w * scale);
     h = Math.max(minSize, w / ratio);
+
+    if (handle === "n" || handle === "s") {
+      w = Math.max(minSize, h * ratio);
+      x = startBox.x + (startBox.w - w) / 2;
+    }
+
+    if (handle === "e" || handle === "w") {
+      h = Math.max(minSize, w / ratio);
+      y = startBox.y + (startBox.h - h) / 2;
+    }
 
     if (handle.includes("n")) y = bottom - h;
     if (handle.includes("w")) x = right - w;
