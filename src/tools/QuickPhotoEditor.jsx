@@ -32,6 +32,7 @@ import {
   ZoomIn,
   ZoomOut,
   Move,
+  Hand,
   PanelLeft,
   Scissors,
   Shapes,
@@ -62,7 +63,7 @@ export const toolData = {
 
 const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const MAX_CANVAS_LONG_SIDE = 2200;
+const MAX_CANVAS_LONG_SIDE = 5000;
 const MIN_PROCESSING_TIME_MS = 6000;
 const MAX_HISTORY = 30;
 const SNAP_DISTANCE = 10;
@@ -70,7 +71,7 @@ const BACKGROUND_LAYER_NAME = "Artboard Background";
 
 const TOOLS = [
   { id: "select", label: "Select", icon: MousePointer2 },
-  { id: "move", label: "Move Tool", icon: Move },
+  { id: "hand", label: "Hand Tool", icon: Hand },
   { id: "marquee", label: "Marquee Tool", icon: Crop },
   { id: "text", label: "Text", icon: Type },
   { id: "draw", label: "Draw", icon: PenLine },
@@ -92,6 +93,19 @@ const SIZE_PRESETS = [
   { id: "original", label: "Original Image Size", width: null, height: null },
   { id: "custom", label: "Custom Size", width: 1200, height: 1200 },
 ];
+
+const PRINT_SIZE_PRESETS = [
+  { id: "none", label: "Choose print size", width: null, height: null },
+  { id: "a4-portrait", label: "A4 Portrait", width: 2480, height: 3508 },
+  { id: "a4-landscape", label: "A4 Landscape", width: 3508, height: 2480 },
+  { id: "letter-portrait", label: "Letter Portrait", width: 2550, height: 3300 },
+  { id: "letter-landscape", label: "Letter Landscape", width: 3300, height: 2550 },
+  { id: "a5-portrait", label: "A5 Portrait", width: 1748, height: 2480 },
+  { id: "a5-landscape", label: "A5 Landscape", width: 2480, height: 1748 },
+  { id: "business-card", label: "Business Card", width: 1050, height: 600 },
+];
+
+const SHAPE_INCH_DPI = 300;
 
 const OUTPUT_FORMATS = [
   { value: "image/png", label: "PNG", extension: "png" },
@@ -281,6 +295,11 @@ export default function QuickPhotoEditor() {
   const [topBarOpen, setTopBarOpen] = useState(true);
   const [colorPickerTarget, setColorPickerTarget] = useState(null);
   const [imageInputMode, setImageInputMode] = useState("add");
+  const [printSizePreset, setPrintSizePreset] = useState("none");
+  const [shapeSizeModal, setShapeSizeModal] = useState(null);
+  const [exactShapeSize, setExactShapeSize] = useState({ width: 300, height: 180 });
+  const [exactShapeUnit, setExactShapeUnit] = useState("px");
+  const [topBarDropdown, setTopBarDropdown] = useState("");
 
   const [objects, setObjects] = useState([]);
   const [draftObject, setDraftObject] = useState(null);
@@ -927,7 +946,7 @@ export default function QuickPhotoEditor() {
     // Keeping this canvas transparent makes background changes instant.
   }
 
-  function changeArtboardBackgroundColor(nextColor) {
+  function changeArtboardBackgroundColor(nextColor, { withHistory = false, allowLocked = false } = {}) {
     const color = normalizeColor(nextColor);
     const backgroundLayer = getBackgroundLayer();
 
@@ -939,13 +958,16 @@ export default function QuickPhotoEditor() {
     setSelectedObjectId(backgroundLayer.id);
     setSelectedObjectIds([backgroundLayer.id]);
 
-    if (isObjectLocked(backgroundLayer.id)) {
-      setErrorMessage("Unlock the Artboard Background layer from Layers or the top bar before changing its color.");
+    if (isObjectLocked(backgroundLayer.id) && !allowLocked) {
+      setErrorMessage("Unlock the Artboard Background layer from Layers before changing its color.");
       setGuideInfo(buildGuideInfo(getObjectBox(backgroundLayer), canvasSize, "Background layer locked"));
       return;
     }
 
-    pushHistory();
+    if (withHistory) {
+      pushHistory();
+    }
+
     setCanvasBackgroundColor(color);
 
     setObjects((current) =>
@@ -961,7 +983,7 @@ export default function QuickPhotoEditor() {
       )
     );
 
-    setGuideInfo(buildGuideInfo(getObjectBox(backgroundLayer), canvasSize, "Background color changed"));
+    setGuideInfo(buildGuideInfo(getObjectBox(backgroundLayer), canvasSize, "Background color changed instantly"));
     clearOutput();
   }
 
@@ -1091,7 +1113,6 @@ export default function QuickPhotoEditor() {
     setSelectionRect(null);
     setSelectedObjectId(null);
     setSelectedObjectIds([]);
-    setLockedObjectIds([]);
     setActiveSelection(null);
     setFreeSelectionDraft(null);
     setSelectionRect(null);
@@ -1758,6 +1779,22 @@ export default function QuickPhotoEditor() {
       return;
     }
 
+    if (activeTool === "hand") {
+      pointerRef.current = {
+        active: true,
+        mode: "pan-artboard",
+        startPoint: { x: event.clientX, y: event.clientY },
+        lastPoint: null,
+        selectedStart: { ...artboardPan },
+        dragStartBox: null,
+        resizeHandle: null,
+      };
+
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setGuideInfo(null);
+      return;
+    }
+
     if (activeTool === "select") {
       handleSelectPointerDown(event, point);
       return;
@@ -2168,6 +2205,11 @@ export default function QuickPhotoEditor() {
   }
 
   function handleShapePointerDown(event, point) {
+    if (event.detail >= 2) {
+      openExactShapeSizeModal(point);
+      return;
+    }
+
     commitBaseImageToCanvasIfNeeded({ withHistory: true });
 
     setDraftObject(createDraftObject(activeTool, point));
@@ -3802,6 +3844,26 @@ export default function QuickPhotoEditor() {
     }
   }
 
+  function applyPrintSizePreset(presetId) {
+    setPrintSizePreset(presetId);
+
+    const preset = PRINT_SIZE_PRESETS.find((item) => item.id === presetId);
+
+    if (!preset || !preset.width || !preset.height) return;
+
+    const nextSize = {
+      width: preset.width,
+      height: preset.height,
+    };
+
+    setSelectedSizePreset("custom");
+    setDraftSize(nextSize);
+
+    if (!hasImage) {
+      setCanvasSize(nextSize);
+    }
+  }
+
   function applyCanvasResize() {
     if (!hasImage) {
       const nextWidth = clampNumber(draftSize.width, 100, 5000);
@@ -4264,6 +4326,11 @@ export default function QuickPhotoEditor() {
     setErrorMessage("");
     setSuccessMessage("");
     setColorPickerTarget(null);
+    setPrintSizePreset("none");
+    setShapeSizeModal(null);
+    setExactShapeSize({ width: 300, height: 180 });
+    setExactShapeUnit("px");
+    setTopBarDropdown("");
     resetMainFileInput();
     resetAddImageInput();
   }
@@ -4349,9 +4416,9 @@ export default function QuickPhotoEditor() {
       return;
     }
 
-    if (toolId === "move") {
+    if (toolId === "hand") {
       setToolPopupOpen(false);
-      setSuccessMessage("Move Tool active. Move layers, selections, and guides only. Hold Space to pan the artboard.");
+      setSuccessMessage("Hand Tool active. Drag the artboard to pan. You can also hold Space and drag anytime.");
       return;
     }
 
@@ -4446,6 +4513,76 @@ export default function QuickPhotoEditor() {
     }
   }
 
+  function openExactShapeSizeModal(point) {
+    const selectedShape = SHAPE_TYPES.some((shape) => shape.id === activeTool)
+      ? activeTool
+      : shapeType;
+
+    setShapeType(selectedShape);
+    setShapeSizeModal({ point, shape: selectedShape });
+    setToolPopupOpen(false);
+    setActivePanel("");
+    setGuideInfo(buildGuideInfo({ x: point.x, y: point.y, w: 1, h: 1 }, canvasSize, "Exact shape size"));
+  }
+
+  function insertExactShapeBySize() {
+    if (!shapeSizeModal?.point) return;
+
+    const shape = shapeSizeModal.shape || shapeType || "rectangle";
+    const width = convertShapeSizeToPixels(exactShapeSize.width, exactShapeUnit);
+    const height = convertShapeSizeToPixels(exactShapeSize.height, exactShapeUnit);
+
+    if (width < 1 || height < 1) {
+      setErrorMessage("Enter a valid width and height first.");
+      return;
+    }
+
+    commitBaseImageToCanvasIfNeeded({ withHistory: true });
+    pushHistory();
+
+    const point = shapeSizeModal.point;
+    const baseObject = shape === "arrow"
+      ? {
+          id: createId(),
+          type: "arrow",
+          x1: point.x - width / 2,
+          y1: point.y - height / 2,
+          x2: point.x + width / 2,
+          y2: point.y + height / 2,
+          stroke: shapeStrokeColor,
+          strokeWidth: shapeStrokeWidth,
+          strokeEnabled: true,
+          opacity: brushOpacity,
+        }
+      : {
+          id: createId(),
+          type: shape,
+          x: point.x - width / 2,
+          y: point.y - height / 2,
+          w: width,
+          h: height,
+          fill: shapeFillColor,
+          fillGradient: shapeFillGradient,
+          stroke: shapeStrokeColor,
+          strokeWidth: shapeStrokeWidth,
+          fillEnabled: shapeFillEnabled,
+          strokeEnabled: shapeStrokeEnabled,
+          opacity: brushOpacity,
+        };
+
+    const finalObject = normalizeObject(baseObject);
+
+    setObjects((current) => [...current.filter((item) => !item.isBaseImage), finalObject]);
+    setSelectedObjectId(finalObject.id);
+    setSelectedObjectIds([finalObject.id]);
+    setActiveTool("select");
+    setActivePanel("shape");
+    setToolPopupOpen(true);
+    setShapeSizeModal(null);
+    setGuideInfo(buildGuideInfo(getObjectBox(finalObject), canvasSize, `Inserted ${Math.round(width)}×${Math.round(height)}px shape`));
+    clearOutput();
+  }
+
   function activateShapeTool(nextShape) {
     setShapeType(nextShape);
     setActiveTool(nextShape);
@@ -4506,6 +4643,22 @@ export default function QuickPhotoEditor() {
           background: rgba(255,255,255,0.28);
           border-radius: 999px;
         }
+        .quick-photo-editor-options-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #9b6ce3 #f1e9ff;
+        }
+        .quick-photo-editor-options-scroll::-webkit-scrollbar {
+          width: 10px;
+        }
+        .quick-photo-editor-options-scroll::-webkit-scrollbar-track {
+          background: #f1e9ff;
+          border-radius: 999px;
+        }
+        .quick-photo-editor-options-scroll::-webkit-scrollbar-thumb {
+          background: #9b6ce3;
+          border: 2px solid #f1e9ff;
+          border-radius: 999px;
+        }
       `}</style>
 
       <section className="card p-6 sm:p-8">
@@ -4554,6 +4707,21 @@ export default function QuickPhotoEditor() {
                   ))}
                 </div>
 
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
+                  <label className="text-sm font-semibold mb-2 block">Print Size</label>
+                  <select
+                    value={printSizePreset}
+                    onChange={(event) => applyPrintSizePreset(event.target.value)}
+                    className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                  >
+                    {PRINT_SIZE_PRESETS.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.width ? `${preset.label} — ${preset.width} × ${preset.height}px` : preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3 mt-4">
                   <div>
                     <label className="text-sm font-semibold mb-2 block">Custom Width</label>
@@ -4565,6 +4733,7 @@ export default function QuickPhotoEditor() {
                       onChange={(event) => {
                         const nextWidth = Number(event.target.value);
                         setSelectedSizePreset("custom");
+                        setPrintSizePreset("none");
                         setDraftSize((current) => ({
                           ...current,
                           width: nextWidth,
@@ -4588,6 +4757,7 @@ export default function QuickPhotoEditor() {
                       onChange={(event) => {
                         const nextHeight = Number(event.target.value);
                         setSelectedSizePreset("custom");
+                        setPrintSizePreset("none");
                         setDraftSize((current) => ({
                           ...current,
                           height: nextHeight,
@@ -4613,7 +4783,7 @@ export default function QuickPhotoEditor() {
                       Page color
                       <input
                         type="color"
-                        value={canvasBackgroundColor}
+                        value={normalizeHexForInput(canvasBackgroundColor)}
                         onChange={(event) => setCanvasBackgroundColor(event.target.value)}
                         className="w-9 h-9 rounded-lg border border-[var(--border)] bg-white"
                       />
@@ -4791,25 +4961,6 @@ export default function QuickPhotoEditor() {
                   type="button"
                   onClick={(event) => {
                     updatePopupPositionFromEvent(event);
-                    const isSizePanelOpen = toolPopupOpen && activePanel === "size";
-                    setActiveTool("select");
-                    setActivePanel(isSizePanelOpen ? "" : "size");
-                    setToolPopupOpen(!isSizePanelOpen);
-                  }}
-                  title="Artboard Size"
-                  className={`w-12 h-12 rounded-xl inline-flex items-center justify-center ${
-                    activePanel === "size"
-                      ? "bg-white text-[#111827]"
-                      : "bg-white/10 text-white hover:bg-white/20"
-                  }`}
-                >
-                  <Maximize2 size={20} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    updatePopupPositionFromEvent(event);
                     const isExportPanelOpen = toolPopupOpen && activePanel === "export";
                     setActiveTool("select");
                     setActivePanel(isExportPanelOpen ? "" : "export");
@@ -4884,7 +5035,7 @@ export default function QuickPhotoEditor() {
               {shouldShowSettings && (
                 <div
                   ref={optionsPanelRef}
-                  className="fixed w-[min(440px,calc(100vw-24px))] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
+                  className="quick-photo-editor-options-scroll fixed w-[min(440px,calc(100vw-24px))] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
                   style={{
                     top: `${popupTop}px`,
                     left: `${popupLeft}px`,
@@ -5915,6 +6066,21 @@ export default function QuickPhotoEditor() {
 
                   {settingsMode === "size" && (
                     <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-semibold mb-2 block">Print Size</label>
+                        <select
+                          value={printSizePreset}
+                          onChange={(event) => applyPrintSizePreset(event.target.value)}
+                          className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
+                        >
+                          {PRINT_SIZE_PRESETS.map((preset) => (
+                            <option key={preset.id} value={preset.id}>
+                              {preset.width ? `${preset.label} — ${preset.width} × ${preset.height}px` : preset.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       <div className="grid grid-cols-2 gap-2">
                         {SIZE_PRESETS.map((preset) => (
                           <button
@@ -6221,27 +6387,41 @@ export default function QuickPhotoEditor() {
                     )}
 
                     {selectedObjects.length > 1 && (
-                      <div className="flex shrink-0 items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2">
-                        <span className="text-xs font-bold text-[var(--text-secondary)] px-1">Align</span>
-                        <button type="button" onClick={() => alignSelectedObjects("left")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align left">Left</button>
-                        <button type="button" onClick={() => alignSelectedObjects("center")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align center">Center</button>
-                        <button type="button" onClick={() => alignSelectedObjects("right")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align right">Right</button>
-                        <button type="button" onClick={() => alignSelectedObjects("top")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align top">Top</button>
-                        <button type="button" onClick={() => alignSelectedObjects("middle")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align middle">Middle</button>
-                        <button type="button" onClick={() => alignSelectedObjects("bottom")} className="px-2 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#f8f4ff]" title="Align bottom">Bottom</button>
+                      <div className="relative shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setTopBarDropdown((current) => current === "align" ? "" : "align")}
+                          className="h-11 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold inline-flex items-center gap-2 hover:bg-[#f8f4ff]"
+                          title="Alignment options"
+                        >
+                          <AlignCenter size={17} />
+                          Align
+                          <ChevronDown size={15} />
+                        </button>
+
+                        {topBarDropdown === "align" && (
+                          <div className="absolute left-0 top-12 z-[80] rounded-2xl border border-[var(--border)] bg-white p-2 shadow-2xl grid grid-cols-3 gap-1">
+                            <button type="button" onClick={() => { alignSelectedObjects("left"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align left"><AlignLeft size={18} /></button>
+                            <button type="button" onClick={() => { alignSelectedObjects("center"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align horizontal center"><AlignCenter size={18} /></button>
+                            <button type="button" onClick={() => { alignSelectedObjects("right"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align right"><AlignRight size={18} /></button>
+                            <button type="button" onClick={() => { alignSelectedObjects("top"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align top"><AlignLeft size={18} className="rotate-90" /></button>
+                            <button type="button" onClick={() => { alignSelectedObjects("middle"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align vertical middle"><AlignCenter size={18} className="rotate-90" /></button>
+                            <button type="button" onClick={() => { alignSelectedObjects("bottom"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align bottom"><AlignRight size={18} className="rotate-90" /></button>
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {(selectedObjectId || selectedObjectIds.length > 0) && (
                       <div className="flex shrink-0 items-center gap-2">
-                        <button type="button" onClick={copyEditorSelection} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Copy</button>
-                        <button type="button" onClick={pasteEditorClipboard} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Paste</button>
-                        <button type="button" onClick={duplicateSelectedObjects} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Duplicate</button>
-                        <button type="button" onClick={() => reorderSelectedObjects("up")} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Bring Up</button>
-                        <button type="button" onClick={() => reorderSelectedObjects("down")} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Bring Down</button>
-                        <button type="button" onClick={() => reorderSelectedObjects("front")} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Front</button>
-                        <button type="button" onClick={() => reorderSelectedObjects("back")} className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold hover:bg-[#f8f4ff]">Back</button>
-                        <button type="button" onClick={deleteSelectedObject} className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100">Delete</button>
+                        <button type="button" onClick={copyEditorSelection} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Copy"><Copy size={17} /></button>
+                        <button type="button" onClick={pasteEditorClipboard} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Paste"><Copy size={17} className="rotate-180" /></button>
+                        <button type="button" onClick={duplicateSelectedObjects} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Duplicate"><Images size={17} /></button>
+                        <button type="button" onClick={() => reorderSelectedObjects("up")} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Bring up"><ArrowUpRight size={17} /></button>
+                        <button type="button" onClick={() => reorderSelectedObjects("down")} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Bring down"><ArrowUpRight size={17} className="rotate-180" /></button>
+                        <button type="button" onClick={() => reorderSelectedObjects("front")} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Bring to front"><ChevronUp size={17} /></button>
+                        <button type="button" onClick={() => reorderSelectedObjects("back")} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Send to back"><ChevronDown size={17} /></button>
+                        <button type="button" onClick={deleteSelectedObject} className="h-11 w-11 rounded-xl border border-red-200 bg-red-50 text-red-700 inline-flex items-center justify-center hover:bg-red-100" title="Delete"><Trash2 size={17} /></button>
                       </div>
                     )}
                   </div>
@@ -6324,6 +6504,8 @@ export default function QuickPhotoEditor() {
                         colorPickerTarget
                           ? "copy"
                           : spacePressedRef.current
+                            ? "grab"
+                            : activeTool === "hand"
                             ? "grab"
                             : activeTool === "select"
                             ? "default"
@@ -6460,6 +6642,80 @@ export default function QuickPhotoEditor() {
         </div>
       </section>
 
+      {shapeSizeModal && (
+        <div className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/35 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-bold">Insert Shape by Size</h3>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">
+                  Choose pixel or inch size. The selected shape will be placed exactly on the artboard.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShapeSizeModal(null)}
+                className="h-9 w-9 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]"
+                aria-label="Close shape size box"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <label className="block col-span-1">
+                <span className="text-xs font-bold text-[var(--text-secondary)] mb-1 block">Unit</span>
+                <select
+                  value={exactShapeUnit}
+                  onChange={(event) => setExactShapeUnit(event.target.value)}
+                  className="w-full h-11 rounded-xl border border-[var(--border)] bg-white px-3 outline-none focus:border-[var(--primary)]"
+                >
+                  <option value="px">px</option>
+                  <option value="in">inch</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-bold text-[var(--text-secondary)] mb-1 block">Width</span>
+                <input
+                  type="number"
+                  min="1"
+                  step={exactShapeUnit === "in" ? "0.1" : "1"}
+                  value={exactShapeSize.width}
+                  onChange={(event) => setExactShapeSize((current) => ({ ...current, width: Number(event.target.value) }))}
+                  className="w-full h-11 rounded-xl border border-[var(--border)] bg-white px-3 outline-none focus:border-[var(--primary)]"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-bold text-[var(--text-secondary)] mb-1 block">Height</span>
+                <input
+                  type="number"
+                  min="1"
+                  step={exactShapeUnit === "in" ? "0.1" : "1"}
+                  value={exactShapeSize.height}
+                  onChange={(event) => setExactShapeSize((current) => ({ ...current, height: Number(event.target.value) }))}
+                  className="w-full h-11 rounded-xl border border-[var(--border)] bg-white px-3 outline-none focus:border-[var(--primary)]"
+                />
+              </label>
+            </div>
+
+            <div className="rounded-xl border border-[var(--border)] bg-[#f8f4ff] p-3 text-xs text-[var(--text-secondary)] mb-4">
+              Inch mode uses 300 pixels per inch for print-friendly sizing.
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setShapeSizeModal(null)} className="btn-secondary">
+                Cancel
+              </button>
+              <button type="button" onClick={insertExactShapeBySize} className="btn-primary">
+                Insert Shape
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <SuggestedTools currentToolId="quick-photo-editor" />
     </div>
   );
@@ -6498,29 +6754,68 @@ function IconButton({ children, disabled, title, onClick }) {
 }
 
 function ColorInput({ label, value, onChange, disabled = false, onPick = null }) {
+  const cleanColor = normalizeColor(value);
+
+  async function copyHex() {
+    try {
+      await navigator.clipboard?.writeText?.(cleanColor);
+    } catch {
+      fallbackCopyText(cleanColor);
+    }
+  }
+
   return (
     <div className={`block ${disabled ? "opacity-50" : ""}`}>
       <div className="flex items-center justify-between gap-2 mb-2">
         <span className="text-sm font-semibold block">{label}</span>
-        {onPick && (
+        <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={onPick}
+            onClick={copyHex}
             disabled={disabled}
-            title="Pick color from image"
+            title={`Copy ${cleanColor}`}
             className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white inline-flex items-center justify-center hover:bg-[#f8f4ff] disabled:cursor-not-allowed"
           >
-            <Pipette size={15} />
+            <Copy size={14} />
           </button>
-        )}
+          {onPick && (
+            <button
+              type="button"
+              onClick={onPick}
+              disabled={disabled}
+              title="Pick color from image"
+              className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white inline-flex items-center justify-center hover:bg-[#f8f4ff] disabled:cursor-not-allowed"
+            >
+              <Pipette size={15} />
+            </button>
+          )}
+        </div>
       </div>
-      <input
-        type="color"
-        value={normalizeColor(value)}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        className="w-full h-12 rounded-xl border border-[var(--border)] bg-white p-1 disabled:cursor-not-allowed"
-      />
+
+      <div className="grid grid-cols-[54px_minmax(0,1fr)] gap-2">
+        <input
+          type="color"
+          value={normalizeHexForInput(cleanColor)}
+          onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
+          className="w-full h-12 rounded-xl border border-[var(--border)] bg-white p-1 disabled:cursor-not-allowed"
+          title={`Click to choose color or copy ${cleanColor}`}
+        />
+        <input
+          type="text"
+          value={cleanColor}
+          onChange={(event) => {
+            const nextValue = event.target.value.trim();
+            if (/^#[0-9a-fA-F]{0,6}$/.test(nextValue)) {
+              onChange(nextValue.length === 7 ? nextValue : cleanColor);
+            }
+          }}
+          onClick={copyHex}
+          disabled={disabled}
+          title="Click to copy hex code"
+          className="h-12 rounded-xl border border-[var(--border)] bg-white px-3 text-sm font-bold outline-none focus:border-[var(--primary)] disabled:cursor-not-allowed"
+        />
+      </div>
     </div>
   );
 }
@@ -8473,9 +8768,34 @@ function rgbToHex(r, g, b) {
     .join("")}`;
 }
 
+function convertShapeSizeToPixels(value, unit = "px") {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number <= 0) return 0;
+
+  if (unit === "in") {
+    return clampNumber(number * SHAPE_INCH_DPI, 1, 5000);
+  }
+
+  return clampNumber(number, 1, 5000);
+}
+
 function normalizeColor(value) {
-  if (String(value).startsWith("#")) return value;
+  const cleanValue = String(value || "").trim();
+
+  if (/^#[0-9a-fA-F]{3}$/.test(cleanValue)) {
+    return `#${cleanValue[1]}${cleanValue[1]}${cleanValue[2]}${cleanValue[2]}${cleanValue[3]}${cleanValue[3]}`.toLowerCase();
+  }
+
+  if (/^#[0-9a-fA-F]{6}$/.test(cleanValue)) {
+    return cleanValue.toLowerCase();
+  }
+
   return "#ef4444";
+}
+
+function normalizeHexForInput(value) {
+  return normalizeColor(value);
 }
 
 function serializeObjects(objects) {
