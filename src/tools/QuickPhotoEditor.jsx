@@ -439,6 +439,23 @@ export default function QuickPhotoEditor() {
 
   const quickSelectedStrokeWidth = selectedObject?.strokeWidth || shapeStrokeWidth;
 
+  const topBarSizeEditable = Boolean(
+    selectedObject &&
+      selectedObjectBox &&
+      (
+        selectedObject.type === "image" ||
+        SHAPE_TYPES.some((shape) => shape.id === selectedObject.type)
+      )
+  );
+
+  const quickSelectedWidthValue = topBarSizeEditable
+    ? formatSizeForUnit(selectedObjectBox.w, exactShapeUnit)
+    : "";
+
+  const quickSelectedHeightValue = topBarSizeEditable
+    ? formatSizeForUnit(selectedObjectBox.h, exactShapeUnit)
+    : "";
+
   const selectedOutputFormat = useMemo(() => {
     return OUTPUT_FORMATS.find((item) => item.value === outputFormat) || OUTPUT_FORMATS[0];
   }, [outputFormat]);
@@ -3447,6 +3464,40 @@ export default function QuickPhotoEditor() {
     , "Stroke updated");
   }
 
+  function updateSelectedObjectSize(dimension, value) {
+    if (!selectedObject || !selectedObjectBox || !topBarSizeEditable) return;
+
+    if (isObjectLocked(selectedObject.id)) {
+      setErrorMessage("This layer is locked. Unlock it before changing size.");
+      return;
+    }
+
+    const nextPixelValue = sizeInputToPixels(value, exactShapeUnit);
+
+    if (!Number.isFinite(nextPixelValue) || nextPixelValue <= 0) return;
+
+    const nextBox = {
+      ...selectedObjectBox,
+      [dimension]: clampNumber(nextPixelValue, 1, 20000),
+    };
+
+    const resizedObject = resizeObjectToBox(selectedObject, nextBox);
+
+    setObjects((current) =>
+      current.map((item) => (item.id === selectedObject.id ? resizedObject : item))
+    );
+
+    setGuideInfo(
+      buildGuideInfo(
+        getObjectBox(resizedObject),
+        canvasSize,
+        `${dimension === "w" ? "Width" : "Height"} updated`
+      )
+    );
+
+    clearOutput();
+  }
+
   function updateSelectedObject(updates) {
     if (!selectedObjectId) return;
 
@@ -6358,6 +6409,48 @@ export default function QuickPhotoEditor() {
                       <span className="w-9 text-right">{quickSelectedOpacity}%</span>
                     </label>
 
+                    {topBarSizeEditable && (
+                      <div className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold">
+                        <span className="font-bold text-[var(--primary)]">Size</span>
+
+                        <label className="inline-flex items-center gap-1">
+                          <span>W</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step={exactShapeUnit === "in" ? "0.01" : "1"}
+                            value={quickSelectedWidthValue}
+                            onChange={(event) => updateSelectedObjectSize("w", event.target.value)}
+                            className="w-20 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
+                            title={`Selected ${selectedObject?.type} width`}
+                          />
+                        </label>
+
+                        <label className="inline-flex items-center gap-1">
+                          <span>H</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step={exactShapeUnit === "in" ? "0.01" : "1"}
+                            value={quickSelectedHeightValue}
+                            onChange={(event) => updateSelectedObjectSize("h", event.target.value)}
+                            className="w-20 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
+                            title={`Selected ${selectedObject?.type} height`}
+                          />
+                        </label>
+
+                        <select
+                          value={exactShapeUnit}
+                          onChange={(event) => setExactShapeUnit(event.target.value)}
+                          className="h-8 rounded-lg border border-[var(--border)] bg-white px-2 outline-none focus:border-[var(--primary)]"
+                          title="Size unit"
+                        >
+                          <option value="px">px</option>
+                          <option value="in">inch</option>
+                        </select>
+                      </div>
+                    )}
+
                     {selectedObject?.type === "text" && (
                       <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
                         Text size
@@ -7547,12 +7640,12 @@ function drawSelectionBox(ctx, object) {
 
   const canvasWidth = ctx.canvas?.width || box.x + box.w;
   const canvasHeight = ctx.canvas?.height || box.y + box.h;
-  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.04, 10, 20);
+  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.055, 16, 34);
   const visibleBox = getCanvasVisibleBox(box, canvasWidth, canvasHeight);
 
   ctx.save();
   ctx.strokeStyle = "#9b6ce3";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3;
   ctx.setLineDash([8, 6]);
   ctx.strokeRect(box.x, box.y, box.w, box.h);
 
@@ -7583,7 +7676,7 @@ function drawGroupSelectionBox(ctx, objects) {
 
   const canvasWidth = ctx.canvas?.width || box.x + box.w;
   const canvasHeight = ctx.canvas?.height || box.y + box.h;
-  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.035, 11, 22);
+  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.05, 16, 36);
   const visibleBox = getCanvasVisibleBox(box, canvasWidth, canvasHeight);
 
   ctx.save();
@@ -7633,7 +7726,7 @@ function getCanvasVisibleBox(box, canvasWidth, canvasHeight) {
 }
 
 function drawVisibleEdgeHandles(ctx, box, size) {
-  const cornerSize = clampNumber(size * 0.9, 9, 18);
+  const cornerSize = clampNumber(size * 1.05, 16, 34);
   const edgeHandles = [
     { x: box.x, y: box.y },
     { x: box.x + box.w, y: box.y },
@@ -7650,10 +7743,15 @@ function drawVisibleEdgeHandles(ctx, box, size) {
 }
 
 function drawHandle(ctx, x, y, size) {
+  ctx.save();
+  ctx.shadowColor = "rgba(124,58,237,0.24)";
+  ctx.shadowBlur = Math.max(3, size * 0.18);
+  ctx.lineWidth = Math.max(2.5, size * 0.13);
   ctx.beginPath();
   ctx.rect(x - size / 2, y - size / 2, size, size);
   ctx.fill();
   ctx.stroke();
+  ctx.restore();
 }
 
 function getObjectAtPoint(point, objects) {
@@ -8112,7 +8210,7 @@ function getResizeHandleAtPoint(point, object, zoom = 1, canvasSize = null) {
 function getResizeHandleAtBox(point, box, zoom = 1, canvasSize = null) {
   if (!point || !box) return null;
 
-  const hitSize = Math.max(10, 18 / Math.max(0.25, Number(zoom) || 1));
+  const hitSize = Math.max(18, 28 / Math.max(0.25, Number(zoom) || 1));
   const canvasWidth = canvasSize?.width || box.x + box.w;
   const canvasHeight = canvasSize?.height || box.y + box.h;
   const handles = getVisibleBoxHandles(box, hitSize, canvasWidth, canvasHeight);
@@ -8127,7 +8225,7 @@ function getResizeHandleAtBox(point, box, zoom = 1, canvasSize = null) {
 }
 
 function getVisibleBoxHandles(box, handleSize = 10, canvasWidth = Infinity, canvasHeight = Infinity) {
-  const safeHandleSize = clampNumber(handleSize, 9, 22);
+  const safeHandleSize = clampNumber(handleSize, 16, 36);
   const edgePadding = Math.max(8, safeHandleSize * 0.75);
   const minX = Number.isFinite(canvasWidth) ? edgePadding : box.x;
   const minY = Number.isFinite(canvasHeight) ? edgePadding : box.y;
@@ -8855,6 +8953,28 @@ function clampNumber(value, min, max) {
   if (Number.isNaN(number)) return min;
 
   return Math.min(max, Math.max(min, number));
+}
+
+function formatSizeForUnit(pixelValue, unit = "px") {
+  const pixels = Math.max(0, Number(pixelValue || 0));
+
+  if (unit === "in") {
+    return Number((pixels / INCH_DPI).toFixed(2));
+  }
+
+  return Math.round(pixels);
+}
+
+function sizeInputToPixels(value, unit = "px") {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) return NaN;
+
+  if (unit === "in") {
+    return numericValue * INCH_DPI;
+  }
+
+  return numericValue;
 }
 
 function formatBytes(bytes) {
