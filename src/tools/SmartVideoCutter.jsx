@@ -9,13 +9,20 @@ import {
   Film,
   GripVertical,
   Loader2,
+  MousePointer2,
   Plus,
   RotateCcw,
   Scissors,
   Settings2,
+  Music,
+  Type,
+  Volume2,
+  VolumeX,
   Trash2,
   Upload,
   Video,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
@@ -49,10 +56,65 @@ const EXPORT_MODES = [
     description: "Better for mixed videos. May re-encode and take longer.",
   },
 ];
+const TEXT_FONT_OPTIONS = [
+  "Arial",
+  "Helvetica",
+  "Verdana",
+  "Tahoma",
+  "Trebuchet MS",
+  "Georgia",
+  "Times New Roman",
+  "Garamond",
+  "Palatino",
+  "Courier New",
+  "Lucida Console",
+  "Impact",
+  "Comic Sans MS",
+  "Brush Script MT",
+  "Lucida Handwriting",
+  "Segoe Script",
+  "Great Vibes",
+  "Dancing Script",
+  "Pacifico",
+  "Playfair Display",
+  "Montserrat",
+  "Poppins",
+  "Roboto",
+  "Lora",
+  "Cinzel",
+  "Cormorant Garamond",
+  "Merriweather",
+  "Baskerville",
+];
+
+const TEXT_POSITION_OPTIONS = [
+  { value: "top", label: "Top" },
+  { value: "center", label: "Center" },
+  { value: "bottom", label: "Bottom" },
+  { value: "custom", label: "Custom" },
+];
+
+const DEFAULT_TEXT_OVERLAY = {
+  text: "Your text here",
+  fontFamily: "Arial",
+  fontSize: 42,
+  color: "#ffffff",
+  backgroundColor: "#000000",
+  backgroundOpacity: 0,
+  position: "center",
+  xPercent: 50,
+  yPercent: 50,
+  start: 0,
+  end: 5,
+};
+
 
 export default function SmartVideoCutter() {
   const fileInputRef = useRef(null);
+  const musicInputRef = useRef(null);
   const videoRef = useRef(null);
+  const timelineRef = useRef(null);
+  const zoomTimelineRef = useRef(null);
   const ffmpegRef = useRef(null);
   const ffmpegLoadedRef = useRef(false);
 
@@ -60,10 +122,28 @@ export default function SmartVideoCutter() {
   const [selectedVideoId, setSelectedVideoId] = useState("");
   const [clips, setClips] = useState([]);
   const [dragClipId, setDragClipId] = useState("");
+  const [selectedClipIds, setSelectedClipIds] = useState([]);
+  const [timelineZoom, setTimelineZoom] = useState(1);
+  const [thumbnailZoomOpen, setThumbnailZoomOpen] = useState(true);
+  const [hoverTimeline, setHoverTimeline] = useState({ active: false, time: 0, x: 0 });
+  const [resizeState, setResizeState] = useState(null);
+  const [pendingSeek, setPendingSeek] = useState(null);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [textPanelOpen, setTextPanelOpen] = useState(false);
+  const [musicPanelOpen, setMusicPanelOpen] = useState(false);
   const [exportMode, setExportMode] = useState("original");
+
+  const [textOverlays, setTextOverlays] = useState([]);
+  const [draftTextOverlay, setDraftTextOverlay] = useState(DEFAULT_TEXT_OVERLAY);
+
+  const [musicFile, setMusicFile] = useState(null);
+  const [musicUrl, setMusicUrl] = useState("");
+  const [musicName, setMusicName] = useState("");
+  const [muteOriginalAudio, setMuteOriginalAudio] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(85);
+  const [originalAudioVolume, setOriginalAudioVolume] = useState(100);
 
   const [playMode, setPlayMode] = useState({ type: "normal", clipId: "", index: -1 });
   const [pendingPlayClipId, setPendingPlayClipId] = useState("");
@@ -89,21 +169,66 @@ export default function SmartVideoCutter() {
     return clips.find((clip) => clip.id === playMode.clipId) || null;
   }, [clips, playMode.clipId]);
 
+  const timelineClips = useMemo(() => buildTimelineClips(clips), [clips]);
+
   const totalTimelineDuration = useMemo(() => {
     return clips.reduce((sum, clip) => sum + getClipDuration(clip), 0);
   }, [clips]);
 
+  const timelinePixelsPerSecond = useMemo(() => getTimelinePixelsPerSecond(timelineZoom), [timelineZoom]);
+
+  const timelinePlayheadTime = useMemo(() => {
+    if (playMode.type === "final" && selectedClip) {
+      const timelineClip = timelineClips.find((clip) => clip.id === selectedClip.id);
+
+      if (timelineClip) {
+        return clampNumber(
+          timelineClip.timelineStart + (currentTime - selectedClip.start),
+          0,
+          totalTimelineDuration
+        );
+      }
+    }
+
+    if (selectedVideo) {
+      const matchingClip = timelineClips.find(
+        (clip) =>
+          clip.videoId === selectedVideo.id &&
+          currentTime >= clip.start &&
+          currentTime <= clip.end
+      );
+
+      if (matchingClip) {
+        return clampNumber(
+          matchingClip.timelineStart + (currentTime - matchingClip.start),
+          0,
+          totalTimelineDuration
+        );
+      }
+    }
+
+    return 0;
+  }, [currentTime, playMode.type, selectedClip, selectedVideo, timelineClips, totalTimelineDuration]);
+
   const canSplit = Boolean(selectedVideo && !isProcessing);
   const canExport = Boolean(clips.length && !isProcessing);
+  const hasTextOverlays = textOverlays.length > 0;
+  const hasMusicEdits = Boolean(musicFile || muteOriginalAudio);
+  const needsEnhancedExport = hasTextOverlays || hasMusicEdits;
 
   useEffect(() => {
     return () => {
       videos.forEach((video) => {
         if (video.url) URL.revokeObjectURL(video.url);
+        if (video.thumbnailUrl) URL.revokeObjectURL(video.thumbnailUrl);
       });
 
       if (exportedUrl) {
         URL.revokeObjectURL(exportedUrl);
+      }
+
+      if (musicUrl) {
+        URL.revokeObjectURL(musicUrl);
       }
     };
   }, []);
@@ -152,6 +277,123 @@ export default function SmartVideoCutter() {
       video.removeEventListener("loadedmetadata", playClip);
     };
   }, [pendingPlayClipId, selectedVideoId, clips]);
+
+  useEffect(() => {
+    if (!pendingSeek) return;
+
+    if (selectedVideoId !== pendingSeek.videoId) {
+      setSelectedVideoId(pendingSeek.videoId);
+      return;
+    }
+
+    const video = videoRef.current;
+
+    if (!video) return;
+
+    const applySeek = () => {
+      try {
+        video.currentTime = clampNumber(pendingSeek.time, 0, video.duration || pendingSeek.time);
+        setCurrentTime(video.currentTime);
+      } finally {
+        setPendingSeek(null);
+      }
+    };
+
+    if (video.readyState >= 1) {
+      window.setTimeout(applySeek, 40);
+      return;
+    }
+
+    video.addEventListener("loadedmetadata", applySeek, { once: true });
+
+    return () => {
+      video.removeEventListener("loadedmetadata", applySeek);
+    };
+  }, [pendingSeek, selectedVideoId]);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      const target = event.target;
+      const tagName = target?.tagName?.toLowerCase?.();
+      const isTyping = tagName === "input" || tagName === "textarea" || target?.isContentEditable;
+
+      if (isTyping) return;
+
+      if (event.key?.toLowerCase() === "s") {
+        if (hoverTimeline.active && clips.length) {
+          event.preventDefault();
+          splitClipAtTimelineTime(hoverTimeline.time);
+        } else {
+          splitAtCurrentTime();
+        }
+      }
+
+      if ((event.key === "Delete" || event.key === "Backspace") && selectedClipIds.length) {
+        event.preventDefault();
+        removeSelectedClips();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [hoverTimeline, clips, selectedClipIds]);
+
+  useEffect(() => {
+    if (!resizeState) return;
+
+    function handlePointerMove(event) {
+      const deltaSeconds = (event.clientX - resizeState.startClientX) / Math.max(1, resizeState.pixelsPerSecond);
+
+      clearExportOutput();
+
+      setClips((current) =>
+        current.map((clip) => {
+          if (clip.id !== resizeState.clipId) return clip;
+
+          const sourceVideo = videos.find((video) => video.id === clip.videoId);
+          const maxDuration = sourceVideo?.duration || resizeState.originalEnd;
+          let nextStart = resizeState.originalStart;
+          let nextEnd = resizeState.originalEnd;
+
+          if (resizeState.side === "left") {
+            nextStart = clampNumber(
+              resizeState.originalStart + deltaSeconds,
+              0,
+              resizeState.originalEnd - MIN_CLIP_DURATION
+            );
+          }
+
+          if (resizeState.side === "right") {
+            nextEnd = clampNumber(
+              resizeState.originalEnd + deltaSeconds,
+              resizeState.originalStart + MIN_CLIP_DURATION,
+              maxDuration
+            );
+          }
+
+          return {
+            ...clip,
+            start: roundTime(nextStart),
+            end: roundTime(nextEnd),
+          };
+        })
+      );
+    }
+
+    function handlePointerUp() {
+      setResizeState(null);
+      setSuccess("Clip trim updated.");
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [resizeState, videos]);
 
   function clearFeedback() {
     setError("");
@@ -245,6 +487,10 @@ export default function SmartVideoCutter() {
 
         try {
           const metadata = await loadVideoMetadata(objectUrl);
+          const thumbnailUrl = await generateVideoThumbnail(
+            objectUrl,
+            Math.min(Math.max(0.1, metadata.duration * 0.08), Math.max(0.1, metadata.duration - 0.1))
+          ).catch(() => "");
           const videoId = createId();
           const videoItem = {
             id: videoId,
@@ -255,6 +501,7 @@ export default function SmartVideoCutter() {
             duration: metadata.duration,
             width: metadata.width,
             height: metadata.height,
+            thumbnailUrl,
             extension: getFileExtension(file.name),
           };
 
@@ -416,6 +663,129 @@ export default function SmartVideoCutter() {
     setSuccess(`Split at ${formatTime(time)}.`);
   }
 
+  function splitClipAtTimelineTime(timelineTime) {
+    const timelineClip = findTimelineClipAtTime(timelineClips, timelineTime);
+
+    if (!timelineClip) {
+      setError("Move your mouse over a clip on the timeline, then press S or click Split.");
+      return;
+    }
+
+    const sourceTime = timelineClip.start + (timelineTime - timelineClip.timelineStart);
+
+    if (
+      sourceTime <= timelineClip.start + MIN_CLIP_DURATION ||
+      sourceTime >= timelineClip.end - MIN_CLIP_DURATION
+    ) {
+      setError("Split point is too close to the clip edge.");
+      return;
+    }
+
+    const firstClip = {
+      ...timelineClip,
+      id: createId(),
+      end: roundTime(sourceTime),
+    };
+
+    const secondClip = {
+      ...timelineClip,
+      id: createId(),
+      start: roundTime(sourceTime),
+    };
+
+    delete firstClip.timelineStart;
+    delete firstClip.timelineEnd;
+    delete firstClip.timelineIndex;
+    delete secondClip.timelineStart;
+    delete secondClip.timelineEnd;
+    delete secondClip.timelineIndex;
+
+    clearExportOutput();
+    clearFeedback();
+
+    setClips((current) =>
+      current.flatMap((clip) => (clip.id === timelineClip.id ? [firstClip, secondClip] : [clip]))
+    );
+    setSelectedClipIds([firstClip.id, secondClip.id]);
+    setSuccess(`Timeline split at ${formatTime(timelineTime)}. Shortcut: S`);
+  }
+
+  function seekToTimelineTime(timelineTime) {
+    const timelineClip = findTimelineClipAtTime(timelineClips, timelineTime);
+
+    if (!timelineClip) return;
+
+    const sourceTime = timelineClip.start + (timelineTime - timelineClip.timelineStart);
+
+    setPlayMode({ type: "normal", clipId: "", index: -1 });
+    setPendingSeek({ videoId: timelineClip.videoId, time: sourceTime });
+    setSelectedClipIds([timelineClip.id]);
+  }
+
+  function handleTimelinePointerMove(event) {
+    if (!timelineRef.current || !totalTimelineDuration) return;
+
+    const timelineData = getTimelinePointerData(event, timelineRef.current, timelinePixelsPerSecond, totalTimelineDuration);
+
+    setHoverTimeline({
+      active: true,
+      time: timelineData.time,
+      x: timelineData.x,
+    });
+  }
+
+  function handleTimelinePointerLeave() {
+    setHoverTimeline((current) => ({ ...current, active: false }));
+  }
+
+  function handleTimelineClick(event) {
+    if (!totalTimelineDuration) return;
+
+    const timelineData = getTimelinePointerData(event, timelineRef.current, timelinePixelsPerSecond, totalTimelineDuration);
+    seekToTimelineTime(timelineData.time);
+  }
+
+  function selectClip(clipId, event) {
+    const multi = event?.shiftKey || event?.ctrlKey || event?.metaKey;
+
+    setSelectedClipIds((current) => {
+      if (!multi) return [clipId];
+
+      return current.includes(clipId)
+        ? current.filter((id) => id !== clipId)
+        : [...current, clipId];
+    });
+  }
+
+  function removeSelectedClips() {
+    if (!selectedClipIds.length) return;
+
+    clearExportOutput();
+    clearFeedback();
+    setClips((current) => current.filter((clip) => !selectedClipIds.includes(clip.id)));
+    setSelectedClipIds([]);
+    setSuccess("Selected clips deleted.");
+  }
+
+  function startTimelineTrim(clipId, side, event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const clip = clips.find((item) => item.id === clipId);
+
+    if (!clip) return;
+
+    setSelectedClipIds((current) => current.length ? current : [clipId]);
+    setResizeState({
+      clipId,
+      side,
+      startClientX: event.clientX,
+      originalStart: clip.start,
+      originalEnd: clip.end,
+      pixelsPerSecond: timelinePixelsPerSecond,
+    });
+  }
+
   function addFullVideoClip(videoId = selectedVideo?.id) {
     const video = videos.find((item) => item.id === videoId);
 
@@ -476,6 +846,7 @@ export default function SmartVideoCutter() {
     clearExportOutput();
     clearFeedback();
     setClips((current) => current.filter((clip) => clip.id !== clipId));
+    setSelectedClipIds((current) => current.filter((id) => id !== clipId));
   }
 
   function removeVideo(videoId) {
@@ -488,8 +859,15 @@ export default function SmartVideoCutter() {
       URL.revokeObjectURL(video.url);
     }
 
+    if (video?.thumbnailUrl) {
+      URL.revokeObjectURL(video.thumbnailUrl);
+    }
+
     setVideos((current) => current.filter((item) => item.id !== videoId));
     setClips((current) => current.filter((clip) => clip.videoId !== videoId));
+    setSelectedClipIds((current) =>
+      current.filter((id) => !clips.some((clip) => clip.id === id && clip.videoId === videoId))
+    );
 
     if (selectedVideoId === videoId) {
       const nextVideo = videos.find((item) => item.id !== videoId);
@@ -553,6 +931,109 @@ export default function SmartVideoCutter() {
     setError("");
     setSuccess("Previewing final video timeline.");
     playTimelineClip(0);
+  }
+
+  function updateDraftTextOverlay(updates) {
+    setDraftTextOverlay((current) => ({
+      ...current,
+      ...updates,
+    }));
+    clearExportOutput();
+    clearFeedback();
+  }
+
+  function addTextOverlay() {
+    const cleanText = String(draftTextOverlay.text || "").trim();
+
+    if (!cleanText) {
+      setError("Write text before adding it to the video.");
+      return;
+    }
+
+    const safeEnd = Math.max(
+      Number(draftTextOverlay.start || 0) + 0.25,
+      Number(draftTextOverlay.end || totalTimelineDuration || 5)
+    );
+
+    const overlay = {
+      ...draftTextOverlay,
+      id: createId(),
+      text: cleanText,
+      start: clampNumber(Number(draftTextOverlay.start || 0), 0, Math.max(0, totalTimelineDuration)),
+      end: clampNumber(safeEnd, 0.25, Math.max(0.25, totalTimelineDuration || safeEnd)),
+    };
+
+    setTextOverlays((current) => [...current, overlay]);
+    setDraftTextOverlay((current) => ({
+      ...current,
+      text: "",
+      start: overlay.end,
+      end: Math.min(totalTimelineDuration || overlay.end + 5, overlay.end + 5),
+    }));
+    setTextPanelOpen(true);
+    clearExportOutput();
+    setError("");
+    setSuccess("Text added to the video timeline.");
+  }
+
+  function removeTextOverlay(id) {
+    setTextOverlays((current) => current.filter((overlay) => overlay.id !== id));
+    clearExportOutput();
+    clearFeedback();
+  }
+
+  function handleMusicInput(event) {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    const isAudio =
+      file.type.startsWith("audio/") ||
+      fileName.endsWith(".mp3") ||
+      fileName.endsWith(".wav") ||
+      fileName.endsWith(".m4a") ||
+      fileName.endsWith(".aac") ||
+      fileName.endsWith(".ogg");
+
+    if (!isAudio) {
+      setError("Please upload a valid music file like MP3, WAV, M4A, AAC, or OGG.");
+      resetMusicInput();
+      return;
+    }
+
+    if (musicUrl) {
+      URL.revokeObjectURL(musicUrl);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+
+    setMusicFile(file);
+    setMusicUrl(objectUrl);
+    setMusicName(file.name);
+    setMusicPanelOpen(true);
+    clearExportOutput();
+    setError("");
+    setSuccess("Music added. You can mute original video audio if needed.");
+    resetMusicInput();
+  }
+
+  function removeMusic() {
+    if (musicUrl) {
+      URL.revokeObjectURL(musicUrl);
+    }
+
+    setMusicFile(null);
+    setMusicUrl("");
+    setMusicName("");
+    clearExportOutput();
+    clearFeedback();
+  }
+
+  function resetMusicInput() {
+    if (musicInputRef.current) {
+      musicInputRef.current.value = "";
+    }
   }
 
   async function ensureFfmpegLoaded() {
@@ -623,7 +1104,9 @@ export default function SmartVideoCutter() {
         inputMap.set(video.id, inputName);
       }
 
-      const outputExtension = exportMode === "original"
+      const enhancedExport = needsEnhancedExport;
+      const effectiveExportMode = enhancedExport ? "compatible" : exportMode;
+      const outputExtension = effectiveExportMode === "original"
         ? getSafeExtension(videos.find((video) => video.id === clips[0]?.videoId)?.extension || "mp4")
         : "mp4";
 
@@ -642,7 +1125,7 @@ export default function SmartVideoCutter() {
 
         await safeDeleteFile(ffmpeg, segmentName);
 
-        const command = exportMode === "original"
+        const command = effectiveExportMode === "original"
           ? [
               "-ss",
               String(clip.start),
@@ -689,9 +1172,11 @@ export default function SmartVideoCutter() {
 
       const concatList = segmentNames.map((name) => `file '${name}'`).join("\n");
       const concatFileName = "concat_list.txt";
+      const baseOutputName = `smart-video-cutter-base.${outputExtension}`;
       const outputName = `smart-video-cutter-final.${outputExtension}`;
 
       await safeDeleteFile(ffmpeg, concatFileName);
+      await safeDeleteFile(ffmpeg, baseOutputName);
       await safeDeleteFile(ffmpeg, outputName);
 
       await ffmpeg.writeFile(concatFileName, new TextEncoder().encode(concatList));
@@ -708,8 +1193,26 @@ export default function SmartVideoCutter() {
         concatFileName,
         "-c",
         "copy",
-        outputName,
+        baseOutputName,
       ]);
+
+      if (enhancedExport) {
+        setProcessingPhase("Applying text and music...");
+        setProgress(92);
+
+        await applyTextAndMusicExport({
+          ffmpeg,
+          inputName: baseOutputName,
+          outputName,
+          textOverlays,
+          musicFile,
+          musicVolume,
+          originalAudioVolume,
+          muteOriginalAudio,
+        });
+      } else {
+        await ffmpeg.exec(["-i", baseOutputName, "-c", "copy", outputName]);
+      }
 
       const data = await ffmpeg.readFile(outputName);
       const blob = new Blob([data.buffer], {
@@ -728,7 +1231,9 @@ export default function SmartVideoCutter() {
     } catch (exportError) {
       console.error("Smart Video Cutter export error:", exportError);
 
-      if (exportMode === "original") {
+      if (needsEnhancedExport) {
+        setError("Could not export with text/music. Try MP4 videos, shorter clips, or remove complex text/audio options.");
+      } else if (exportMode === "original") {
         setError("Original Quality export failed. Try High Compatibility mode from Settings, especially for mixed videos.");
       } else {
         setError("Could not export the final video. Try MP4 videos with fewer or shorter clips.");
@@ -771,6 +1276,7 @@ export default function SmartVideoCutter() {
   function resetTool() {
     videos.forEach((video) => {
       if (video.url) URL.revokeObjectURL(video.url);
+      if (video.thumbnailUrl) URL.revokeObjectURL(video.thumbnailUrl);
     });
 
     if (exportedUrl) {
@@ -781,9 +1287,30 @@ export default function SmartVideoCutter() {
     setSelectedVideoId("");
     setClips([]);
     setDragClipId("");
+    setSelectedClipIds([]);
+    setTimelineZoom(1);
+    setThumbnailZoomOpen(true);
+    setHoverTimeline({ active: false, time: 0, x: 0 });
+    setResizeState(null);
+    setPendingSeek(null);
     setCurrentTime(0);
     setSettingsOpen(false);
+    setTextPanelOpen(false);
+    setMusicPanelOpen(false);
     setExportMode("original");
+    setTextOverlays([]);
+    setDraftTextOverlay(DEFAULT_TEXT_OVERLAY);
+
+    if (musicUrl) {
+      URL.revokeObjectURL(musicUrl);
+    }
+
+    setMusicFile(null);
+    setMusicUrl("");
+    setMusicName("");
+    setMuteOriginalAudio(false);
+    setMusicVolume(85);
+    setOriginalAudioVolume(100);
     setPlayMode({ type: "normal", clipId: "", index: -1 });
     setPendingPlayClipId("");
     setIsDraggingUpload(false);
@@ -914,84 +1441,24 @@ export default function SmartVideoCutter() {
                     <div>
                       <div className="flex items-center gap-2">
                         <Video size={20} className="text-[var(--primary)]" />
-                        <h2 className="font-bold text-lg">Cut Selected Video</h2>
+                        <h2 className="font-bold text-lg">Video Preview</h2>
                       </div>
                       <p className="text-xs text-[var(--text-secondary)] mt-1 truncate">
                         {selectedVideo.name} • {formatTime(selectedVideo.duration)} • {selectedVideo.width}×{selectedVideo.height}
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={splitAtCurrentTime}
-                      disabled={!canSplit}
-                      className={`btn-primary inline-flex items-center justify-center gap-2 ${
-                        !canSplit ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      <Scissors size={18} />
-                      Split Here
-                    </button>
-                  </div>
-
-                  <div className="p-4 sm:p-5 grid lg:grid-cols-[minmax(0,1fr)_260px] gap-5">
-                    <div className="min-w-0">
-                      <div className="rounded-2xl overflow-hidden bg-black">
-                        <video
-                          ref={videoRef}
-                          src={selectedVideo.url}
-                          controls
-                          playsInline
-                          preload="metadata"
-                          onLoadedMetadata={handleLoadedMetadata}
-                          onTimeUpdate={handleTimeUpdate}
-                          className="w-full max-h-[620px] bg-black"
-                        />
-                      </div>
-
-                      <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
-                        <div className="flex items-center justify-between gap-3 mb-3">
-                          <p className="text-sm font-semibold">Current time</p>
-                          <p className="text-xs font-bold text-[var(--primary)]">
-                            {formatTime(currentTime)} / {formatTime(selectedVideo.duration)}
-                          </p>
-                        </div>
-
-                        <input
-                          type="range"
-                          min="0"
-                          max={Math.max(0, selectedVideo.duration)}
-                          step="0.01"
-                          value={Math.min(currentTime, selectedVideo.duration)}
-                          onChange={(event) => {
-                            const video = videoRef.current;
-                            const nextTime = Number(event.target.value);
-                            if (video) video.currentTime = nextTime;
-                            setCurrentTime(nextTime);
-                          }}
-                          className="w-full accent-[var(--primary)]"
-                        />
-
-                        <div className="grid grid-cols-4 gap-2 mt-3">
-                          <button type="button" onClick={() => seekBy(-1)} className="small-action-btn">-1s</button>
-                          <button type="button" onClick={() => seekBy(-0.1)} className="small-action-btn">-0.1s</button>
-                          <button type="button" onClick={() => seekBy(0.1)} className="small-action-btn">+0.1s</button>
-                          <button type="button" onClick={() => seekBy(1)} className="small-action-btn">+1s</button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={splitAtCurrentTime}
                         disabled={!canSplit}
-                        className={`btn-primary min-h-[56px] inline-flex items-center justify-center gap-2 ${
+                        className={`btn-primary inline-flex items-center justify-center gap-2 ${
                           !canSplit ? "opacity-50 cursor-not-allowed" : ""
                         }`}
                       >
                         <Scissors size={18} />
-                        Split at Current Time
+                        Split Here
                       </button>
 
                       <button
@@ -1003,64 +1470,134 @@ export default function SmartVideoCutter() {
                         <Plus size={18} />
                         Add Full Clip
                       </button>
+                    </div>
+                  </div>
 
-                      <div className="rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
-                        <p className="font-bold text-sm mb-1">Timeline</p>
-                        <p className="text-xs text-[var(--text-secondary)]">
-                          {clips.length} clip{clips.length === 1 ? "" : "s"} • {formatTime(totalTimelineDuration)}
+                  <div className="p-4 sm:p-5">
+                    <div className="rounded-2xl overflow-hidden bg-black">
+                      <video
+                        ref={videoRef}
+                        src={selectedVideo.url}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        onLoadedMetadata={handleLoadedMetadata}
+                        onTimeUpdate={handleTimeUpdate}
+                        className="w-full max-h-[560px] bg-black"
+                      />
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <p className="text-sm font-semibold">Current time</p>
+                        <p className="text-xs font-bold text-[var(--primary)]">
+                          {formatTime(currentTime)} / {formatTime(selectedVideo.duration)}
                         </p>
                       </div>
 
-                      <div className="rounded-2xl border border-[var(--border)] bg-white overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setSettingsOpen((current) => !current)}
-                          className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-[#f8f4ff] transition"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-[#f4edff] flex items-center justify-center shrink-0">
-                              <Settings2 size={20} className="text-[var(--primary)]" />
-                            </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max={Math.max(0, selectedVideo.duration)}
+                        step="0.01"
+                        value={Math.min(currentTime, selectedVideo.duration)}
+                        onChange={(event) => {
+                          const video = videoRef.current;
+                          const nextTime = Number(event.target.value);
+                          if (video) video.currentTime = nextTime;
+                          setCurrentTime(nextTime);
+                        }}
+                        className="w-full accent-[var(--primary)]"
+                      />
 
-                            <div>
-                              <h3 className="font-semibold">Export Settings</h3>
-                              <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                {EXPORT_MODES.find((mode) => mode.value === exportMode)?.label}
-                              </p>
-                            </div>
-                          </div>
-
-                          <ChevronDown
-                            size={20}
-                            className={`text-[var(--primary)] transition-transform ${settingsOpen ? "rotate-180" : ""}`}
-                          />
-                        </button>
-
-                        {settingsOpen && (
-                          <div className="border-t border-[var(--border)] bg-[#fafafa] p-4 space-y-2">
-                            {EXPORT_MODES.map((mode) => (
-                              <button
-                                key={mode.value}
-                                type="button"
-                                onClick={() => {
-                                  setExportMode(mode.value);
-                                  clearExportOutput();
-                                }}
-                                className={`w-full rounded-xl border p-3 text-left transition ${
-                                  exportMode === mode.value
-                                    ? "border-[var(--primary)] bg-[#f4edff]"
-                                    : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-                                }`}
-                              >
-                                <p className="text-sm font-bold">{mode.label}</p>
-                                <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                  {mode.description}
-                                </p>
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        <button type="button" onClick={() => seekBy(-1)} className="small-action-btn">-1s</button>
+                        <button type="button" onClick={() => seekBy(-0.1)} className="small-action-btn">-0.1s</button>
+                        <button type="button" onClick={() => seekBy(0.1)} className="small-action-btn">+0.1s</button>
+                        <button type="button" onClick={() => seekBy(1)} className="small-action-btn">+1s</button>
                       </div>
+                    </div>
+
+                    <TimelineEditor
+                      timelineRef={timelineRef}
+                      clips={timelineClips}
+                      videos={videos}
+                      totalDuration={totalTimelineDuration}
+                      pixelsPerSecond={timelinePixelsPerSecond}
+                      hoverTimeline={hoverTimeline}
+                      playheadTime={timelinePlayheadTime}
+                      selectedClipIds={selectedClipIds}
+                      dragClipId={dragClipId}
+                      onPointerMove={handleTimelinePointerMove}
+                      onPointerLeave={handleTimelinePointerLeave}
+                      onTimelineClick={handleTimelineClick}
+                      onSplitAtHover={() => splitClipAtTimelineTime(hoverTimeline.time)}
+                      onClipSelect={selectClip}
+                      onDragStart={handleClipDragStart}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={handleClipDrop}
+                      onPreview={previewClip}
+                      onRemove={removeClip}
+                      onTrimStart={startTimelineTrim}
+                    />
+
+                    <ZoomThumbnailSection
+                      open={thumbnailZoomOpen}
+                      onToggle={() => setThumbnailZoomOpen((value) => !value)}
+                      timelineRef={zoomTimelineRef}
+                      clips={timelineClips}
+                      videos={videos}
+                      selectedClipIds={selectedClipIds}
+                      dragClipId={dragClipId}
+                      zoom={timelineZoom}
+                      pixelsPerSecond={timelinePixelsPerSecond}
+                      totalDuration={totalTimelineDuration}
+                      onZoomChange={setTimelineZoom}
+                      onClipSelect={selectClip}
+                      onDragStart={handleClipDragStart}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={handleClipDrop}
+                      onPreview={previewClip}
+                      onRemove={removeClip}
+                      onTrimStart={startTimelineTrim}
+                    />
+
+                    <div className="mt-4 grid lg:grid-cols-2 gap-4">
+                      <TextOverlayPanel
+                        open={textPanelOpen}
+                        onToggle={() => setTextPanelOpen((value) => !value)}
+                        draft={draftTextOverlay}
+                        overlays={textOverlays}
+                        totalDuration={totalTimelineDuration}
+                        onUpdateDraft={updateDraftTextOverlay}
+                        onAdd={addTextOverlay}
+                        onRemove={removeTextOverlay}
+                      />
+
+                      <MusicPanel
+                        open={musicPanelOpen}
+                        onToggle={() => setMusicPanelOpen((value) => !value)}
+                        musicInputRef={musicInputRef}
+                        musicName={musicName}
+                        musicUrl={musicUrl}
+                        muteOriginalAudio={muteOriginalAudio}
+                        musicVolume={musicVolume}
+                        originalAudioVolume={originalAudioVolume}
+                        onMusicInput={handleMusicInput}
+                        onRemoveMusic={removeMusic}
+                        onMuteChange={(value) => {
+                          setMuteOriginalAudio(value);
+                          clearExportOutput();
+                        }}
+                        onMusicVolumeChange={(value) => {
+                          setMusicVolume(value);
+                          clearExportOutput();
+                        }}
+                        onOriginalVolumeChange={(value) => {
+                          setOriginalAudioVolume(value);
+                          clearExportOutput();
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -1070,10 +1607,22 @@ export default function SmartVideoCutter() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                   <div className="flex items-center gap-2">
                     <Scissors size={20} className="text-[var(--primary)]" />
-                    <h2 className="text-xl font-bold">Clip Timeline</h2>
+                    <h2 className="text-xl font-bold">Clip List</h2>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    {selectedClipIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={removeSelectedClips}
+                        disabled={isProcessing}
+                        className="btn-secondary inline-flex items-center justify-center gap-2 text-sm text-red-600 disabled:opacity-40"
+                      >
+                        <Trash2 size={17} />
+                        Delete Selected ({selectedClipIds.length})
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={previewFinalVideo}
@@ -1107,6 +1656,8 @@ export default function SmartVideoCutter() {
                         index={index}
                         sourceVideo={videos.find((video) => video.id === clip.videoId)}
                         isDragging={dragClipId === clip.id}
+                        selected={selectedClipIds.includes(clip.id)}
+                        onSelect={(event) => selectClip(clip.id, event)}
                         onDragStart={() => handleClipDragStart(clip.id)}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={() => handleClipDrop(clip.id)}
@@ -1217,6 +1768,9 @@ export default function SmartVideoCutter() {
           background: #f8f4ff;
           color: var(--primary);
         }
+        .timeline-scrollbar::-webkit-scrollbar { height: 10px; }
+        .timeline-scrollbar::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 999px; }
+        .timeline-scrollbar::-webkit-scrollbar-track { background: #ede9fe; border-radius: 999px; }
         .tool-input {
           width: 100%;
           height: 40px;
@@ -1234,6 +1788,658 @@ export default function SmartVideoCutter() {
       `}</style>
 
       <SuggestedTools currentToolId="smart-video-cutter" />
+    </div>
+  );
+}
+
+function TextOverlayPanel({
+  open,
+  onToggle,
+  draft,
+  overlays,
+  totalDuration,
+  onUpdateDraft,
+  onAdd,
+  onRemove,
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-[#f8f4ff] transition"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#f4edff] flex items-center justify-center shrink-0">
+            <Type size={20} className="text-[var(--primary)]" />
+          </div>
+          <div>
+            <h3 className="font-bold">Add Text</h3>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              {overlays.length ? `${overlays.length} text layer${overlays.length === 1 ? "" : "s"} added` : "Titles captions wedding fonts and more"}
+            </p>
+          </div>
+        </div>
+        <ChevronDown className={`text-[var(--primary)] transition-transform ${open ? "rotate-180" : ""}`} size={20} />
+      </button>
+
+      {open && (
+        <div className="border-t border-[var(--border)] bg-[#fafafa] p-4 space-y-4">
+          <label className="block">
+            <span className="block text-sm font-bold mb-2">Text</span>
+            <textarea
+              value={draft.text}
+              onChange={(event) => onUpdateDraft({ text: event.target.value })}
+              rows={3}
+              placeholder="Write title, caption, quote, or wedding text..."
+              className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-3 outline-none focus:border-[var(--primary)] resize-none"
+            />
+          </label>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="block text-sm font-bold mb-2">Font</span>
+              <select
+                value={draft.fontFamily}
+                onChange={(event) => onUpdateDraft({ fontFamily: event.target.value })}
+                className="tool-input"
+              >
+                {TEXT_FONT_OPTIONS.map((font) => (
+                  <option key={font} value={font}>{font}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="block text-sm font-bold mb-2">Position</span>
+              <select
+                value={draft.position}
+                onChange={(event) => onUpdateDraft({ position: event.target.value })}
+                className="tool-input"
+              >
+                {TEXT_POSITION_OPTIONS.map((position) => (
+                  <option key={position.value} value={position.value}>{position.label}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="block text-sm font-bold mb-2">Size</span>
+              <input
+                type="number"
+                min="12"
+                max="180"
+                value={draft.fontSize}
+                onChange={(event) => onUpdateDraft({ fontSize: Number(event.target.value) })}
+                className="tool-input"
+              />
+            </label>
+
+            <label className="block">
+              <span className="block text-sm font-bold mb-2">Color</span>
+              <input
+                type="color"
+                value={draft.color}
+                onChange={(event) => onUpdateDraft({ color: event.target.value })}
+                className="w-full h-10 rounded-xl border border-[var(--border)] bg-white p-1"
+              />
+            </label>
+          </div>
+
+          {draft.position === "custom" && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label className="block">
+                <span className="block text-sm font-bold mb-2">X Position: {draft.xPercent}%</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={draft.xPercent}
+                  onChange={(event) => onUpdateDraft({ xPercent: Number(event.target.value) })}
+                  className="w-full accent-[var(--primary)]"
+                />
+              </label>
+
+              <label className="block">
+                <span className="block text-sm font-bold mb-2">Y Position: {draft.yPercent}%</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={draft.yPercent}
+                  onChange={(event) => onUpdateDraft({ yPercent: Number(event.target.value) })}
+                  className="w-full accent-[var(--primary)]"
+                />
+              </label>
+            </div>
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="block text-sm font-bold mb-2">Show From</span>
+              <input
+                type="number"
+                min="0"
+                max={Math.max(0, totalDuration)}
+                step="0.01"
+                value={Number(draft.start || 0)}
+                onChange={(event) => onUpdateDraft({ start: Number(event.target.value) })}
+                className="tool-input"
+              />
+            </label>
+
+            <label className="block">
+              <span className="block text-sm font-bold mb-2">Show Until</span>
+              <input
+                type="number"
+                min="0"
+                max={Math.max(0, totalDuration)}
+                step="0.01"
+                value={Number(draft.end || 0)}
+                onChange={(event) => onUpdateDraft({ end: Number(event.target.value) })}
+                className="tool-input"
+              />
+            </label>
+          </div>
+
+          <button type="button" onClick={onAdd} className="btn-primary w-full inline-flex items-center justify-center gap-2">
+            <Plus size={18} />
+            Add Text Layer
+          </button>
+
+          {overlays.length > 0 && (
+            <div className="space-y-2">
+              {overlays.map((overlay, index) => (
+                <div key={overlay.id} className="rounded-xl border border-[var(--border)] bg-white p-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm truncate">Text {index + 1}: {overlay.text}</p>
+                    <p className="text-xs text-[var(--text-secondary)] mt-1">
+                      {overlay.fontFamily} • {formatTime(overlay.start)} → {formatTime(overlay.end)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(overlay.id)}
+                    className="h-9 w-9 rounded-xl border border-red-200 bg-red-50 text-red-600 inline-flex items-center justify-center hover:bg-red-100 shrink-0"
+                    title="Remove text layer"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MusicPanel({
+  open,
+  onToggle,
+  musicInputRef,
+  musicName,
+  musicUrl,
+  muteOriginalAudio,
+  musicVolume,
+  originalAudioVolume,
+  onMusicInput,
+  onRemoveMusic,
+  onMuteChange,
+  onMusicVolumeChange,
+  onOriginalVolumeChange,
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-white overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-[#f8f4ff] transition"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#f4edff] flex items-center justify-center shrink-0">
+            <Music size={20} className="text-[var(--primary)]" />
+          </div>
+          <div>
+            <h3 className="font-bold">Add Music</h3>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              {musicName || (muteOriginalAudio ? "Original audio muted" : "Upload music or mute original audio")}
+            </p>
+          </div>
+        </div>
+        <ChevronDown className={`text-[var(--primary)] transition-transform ${open ? "rotate-180" : ""}`} size={20} />
+      </button>
+
+      {open && (
+        <div className="border-t border-[var(--border)] bg-[#fafafa] p-4 space-y-4">
+          <input
+            ref={musicInputRef}
+            type="file"
+            accept="audio/mpeg,audio/wav,audio/mp4,audio/aac,audio/ogg,.mp3,.wav,.m4a,.aac,.ogg"
+            onChange={onMusicInput}
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={() => musicInputRef.current?.click()}
+            className="btn-primary w-full inline-flex items-center justify-center gap-2"
+          >
+            <Upload size={18} />
+            Upload Music
+          </button>
+
+          {musicName && (
+            <div className="rounded-xl border border-[var(--border)] bg-white p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-sm truncate">{musicName}</p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">Music will be added to the exported video.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onRemoveMusic}
+                  className="h-9 w-9 rounded-xl border border-red-200 bg-red-50 text-red-600 inline-flex items-center justify-center hover:bg-red-100 shrink-0"
+                  title="Remove music"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+
+              {musicUrl && (
+                <audio src={musicUrl} controls className="w-full mt-3" />
+              )}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onMuteChange(!muteOriginalAudio)}
+            className={`w-full rounded-xl border p-3 text-left transition ${
+              muteOriginalAudio
+                ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {muteOriginalAudio ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              <span className="font-bold text-sm">
+                {muteOriginalAudio ? "Original video audio muted" : "Keep original video audio"}
+              </span>
+            </div>
+          </button>
+
+          <label className="block">
+            <span className="block text-sm font-bold mb-2">Music Volume: {musicVolume}%</span>
+            <input
+              type="range"
+              min="0"
+              max="150"
+              value={musicVolume}
+              onChange={(event) => onMusicVolumeChange(Number(event.target.value))}
+              className="w-full accent-[var(--primary)]"
+            />
+          </label>
+
+          {!muteOriginalAudio && (
+            <label className="block">
+              <span className="block text-sm font-bold mb-2">Original Audio Volume: {originalAudioVolume}%</span>
+              <input
+                type="range"
+                min="0"
+                max="150"
+                value={originalAudioVolume}
+                onChange={(event) => onOriginalVolumeChange(Number(event.target.value))}
+                className="w-full accent-[var(--primary)]"
+              />
+            </label>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineEditor({
+  timelineRef,
+  clips,
+  videos,
+  totalDuration,
+  pixelsPerSecond,
+  hoverTimeline,
+  playheadTime,
+  selectedClipIds,
+  dragClipId,
+  onPointerMove,
+  onPointerLeave,
+  onTimelineClick,
+  onSplitAtHover,
+  onClipSelect,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onPreview,
+  onRemove,
+  onTrimStart,
+}) {
+  const timelineWidth = Math.max(720, totalDuration * pixelsPerSecond + 40);
+  const hoverClip = hoverTimeline.active ? findTimelineClipAtTime(clips, hoverTimeline.time) : null;
+
+  return (
+    <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white overflow-hidden">
+      <div className="p-4 border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <MousePointer2 size={19} className="text-[var(--primary)]" />
+          <div>
+            <h3 className="font-bold">Editor Timeline</h3>
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+              Click to seek • Press <strong>S</strong> to split at mouse • Shift/Ctrl click to select multiple
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onSplitAtHover}
+          disabled={!hoverClip}
+          className="btn-primary inline-flex items-center justify-center gap-2 text-sm disabled:opacity-40"
+        >
+          <Scissors size={17} />
+          Split at Mouse
+        </button>
+      </div>
+
+      <div
+        ref={timelineRef}
+        className="timeline-scrollbar relative overflow-x-auto bg-[#111827] p-4"
+        onPointerMove={onPointerMove}
+        onPointerLeave={onPointerLeave}
+        onClick={onTimelineClick}
+      >
+        <div className="relative h-36 rounded-xl bg-[#1f2937] border border-white/10" style={{ width: timelineWidth }}>
+          <TimeRuler totalDuration={totalDuration} pixelsPerSecond={pixelsPerSecond} />
+
+          <div className="absolute left-0 right-0 top-10 h-20">
+            {clips.map((clip) => (
+              <TimelineClipBlock
+                key={clip.id}
+                clip={clip}
+                sourceVideo={videos.find((video) => video.id === clip.videoId)}
+                pixelsPerSecond={pixelsPerSecond}
+                selected={selectedClipIds.includes(clip.id)}
+                dragging={dragClipId === clip.id}
+                onSelect={onClipSelect}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDrop={onDrop}
+                onPreview={onPreview}
+                onRemove={onRemove}
+                onTrimStart={onTrimStart}
+              />
+            ))}
+          </div>
+
+          {hoverTimeline.active && (
+            <div
+              className="absolute top-0 bottom-0 w-0.5 bg-yellow-300 z-30 pointer-events-none"
+              style={{ left: hoverTimeline.time * pixelsPerSecond }}
+            >
+              <div className="absolute -top-2 left-2 rounded-lg bg-yellow-300 text-black text-[11px] font-bold px-2 py-1 whitespace-nowrap shadow">
+                {formatTime(hoverTimeline.time)} • S
+              </div>
+            </div>
+          )}
+
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none"
+            style={{ left: playheadTime * pixelsPerSecond }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ZoomThumbnailSection({
+  open,
+  onToggle,
+  timelineRef,
+  clips,
+  videos,
+  selectedClipIds,
+  dragClipId,
+  zoom,
+  pixelsPerSecond,
+  totalDuration,
+  onZoomChange,
+  onClipSelect,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onPreview,
+  onRemove,
+  onTrimStart,
+}) {
+  const zoomedPixelsPerSecond = pixelsPerSecond * 1.45;
+  const width = Math.max(820, totalDuration * zoomedPixelsPerSecond + 40);
+
+  return (
+    <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-[#f8f4ff] transition"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#f4edff] flex items-center justify-center shrink-0">
+            <ZoomIn size={20} className="text-[var(--primary)]" />
+          </div>
+          <div>
+            <h3 className="font-bold">Zoom Thumbnail Section</h3>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              Zoom in for small clips, select multiple clips, trim edges, or delete precisely.
+            </p>
+          </div>
+        </div>
+        <ChevronDown className={`text-[var(--primary)] transition-transform ${open ? "rotate-180" : ""}`} size={20} />
+      </button>
+
+      {open && (
+        <div className="border-t border-[var(--border)] p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+            <button
+              type="button"
+              onClick={() => onZoomChange(Math.max(0.6, Number((zoom - 0.25).toFixed(2))))}
+              className="small-action-btn"
+              title="Zoom out timeline thumbnails"
+            >
+              <ZoomOut size={16} />
+            </button>
+
+            <input
+              type="range"
+              min="0.6"
+              max="4"
+              step="0.1"
+              value={zoom}
+              onChange={(event) => onZoomChange(Number(event.target.value))}
+              className="flex-1 accent-[var(--primary)]"
+            />
+
+            <button
+              type="button"
+              onClick={() => onZoomChange(Math.min(4, Number((zoom + 0.25).toFixed(2))))}
+              className="small-action-btn"
+              title="Zoom in timeline thumbnails"
+            >
+              <ZoomIn size={16} />
+            </button>
+
+            <span className="text-xs font-bold text-[var(--primary)] min-w-16 text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+          </div>
+
+          <div ref={timelineRef} className="timeline-scrollbar overflow-x-auto rounded-xl bg-white border border-[var(--border)] p-3">
+            <div className="relative h-28" style={{ width }}>
+              {clips.map((clip) => (
+                <TimelineClipBlock
+                  key={clip.id}
+                  clip={clip}
+                  sourceVideo={videos.find((video) => video.id === clip.videoId)}
+                  pixelsPerSecond={zoomedPixelsPerSecond}
+                  selected={selectedClipIds.includes(clip.id)}
+                  dragging={dragClipId === clip.id}
+                  compact
+                  onSelect={onClipSelect}
+                  onDragStart={onDragStart}
+                  onDragOver={onDragOver}
+                  onDrop={onDrop}
+                  onPreview={onPreview}
+                  onRemove={onRemove}
+                  onTrimStart={onTrimStart}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineClipBlock({
+  clip,
+  sourceVideo,
+  pixelsPerSecond,
+  selected,
+  dragging,
+  compact = false,
+  onSelect,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onPreview,
+  onRemove,
+  onTrimStart,
+}) {
+  const duration = getClipDuration(clip);
+  const width = Math.max(compact ? 74 : 110, duration * pixelsPerSecond);
+  const left = clip.timelineStart * pixelsPerSecond;
+  const backgroundStyle = sourceVideo?.thumbnailUrl
+    ? {
+        backgroundImage: `linear-gradient(90deg, rgba(88,28,135,.72), rgba(17,24,39,.58)), url(${sourceVideo.thumbnailUrl})`,
+        backgroundSize: compact ? "96px 100%, cover" : "120px 100%, cover",
+        backgroundRepeat: "repeat, repeat",
+      }
+    : {};
+
+  return (
+    <div
+      draggable
+      onDragStart={(event) => {
+        event.stopPropagation();
+        onDragStart(clip.id);
+      }}
+      onDragOver={onDragOver}
+      onDrop={(event) => {
+        event.stopPropagation();
+        onDrop(clip.id);
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(clip.id, event);
+      }}
+      className={`absolute top-2 rounded-xl border text-white overflow-hidden shadow-lg cursor-grab select-none transition ${
+        selected
+          ? "border-yellow-300 ring-2 ring-yellow-300/70"
+          : "border-white/20"
+      } ${dragging ? "opacity-50" : ""}`}
+      style={{
+        left,
+        width,
+        height: compact ? 82 : 72,
+        background: sourceVideo?.thumbnailUrl ? undefined : "linear-gradient(135deg,#7c3aed,#4338ca)",
+        ...backgroundStyle,
+      }}
+      title="Click to select. Shift/Ctrl click for multiple selection. Drag edges to trim."
+    >
+      <button
+        type="button"
+        onPointerDown={(event) => onTrimStart(clip.id, "left", event)}
+        className="absolute left-0 top-0 bottom-0 w-4 bg-white/25 hover:bg-yellow-300/80 cursor-ew-resize z-20"
+        title="Trim start"
+        aria-label="Trim clip start"
+      />
+      <button
+        type="button"
+        onPointerDown={(event) => onTrimStart(clip.id, "right", event)}
+        className="absolute right-0 top-0 bottom-0 w-4 bg-white/25 hover:bg-yellow-300/80 cursor-ew-resize z-20"
+        title="Trim end"
+        aria-label="Trim clip end"
+      />
+
+      <div className="h-full px-5 py-2 flex flex-col justify-between bg-black/10">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-black truncate">Clip {clip.timelineIndex + 1}</p>
+            <p className="text-[10px] opacity-90 truncate">{sourceVideo?.name || clip.videoName}</p>
+          </div>
+          {!compact && (
+            <div className="flex gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onPreview(clip.id);
+                }}
+                className="h-7 w-7 rounded-lg bg-white/20 hover:bg-white/35 inline-flex items-center justify-center"
+                title="Preview clip"
+              >
+                <Eye size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRemove(clip.id);
+                }}
+                className="h-7 w-7 rounded-lg bg-red-500/80 hover:bg-red-500 inline-flex items-center justify-center"
+                title="Remove clip"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+        <p className="text-[10px] font-bold opacity-95">
+          {formatTime(clip.start)} → {formatTime(clip.end)} • {formatTime(duration)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TimeRuler({ totalDuration, pixelsPerSecond }) {
+  const interval = getRulerInterval(totalDuration);
+  const ticks = [];
+
+  for (let time = 0; time <= totalDuration + 0.01; time += interval) {
+    ticks.push(time);
+  }
+
+  return (
+    <div className="absolute top-0 left-0 right-0 h-10 border-b border-white/10">
+      {ticks.map((time) => (
+        <div
+          key={time}
+          className="absolute top-0 h-10 border-l border-white/20 text-[10px] text-white/70 pl-1 pt-1"
+          style={{ left: time * pixelsPerSecond }}
+        >
+          {formatTime(time)}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1284,6 +2490,8 @@ function ClipCard({
   index,
   sourceVideo,
   isDragging,
+  selected,
+  onSelect,
   onDragStart,
   onDragOver,
   onDrop,
@@ -1300,10 +2508,13 @@ function ClipCard({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
+      onClick={onSelect}
       className={`rounded-2xl border bg-white p-4 transition ${
         isDragging
           ? "border-[var(--primary)] opacity-60"
-          : "border-[var(--border)] hover:border-[var(--primary)]"
+          : selected
+            ? "border-[var(--primary)] bg-[#f4edff]"
+            : "border-[var(--border)] hover:border-[var(--primary)]"
       }`}
     >
       <div className="flex items-start gap-3">
@@ -1380,6 +2591,219 @@ function ClipCard({
   );
 }
 
+function buildTimelineClips(clips) {
+  let timelineStart = 0;
+
+  return clips.map((clip, index) => {
+    const duration = getClipDuration(clip);
+    const timelineClip = {
+      ...clip,
+      timelineIndex: index,
+      timelineStart,
+      timelineEnd: timelineStart + duration,
+    };
+
+    timelineStart += duration;
+
+    return timelineClip;
+  });
+}
+
+function getTimelinePixelsPerSecond(zoom) {
+  return 44 * clampNumber(Number(zoom || 1), 0.6, 4);
+}
+
+function findTimelineClipAtTime(clips, timelineTime) {
+  return clips.find(
+    (clip) =>
+      timelineTime >= clip.timelineStart &&
+      timelineTime <= clip.timelineEnd
+  );
+}
+
+function getTimelinePointerData(event, timelineElement, pixelsPerSecond, totalDuration) {
+  const rect = timelineElement.getBoundingClientRect();
+  const x = clampNumber(
+    event.clientX - rect.left + timelineElement.scrollLeft,
+    0,
+    Math.max(0, totalDuration * pixelsPerSecond)
+  );
+
+  return {
+    x,
+    time: clampNumber(x / Math.max(1, pixelsPerSecond), 0, totalDuration),
+  };
+}
+
+function getRulerInterval(totalDuration) {
+  if (totalDuration <= 20) return 2;
+  if (totalDuration <= 60) return 5;
+  if (totalDuration <= 180) return 10;
+  if (totalDuration <= 600) return 30;
+  return 60;
+}
+
+async function applyTextAndMusicExport({
+  ffmpeg,
+  inputName,
+  outputName,
+  textOverlays,
+  musicFile,
+  musicVolume,
+  originalAudioVolume,
+  muteOriginalAudio,
+}) {
+  const args = ["-i", inputName];
+  let musicInputName = "";
+
+  if (musicFile) {
+    musicInputName = `music_${Date.now()}.${getSafeAudioExtension(getFileExtension(musicFile.name))}`;
+    await safeDeleteFile(ffmpeg, musicInputName);
+    await ffmpeg.writeFile(musicInputName, await fetchFile(musicFile));
+    args.push("-i", musicInputName);
+  }
+
+  const hasText = textOverlays.length > 0;
+  const filterParts = [];
+  let videoMap = "0:v";
+  let audioMap = "";
+
+  if (hasText) {
+    const drawTextChain = textOverlays
+      .map((overlay) => buildDrawTextFilter(overlay))
+      .filter(Boolean)
+      .join(",");
+
+    if (drawTextChain) {
+      filterParts.push(`[0:v]${drawTextChain}[vout]`);
+      videoMap = "[vout]";
+    }
+  }
+
+  if (musicFile && muteOriginalAudio) {
+    filterParts.push(`[1:a]volume=${Number(musicVolume || 100) / 100}[aout]`);
+    audioMap = "[aout]";
+  } else if (musicFile) {
+    filterParts.push(`[0:a]volume=${Number(originalAudioVolume || 100) / 100}[a0];[1:a]volume=${Number(musicVolume || 100) / 100}[a1];[a0][a1]amix=inputs=2:duration=first:dropout_transition=0[aout]`);
+    audioMap = "[aout]";
+  }
+
+  if (filterParts.length) {
+    args.push("-filter_complex", filterParts.join(";"));
+  }
+
+  args.push("-map", videoMap);
+
+  if (audioMap) {
+    args.push("-map", audioMap);
+  } else if (muteOriginalAudio) {
+    args.push("-an");
+  } else {
+    args.push("-map", "0:a?");
+  }
+
+  args.push(
+    "-c:v",
+    "mpeg4",
+    "-q:v",
+    "2",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "192k",
+    "-movflags",
+    "+faststart",
+    "-shortest",
+    outputName
+  );
+
+  await safeDeleteFile(ffmpeg, outputName);
+  await ffmpeg.exec(args);
+}
+
+function buildDrawTextFilter(overlay) {
+  const safeText = escapeFfmpegDrawText(overlay.text);
+  const color = normalizeHexColor(overlay.color || "#ffffff");
+  const bgOpacity = clampNumber(Number(overlay.backgroundOpacity || 0), 0, 100) / 100;
+  const boxColor = `${normalizeHexColor(overlay.backgroundColor || "#000000")}@${bgOpacity}`;
+  const font = escapeFfmpegDrawText(overlay.fontFamily || "Arial");
+  const size = clampNumber(Number(overlay.fontSize || 42), 8, 240);
+  const start = Math.max(0, Number(overlay.start || 0));
+  const end = Math.max(start + 0.1, Number(overlay.end || start + 5));
+
+  const position = getDrawTextPosition(overlay);
+
+  return [
+    "drawtext=",
+    `text='${safeText}'`,
+    `font='${font}'`,
+    `fontsize=${size}`,
+    `fontcolor=${color}`,
+    "borderw=2",
+    "bordercolor=black@0.45",
+    bgOpacity > 0 ? "box=1" : "box=0",
+    `boxcolor=${boxColor}`,
+    "boxborderw=14",
+    `x=${position.x}`,
+    `y=${position.y}`,
+    `enable='between(t,${start},${end})'`,
+  ].join(":");
+}
+
+function getDrawTextPosition(overlay) {
+  if (overlay.position === "top") {
+    return {
+      x: "(w-text_w)/2",
+      y: "h*0.10",
+    };
+  }
+
+  if (overlay.position === "bottom") {
+    return {
+      x: "(w-text_w)/2",
+      y: "h-text_h-h*0.10",
+    };
+  }
+
+  if (overlay.position === "custom") {
+    return {
+      x: `(w-text_w)*${clampNumber(Number(overlay.xPercent || 50), 0, 100) / 100}`,
+      y: `(h-text_h)*${clampNumber(Number(overlay.yPercent || 50), 0, 100) / 100}`,
+    };
+  }
+
+  return {
+    x: "(w-text_w)/2",
+    y: "(h-text_h)/2",
+  };
+}
+
+function escapeFfmpegDrawText(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/:/g, "\\:")
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, "\\n");
+}
+
+function normalizeHexColor(value) {
+  const clean = String(value || "#ffffff").trim();
+
+  if (/^#[0-9a-f]{6}$/i.test(clean)) return clean;
+
+  return "#ffffff";
+}
+
+function getSafeAudioExtension(extension) {
+  const clean = String(extension || "mp3").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  if (["mp3", "wav", "m4a", "aac", "ogg"].includes(clean)) {
+    return clean;
+  }
+
+  return "mp3";
+}
+
 async function safeDeleteFile(ffmpeg, fileName) {
   try {
     await ffmpeg.deleteFile(fileName);
@@ -1423,6 +2847,63 @@ function loadVideoMetadata(url) {
     video.onerror = () => {
       cleanup();
       reject(new Error("Could not load video."));
+    };
+
+    video.src = url;
+  });
+}
+
+function generateVideoThumbnail(url, time = 0.1) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const canvas = document.createElement("canvas");
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Thumbnail timeout."));
+    }, 5000);
+
+    function cleanup() {
+      window.clearTimeout(timeout);
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    }
+
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+
+    video.onloadedmetadata = () => {
+      const safeTime = clampNumber(time, 0, Math.max(0, Number(video.duration || 0) - 0.05));
+      video.currentTime = safeTime;
+    };
+
+    video.onseeked = () => {
+      try {
+        const width = 320;
+        const ratio = (video.videoHeight || 180) / Math.max(1, video.videoWidth || 320);
+        canvas.width = width;
+        canvas.height = Math.max(120, Math.round(width * ratio));
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          cleanup();
+          if (!blob) {
+            reject(new Error("No thumbnail."));
+            return;
+          }
+          resolve(URL.createObjectURL(blob));
+        }, "image/jpeg", 0.72);
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
+    };
+
+    video.onerror = () => {
+      cleanup();
+      reject(new Error("Thumbnail failed."));
     };
 
     video.src = url;
