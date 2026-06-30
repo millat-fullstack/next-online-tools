@@ -950,27 +950,33 @@ export default function SmartVideoCutter() {
       return;
     }
 
-    const safeEnd = Math.max(
-      Number(draftTextOverlay.start || 0) + 0.25,
-      Number(draftTextOverlay.end || totalTimelineDuration || 5)
-    );
+    const fullTimelineEnd = totalTimelineDuration || 5;
+    const requestedStart = Number(draftTextOverlay.start || 0);
+    const requestedEnd = Number(draftTextOverlay.end || fullTimelineEnd);
+    const shouldUseFullVideo = requestedStart === 0 && (requestedEnd === 5 || requestedEnd <= requestedStart);
+    const safeStart = shouldUseFullVideo
+      ? 0
+      : clampNumber(requestedStart, 0, Math.max(0, fullTimelineEnd));
+
+    const safeEnd = shouldUseFullVideo
+      ? fullTimelineEnd
+      : Math.max(safeStart + 0.25, requestedEnd);
 
     const overlay = {
       ...draftTextOverlay,
       id: createId(),
       text: cleanText,
-      start: clampNumber(Number(draftTextOverlay.start || 0), 0, Math.max(0, totalTimelineDuration)),
-      end: clampNumber(safeEnd, 0.25, Math.max(0.25, totalTimelineDuration || safeEnd)),
+      start: clampNumber(safeStart, 0, Math.max(0, fullTimelineEnd)),
+      end: clampNumber(safeEnd, 0.25, Math.max(0.25, fullTimelineEnd)),
     };
 
     setTextOverlays((current) => [...current, overlay]);
     setDraftTextOverlay((current) => ({
       ...current,
       text: "",
-      start: overlay.end,
-      end: Math.min(totalTimelineDuration || overlay.end + 5, overlay.end + 5),
+      start: 0,
+      end: fullTimelineEnd,
     }));
-    setTextPanelOpen(true);
     clearExportOutput();
     setError("");
     setSuccess("Text added to the video timeline.");
@@ -1474,6 +1480,32 @@ export default function SmartVideoCutter() {
                   </div>
 
                   <div className="p-4 sm:p-5">
+                    <QuickVideoToolbar
+                      draft={draftTextOverlay}
+                      textCount={textOverlays.length}
+                      musicInputRef={musicInputRef}
+                      musicName={musicName}
+                      muteOriginalAudio={muteOriginalAudio}
+                      musicVolume={musicVolume}
+                      originalAudioVolume={originalAudioVolume}
+                      onUpdateDraft={updateDraftTextOverlay}
+                      onAddText={addTextOverlay}
+                      onMusicInput={handleMusicInput}
+                      onRemoveMusic={removeMusic}
+                      onMuteChange={(value) => {
+                        setMuteOriginalAudio(value);
+                        clearExportOutput();
+                      }}
+                      onMusicVolumeChange={(value) => {
+                        setMusicVolume(value);
+                        clearExportOutput();
+                      }}
+                      onOriginalVolumeChange={(value) => {
+                        setOriginalAudioVolume(value);
+                        clearExportOutput();
+                      }}
+                    />
+
                     <div className="rounded-2xl overflow-hidden bg-black">
                       <video
                         ref={videoRef}
@@ -1487,36 +1519,18 @@ export default function SmartVideoCutter() {
                       />
                     </div>
 
-                    <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
-                      <div className="flex items-center justify-between gap-3 mb-3">
-                        <p className="text-sm font-semibold">Current time</p>
-                        <p className="text-xs font-bold text-[var(--primary)]">
-                          {formatTime(currentTime)} / {formatTime(selectedVideo.duration)}
-                        </p>
-                      </div>
-
-                      <input
-                        type="range"
-                        min="0"
-                        max={Math.max(0, selectedVideo.duration)}
-                        step="0.01"
-                        value={Math.min(currentTime, selectedVideo.duration)}
-                        onChange={(event) => {
-                          const video = videoRef.current;
-                          const nextTime = Number(event.target.value);
-                          if (video) video.currentTime = nextTime;
-                          setCurrentTime(nextTime);
-                        }}
-                        className="w-full accent-[var(--primary)]"
-                      />
-
-                      <div className="grid grid-cols-4 gap-2 mt-3">
-                        <button type="button" onClick={() => seekBy(-1)} className="small-action-btn">-1s</button>
-                        <button type="button" onClick={() => seekBy(-0.1)} className="small-action-btn">-0.1s</button>
-                        <button type="button" onClick={() => seekBy(0.1)} className="small-action-btn">+0.1s</button>
-                        <button type="button" onClick={() => seekBy(1)} className="small-action-btn">+1s</button>
-                      </div>
-                    </div>
+                    <TimelineTopBar
+                      selectedCount={selectedClipIds.length}
+                      canSplit={Boolean(hoverTimeline.active && findTimelineClipAtTime(timelineClips, hoverTimeline.time))}
+                      canExport={canExport}
+                      isProcessing={isProcessing}
+                      onAddText={addTextOverlay}
+                      onAddMusic={() => musicInputRef.current?.click()}
+                      onDeleteSelected={removeSelectedClips}
+                      onPreview={previewFinalVideo}
+                      onSplit={() => splitClipAtTimelineTime(hoverTimeline.time)}
+                      onExport={exportFinalVideo}
+                    />
 
                     <TimelineEditor
                       timelineRef={timelineRef}
@@ -1541,139 +1555,10 @@ export default function SmartVideoCutter() {
                       onTrimStart={startTimelineTrim}
                     />
 
-                    <ZoomThumbnailSection
-                      open={thumbnailZoomOpen}
-                      onToggle={() => setThumbnailZoomOpen((value) => !value)}
-                      timelineRef={zoomTimelineRef}
-                      clips={timelineClips}
-                      videos={videos}
-                      selectedClipIds={selectedClipIds}
-                      dragClipId={dragClipId}
-                      zoom={timelineZoom}
-                      pixelsPerSecond={timelinePixelsPerSecond}
-                      totalDuration={totalTimelineDuration}
-                      onZoomChange={setTimelineZoom}
-                      onClipSelect={selectClip}
-                      onDragStart={handleClipDragStart}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={handleClipDrop}
-                      onPreview={previewClip}
-                      onRemove={removeClip}
-                      onTrimStart={startTimelineTrim}
-                    />
 
-                    <div className="mt-4 grid lg:grid-cols-2 gap-4">
-                      <TextOverlayPanel
-                        open={textPanelOpen}
-                        onToggle={() => setTextPanelOpen((value) => !value)}
-                        draft={draftTextOverlay}
-                        overlays={textOverlays}
-                        totalDuration={totalTimelineDuration}
-                        onUpdateDraft={updateDraftTextOverlay}
-                        onAdd={addTextOverlay}
-                        onRemove={removeTextOverlay}
-                      />
-
-                      <MusicPanel
-                        open={musicPanelOpen}
-                        onToggle={() => setMusicPanelOpen((value) => !value)}
-                        musicInputRef={musicInputRef}
-                        musicName={musicName}
-                        musicUrl={musicUrl}
-                        muteOriginalAudio={muteOriginalAudio}
-                        musicVolume={musicVolume}
-                        originalAudioVolume={originalAudioVolume}
-                        onMusicInput={handleMusicInput}
-                        onRemoveMusic={removeMusic}
-                        onMuteChange={(value) => {
-                          setMuteOriginalAudio(value);
-                          clearExportOutput();
-                        }}
-                        onMusicVolumeChange={(value) => {
-                          setMusicVolume(value);
-                          clearExportOutput();
-                        }}
-                        onOriginalVolumeChange={(value) => {
-                          setOriginalAudioVolume(value);
-                          clearExportOutput();
-                        }}
-                      />
-                    </div>
                   </div>
                 </div>
               )}
-
-              <div className="rounded-2xl border border-[var(--border)] bg-white p-4 sm:p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Scissors size={20} className="text-[var(--primary)]" />
-                    <h2 className="text-xl font-bold">Clip List</h2>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {selectedClipIds.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={removeSelectedClips}
-                        disabled={isProcessing}
-                        className="btn-secondary inline-flex items-center justify-center gap-2 text-sm text-red-600 disabled:opacity-40"
-                      >
-                        <Trash2 size={17} />
-                        Delete Selected ({selectedClipIds.length})
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={previewFinalVideo}
-                      disabled={!clips.length || isProcessing}
-                      className="btn-secondary inline-flex items-center justify-center gap-2 text-sm disabled:opacity-40"
-                    >
-                      <Eye size={17} />
-                      Preview Final Video
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={exportFinalVideo}
-                      disabled={!canExport}
-                      className={`btn-primary inline-flex items-center justify-center gap-2 text-sm ${
-                        !canExport ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      {isProcessing ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />}
-                      Export & Download
-                    </button>
-                  </div>
-                </div>
-
-                {clips.length ? (
-                  <div className="grid lg:grid-cols-2 gap-3">
-                    {clips.map((clip, index) => (
-                      <ClipCard
-                        key={clip.id}
-                        clip={clip}
-                        index={index}
-                        sourceVideo={videos.find((video) => video.id === clip.videoId)}
-                        isDragging={dragClipId === clip.id}
-                        selected={selectedClipIds.includes(clip.id)}
-                        onSelect={(event) => selectClip(clip.id, event)}
-                        onDragStart={() => handleClipDragStart(clip.id)}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => handleClipDrop(clip.id)}
-                        onPreview={() => previewClip(clip.id)}
-                        onRemove={() => removeClip(clip.id)}
-                        onStartChange={(value) => updateClipTime(clip.id, "start", value)}
-                        onEndChange={(value) => updateClipTime(clip.id, "end", value)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-[var(--border)] bg-gray-50 p-8 text-center text-[var(--text-secondary)]">
-                    No clips yet. Add a full clip or split a selected video.
-                  </div>
-                )}
-              </div>
 
               {showFinalPreview && exportedUrl && (
                 <div className="rounded-2xl border border-[var(--border)] bg-white overflow-hidden">
@@ -1788,6 +1673,261 @@ export default function SmartVideoCutter() {
       `}</style>
 
       <SuggestedTools currentToolId="smart-video-cutter" />
+    </div>
+  );
+}
+
+function QuickVideoToolbar({
+  draft,
+  textCount,
+  musicInputRef,
+  musicName,
+  muteOriginalAudio,
+  musicVolume,
+  originalAudioVolume,
+  onUpdateDraft,
+  onAddText,
+  onMusicInput,
+  onRemoveMusic,
+  onMuteChange,
+  onMusicVolumeChange,
+  onOriginalVolumeChange,
+}) {
+  return (
+    <div className="mb-4 rounded-2xl border border-[var(--border)] bg-[#fafafa] p-3">
+      <div className="grid xl:grid-cols-[1.2fr_1fr_auto] gap-3 items-end">
+        <label className="block">
+          <span className="text-xs font-bold text-[var(--text-secondary)] mb-1 block">Text</span>
+          <input
+            value={draft.text}
+            onChange={(event) => onUpdateDraft({ text: event.target.value })}
+            placeholder="Add title or caption..."
+            className="tool-input"
+          />
+        </label>
+
+        <div className="grid grid-cols-[1fr_84px_52px] gap-2">
+          <label className="block">
+            <span className="text-xs font-bold text-[var(--text-secondary)] mb-1 block">Font</span>
+            <select
+              value={draft.fontFamily}
+              onChange={(event) => onUpdateDraft({ fontFamily: event.target.value })}
+              className="tool-input"
+            >
+              {TEXT_FONT_OPTIONS.map((font) => (
+                <option key={font} value={font}>{font}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-bold text-[var(--text-secondary)] mb-1 block">Size</span>
+            <input
+              type="number"
+              min="12"
+              max="180"
+              value={draft.fontSize}
+              onChange={(event) => onUpdateDraft({ fontSize: Number(event.target.value) })}
+              className="tool-input"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-bold text-[var(--text-secondary)] mb-1 block">Color</span>
+            <input
+              type="color"
+              value={draft.color}
+              onChange={(event) => onUpdateDraft({ color: event.target.value })}
+              className="w-full h-10 rounded-xl border border-[var(--border)] bg-white p-1"
+              title="Text color"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onAddText}
+            className="h-10 w-10 rounded-xl border border-[var(--border)] bg-white inline-flex items-center justify-center text-[var(--primary)] hover:bg-[#f8f4ff]"
+            title={`Add text layer${textCount ? ` (${textCount} added)` : ""}`}
+            aria-label="Add text"
+          >
+            <Type size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => musicInputRef.current?.click()}
+            className="h-10 w-10 rounded-xl border border-[var(--border)] bg-white inline-flex items-center justify-center text-[var(--primary)] hover:bg-[#f8f4ff]"
+            title={musicName ? `Music: ${musicName}` : "Add music"}
+            aria-label="Add music"
+          >
+            <Music size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onMuteChange(!muteOriginalAudio)}
+            className={`h-10 w-10 rounded-xl border inline-flex items-center justify-center hover:bg-[#f8f4ff] ${
+              muteOriginalAudio
+                ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                : "border-[var(--border)] bg-white text-[var(--text-secondary)]"
+            }`}
+            title={muteOriginalAudio ? "Original audio muted" : "Mute original audio"}
+            aria-label="Mute original audio"
+          >
+            {muteOriginalAudio ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
+        </div>
+      </div>
+
+      <input
+        ref={musicInputRef}
+        type="file"
+        accept="audio/mpeg,audio/wav,audio/mp4,audio/aac,audio/ogg,.mp3,.wav,.m4a,.aac,.ogg"
+        onChange={onMusicInput}
+        className="hidden"
+      />
+
+      {(musicName || muteOriginalAudio) && (
+        <div className="mt-3 grid md:grid-cols-[1fr_auto] gap-3 items-center rounded-xl border border-[var(--border)] bg-white p-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-[var(--text-secondary)]">Audio</p>
+            <p className="text-sm font-semibold truncate">
+              {musicName ? musicName : "No added music"} {muteOriginalAudio ? "• Original muted" : ""}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {musicName && (
+              <button
+                type="button"
+                onClick={onRemoveMusic}
+                className="h-9 w-9 rounded-xl border border-red-200 bg-red-50 text-red-600 inline-flex items-center justify-center hover:bg-red-100"
+                title="Remove music"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+
+            <label className="text-xs font-bold inline-flex items-center gap-2">
+              Music
+              <input
+                type="range"
+                min="0"
+                max="150"
+                value={musicVolume}
+                onChange={(event) => onMusicVolumeChange(Number(event.target.value))}
+                className="w-24 accent-[var(--primary)]"
+              />
+            </label>
+
+            {!muteOriginalAudio && (
+              <label className="text-xs font-bold inline-flex items-center gap-2">
+                Original
+                <input
+                  type="range"
+                  min="0"
+                  max="150"
+                  value={originalAudioVolume}
+                  onChange={(event) => onOriginalVolumeChange(Number(event.target.value))}
+                  className="w-24 accent-[var(--primary)]"
+                />
+              </label>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineTopBar({
+  selectedCount,
+  canSplit,
+  canExport,
+  isProcessing,
+  onAddText,
+  onAddMusic,
+  onDeleteSelected,
+  onPreview,
+  onSplit,
+  onExport,
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white p-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <Scissors size={19} className="text-[var(--primary)]" />
+        <div>
+          <h3 className="font-bold">Timeline Tools</h3>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Add text music split preview and export from here.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onAddText}
+          className="h-10 w-10 rounded-xl border border-[var(--border)] bg-white inline-flex items-center justify-center text-[var(--primary)] hover:bg-[#f8f4ff]"
+          title="Add text to timeline"
+        >
+          <Type size={18} />
+        </button>
+
+        <button
+          type="button"
+          onClick={onAddMusic}
+          className="h-10 w-10 rounded-xl border border-[var(--border)] bg-white inline-flex items-center justify-center text-[var(--primary)] hover:bg-[#f8f4ff]"
+          title="Add music"
+        >
+          <Music size={18} />
+        </button>
+
+        {selectedCount > 0 && (
+          <button
+            type="button"
+            onClick={onDeleteSelected}
+            disabled={isProcessing}
+            className="h-10 w-10 rounded-xl border border-red-200 bg-red-50 text-red-600 inline-flex items-center justify-center hover:bg-red-100 disabled:opacity-40"
+            title={`Delete selected clips (${selectedCount})`}
+          >
+            <Trash2 size={18} />
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onSplit}
+          disabled={!canSplit}
+          className="h-10 w-10 rounded-xl border border-[var(--border)] bg-white inline-flex items-center justify-center text-[var(--primary)] hover:bg-[#f8f4ff] disabled:opacity-40"
+          title="Split at mouse"
+        >
+          <Scissors size={18} />
+        </button>
+
+        <button
+          type="button"
+          onClick={onPreview}
+          disabled={isProcessing}
+          className="h-10 w-10 rounded-xl border border-[var(--border)] bg-white inline-flex items-center justify-center text-[var(--primary)] hover:bg-[#f8f4ff] disabled:opacity-40"
+          title="Preview final video"
+        >
+          <Eye size={18} />
+        </button>
+
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={!canExport}
+          className="h-10 px-4 rounded-xl bg-[var(--primary)] text-white font-bold inline-flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-40"
+          title="Export and download"
+        >
+          {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+          <span className="hidden sm:inline">Export</span>
+        </button>
+      </div>
     </div>
   );
 }
