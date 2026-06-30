@@ -30,7 +30,7 @@ export const toolData = {
     "Convert video frames to images online. Upload a video, play and pause, capture frames, preview images, and download single images or all images as a ZIP.",
 };
 
-const MAX_FILE_SIZE_MB = 250;
+const MAX_FILE_SIZE_MB = 500;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const MIN_PROCESSING_TIME_MS = 420;
 const MAX_PROCESSING_TIME_MS = 7000;
@@ -489,34 +489,36 @@ export default function VideoToImagesConverter() {
 
       <section className="card p-4 sm:p-6">
         <div className="flex flex-col gap-5">
-          <label
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            className={`block border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition ${
-              isDragging
-                ? "border-[var(--primary)] bg-[#f4edff]"
-                : "border-[var(--border)] hover:bg-[#f8f4ff]"
-            } ${isProcessing ? "opacity-60 cursor-not-allowed" : ""}`}
-          >
-            <Upload size={38} className="mx-auto mb-4 text-[var(--primary)]" />
+          {!videoUrl && (
+            <label
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className={`block border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition ${
+                isDragging
+                  ? "border-[var(--primary)] bg-[#f4edff]"
+                  : "border-[var(--border)] hover:bg-[#f8f4ff]"
+              } ${isProcessing ? "opacity-60 cursor-not-allowed" : ""}`}
+            >
+              <Upload size={38} className="mx-auto mb-4 text-[var(--primary)]" />
 
-            <h2 className="text-xl font-semibold mb-2">Choose or drop a video here</h2>
+              <h2 className="text-xl font-semibold mb-2">Choose or drop a video here</h2>
 
-            <p className="text-sm text-[var(--text-secondary)]">
-              MP4 and WEBM work best. MOV/M4V may depend on browser support. Max{" "}
-              <strong>{MAX_FILE_SIZE_MB} MB</strong>.
-            </p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                MP4 and WEBM work best. MOV/M4V may depend on browser support. Max{" "}
+                <strong>{MAX_FILE_SIZE_MB} MB</strong>.
+              </p>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.webm,.mov,.m4v"
-              onChange={handleFileInputChange}
-              className="hidden"
-              disabled={isProcessing}
-            />
-          </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.webm,.mov,.m4v"
+                onChange={handleFileInputChange}
+                className="hidden"
+                disabled={isProcessing}
+              />
+            </label>
+          )}
 
           {error && (
             <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
@@ -545,15 +547,36 @@ export default function VideoToImagesConverter() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={resetTool}
-                  disabled={isProcessing}
-                  className="btn-secondary inline-flex items-center justify-center gap-2 text-sm"
-                >
-                  <RotateCcw size={17} />
-                  Reset
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isProcessing}
+                    className="btn-secondary inline-flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Upload size={17} />
+                    Replace Video
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={resetTool}
+                    disabled={isProcessing}
+                    className="btn-secondary inline-flex items-center justify-center gap-2 text-sm"
+                  >
+                    <RotateCcw size={17} />
+                    Reset
+                  </button>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.webm,.mov,.m4v"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                    disabled={isProcessing}
+                  />
+                </div>
               </div>
 
               <div className="p-4 sm:p-5">
@@ -570,15 +593,38 @@ export default function VideoToImagesConverter() {
                   />
                 </div>
 
-                <div className="mt-4 grid lg:grid-cols-[1fr_auto] gap-3 items-end">
-                  <div className="rounded-2xl border border-[var(--border)] bg-[#fafafa] p-4">
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                      <p className="text-sm font-semibold">Choose capture moment</p>
-                      <p className="text-xs font-bold text-[var(--primary)]">
-                        {formatTime(currentTime)} / {formatTime(videoDuration)}
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Scissors size={18} className="text-[var(--primary)]" />
+                        <h3 className="font-bold">Frame Capture</h3>
+                      </div>
+                      <p className="text-xs text-[var(--text-secondary)] mt-1">
+                        Move the playhead to the exact moment and capture the frame.
                       </p>
                     </div>
 
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-sm font-bold text-[var(--primary)]">
+                        {formatTime(currentTime)} / {formatTime(videoDuration)}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={captureFrame}
+                        disabled={!canCapture}
+                        className={`btn-primary min-h-11 inline-flex items-center justify-center gap-2 px-5 ${
+                          !canCapture ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
+                      >
+                        {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Scissors size={18} />}
+                        Capture Frame
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-[#fafafa] border border-[var(--border)] p-3">
                     <input
                       type="range"
                       min="0"
@@ -589,25 +635,29 @@ export default function VideoToImagesConverter() {
                       className="w-full accent-[var(--primary)]"
                     />
 
-                    <div className="grid grid-cols-4 gap-2 mt-3">
-                      <button type="button" onClick={() => seekBy(-1)} className="small-action-btn">-1s</button>
-                      <button type="button" onClick={() => seekBy(-0.1)} className="small-action-btn">-0.1s</button>
-                      <button type="button" onClick={() => seekBy(0.1)} className="small-action-btn">+0.1s</button>
-                      <button type="button" onClick={() => seekBy(1)} className="small-action-btn">+1s</button>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => seekBy(-1)} className="smart-step-btn">−1s</button>
+                        <button type="button" onClick={() => seekBy(-0.1)} className="smart-step-btn">−0.1s</button>
+                        <button type="button" onClick={() => seekBy(0.1)} className="smart-step-btn">+0.1s</button>
+                        <button type="button" onClick={() => seekBy(1)} className="smart-step-btn">+1s</button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const video = videoRef.current;
+                          if (video) {
+                            video.currentTime = 0;
+                            setCurrentTime(0);
+                          }
+                        }}
+                        className="smart-step-btn"
+                      >
+                        Start
+                      </button>
                     </div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={captureFrame}
-                    disabled={!canCapture}
-                    className={`btn-primary min-h-[54px] inline-flex items-center justify-center gap-2 ${
-                      !canCapture ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
-                  >
-                    {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Scissors size={18} />}
-                    Capture Frame
-                  </button>
                 </div>
               </div>
             </div>
@@ -861,6 +911,24 @@ export default function VideoToImagesConverter() {
           opacity: 0.45;
           cursor: not-allowed;
         }
+        .smart-step-btn {
+          min-height: 36px;
+          border: 1px solid var(--border);
+          border-radius: 0.75rem;
+          background: white;
+          padding: 0.42rem 0.85rem;
+          font-size: 0.82rem;
+          font-weight: 800;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          transition: 160ms ease;
+        }
+        .smart-step-btn:hover {
+          background: #f8f4ff;
+          color: var(--primary);
+          border-color: rgba(155, 108, 227, 0.45);
+        }
       `}</style>
 
       <SuggestedTools currentToolId="video-to-images" />
@@ -870,8 +938,8 @@ export default function VideoToImagesConverter() {
 
 function FormControl({ label, children }) {
   return (
-    <label className="block rounded-2xl border border-[var(--border)] bg-white p-4">
-      <span className="block text-sm font-semibold mb-3">{label}</span>
+    <label className="block">
+      <span className="block text-sm font-semibold mb-2">{label}</span>
       {children}
     </label>
   );
