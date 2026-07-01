@@ -255,6 +255,7 @@ export default function SmartPhotoEditor() {
   const spacePressedRef = useRef(false);
   const colorPreviewThrottleRef = useRef(0);
   const guideThrottleRef = useRef(0);
+  const renderFrameRef = useRef(null);
 
   const visibleCanvasRef = useRef(null);
   const workingCanvasRef = useRef(document.createElement("canvas"));
@@ -453,6 +454,7 @@ export default function SmartPhotoEditor() {
     selectedObjects.length &&
       selectedGroupBox &&
       selectedObjects.every((item) =>
+        item.type === "background" ||
         item.type === "image" ||
         item.type === "text" ||
         item.type === "arrow" ||
@@ -709,7 +711,21 @@ export default function SmartPhotoEditor() {
   }, [draftSize, selectedSizePreset, canvasBackgroundColor]);
 
   useEffect(() => {
-    renderVisibleCanvas();
+    if (renderFrameRef.current) {
+      window.cancelAnimationFrame(renderFrameRef.current);
+    }
+
+    renderFrameRef.current = window.requestAnimationFrame(() => {
+      renderVisibleCanvas();
+      renderFrameRef.current = null;
+    });
+
+    return () => {
+      if (renderFrameRef.current) {
+        window.cancelAnimationFrame(renderFrameRef.current);
+        renderFrameRef.current = null;
+      }
+    };
   }, [
     imageInfo,
     canvasSize,
@@ -1006,8 +1022,6 @@ export default function SmartPhotoEditor() {
           ? {
               ...item,
               color,
-              w: canvasSize.width,
-              h: canvasSize.height,
             }
           : item
       )
@@ -2883,10 +2897,11 @@ export default function SmartPhotoEditor() {
   function moveSelectedObject(point, options = {}) {
     const startPoint = pointerRef.current.startPoint;
     const selectedStart = pointerRef.current.selectedStart;
+    const activeId = pointerRef.current.selectedIds?.[0] || selectedObjectId;
 
-    if (!startPoint || !selectedStart) return;
+    if (!startPoint || !selectedStart || !activeId) return;
 
-    if (isObjectLocked(selectedObjectId)) {
+    if (isObjectLocked(activeId)) {
       setErrorMessage("This layer is locked. Unlock it before moving.");
       return;
     }
@@ -2900,7 +2915,7 @@ export default function SmartPhotoEditor() {
     const moved = moveObject(selectedStart, dx, dy);
     const movedBox = getObjectBox(moved);
     const referenceBoxes = objects
-      .filter((item) => item.id !== selectedObjectId)
+      .filter((item) => item.id !== activeId)
       .map(getObjectBox)
       .filter(Boolean);
 
@@ -2913,7 +2928,7 @@ export default function SmartPhotoEditor() {
     const finalBox = getObjectBox(finalMoved);
 
     setObjects((current) =>
-      current.map((item) => (item.id === selectedObjectId ? finalMoved : item))
+      current.map((item) => (item.id === activeId ? finalMoved : item))
     );
 
     setGuideInfo(
@@ -2926,10 +2941,11 @@ export default function SmartPhotoEditor() {
     const selectedStart = pointerRef.current.selectedStart;
     const dragStartBox = pointerRef.current.dragStartBox;
     const resizeHandle = pointerRef.current.resizeHandle;
+    const activeId = pointerRef.current.selectedIds?.[0] || selectedObjectId;
 
-    if (!selectedStart || !dragStartBox || !resizeHandle) return;
+    if (!selectedStart || !dragStartBox || !resizeHandle || !activeId) return;
 
-    if (isObjectLocked(selectedObjectId)) {
+    if (isObjectLocked(activeId)) {
       setErrorMessage("This layer is locked. Unlock it before resizing.");
       return;
     }
@@ -2942,7 +2958,7 @@ export default function SmartPhotoEditor() {
     if (nextBox.w < 12 || nextBox.h < 12) return;
 
     const referenceBoxes = objects
-      .filter((item) => item.id !== selectedObjectId)
+      .filter((item) => item.id !== activeId)
       .map(getObjectBox)
       .filter(Boolean);
     const snapResult = snapBoxToGuides(nextBox, canvasSize, referenceBoxes);
@@ -2950,7 +2966,7 @@ export default function SmartPhotoEditor() {
     const finalBox = getObjectBox(resizedObject);
 
     setObjects((current) =>
-      current.map((item) => (item.id === selectedObjectId ? resizedObject : item))
+      current.map((item) => (item.id === activeId ? resizedObject : item))
     );
 
     if (resizedObject.type === "text") {
@@ -3524,8 +3540,6 @@ export default function SmartPhotoEditor() {
       if (item.type === "background") {
         return {
           color,
-          w: canvasSize.width,
-          h: canvasSize.height,
         };
       }
 
@@ -6475,7 +6489,7 @@ export default function SmartPhotoEditor() {
                 </button>
               </div>
 
-              <div className={`sticky top-0 z-50 border-b border-[var(--border)] bg-white/95 backdrop-blur px-4 transition-none ${topBarOpen ? "h-[132px]" : "h-[44px]"}`}>
+              <div className={`sticky top-0 z-50 border-b border-[var(--border)] bg-white/95 backdrop-blur px-4 transition-none ${topBarOpen ? (topBarDropdown ? "h-[250px]" : "h-[132px]") : "h-[44px]"}`}>
                 <button
                   type="button"
                   onClick={() => setTopBarOpen((current) => !current)}
@@ -6492,7 +6506,7 @@ export default function SmartPhotoEditor() {
                 </button>
 
                 {topBarOpen && (
-                  <div className="pb-3 flex h-[88px] flex-nowrap items-center gap-3 overflow-x-auto overflow-y-hidden whitespace-nowrap">
+                  <div className="pb-3 flex min-h-[88px] flex-nowrap items-center gap-3 overflow-x-auto overflow-y-visible whitespace-nowrap">
                     <div className="h-11 shrink-0 rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)] inline-flex items-center">
                       {selectedObjects.length > 1
                         ? `${selectedObjects.length} items selected`
@@ -6606,55 +6620,86 @@ export default function SmartPhotoEditor() {
                       />
                     </label>
 
-                    <div className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold">
-                      <span>Gradient</span>
-                      <input
-                        type="color"
-                        value={gradientStartColor}
-                        onChange={(event) => updateGradientPart("start", event.target.value)}
-                        className="w-7 h-7 rounded border border-[var(--border)] bg-white"
-                        title="Gradient start"
-                      />
-                      <input
-                        type="color"
-                        value={gradientEndColor}
-                        onChange={(event) => updateGradientPart("end", event.target.value)}
-                        className="w-7 h-7 rounded border border-[var(--border)] bg-white"
-                        title="Gradient end"
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        max="360"
-                        value={gradientAngle}
-                        onChange={(event) => updateGradientPart("angle", event.target.value)}
-                        className="w-14 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
-                        title="Gradient angle"
-                      />
+                    <div className="relative shrink-0">
                       <button
                         type="button"
-                        onClick={() => updateQuickGradient()}
-                        className="px-2 py-1.5 rounded-lg border border-[var(--border)] hover:bg-[#f8f4ff]"
+                        onClick={() => setTopBarDropdown((current) => current === "gradient" ? "" : "gradient")}
+                        className="h-11 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold inline-flex items-center gap-2 hover:bg-[#f8f4ff]"
+                        title="Gradient options"
                       >
-                        Use
+                        <PalettePreview start={gradientStartColor} end={gradientEndColor} angle={gradientAngle} />
+                        Gradient
+                        <ChevronDown size={15} />
                       </button>
-                      <button
-                        type="button"
-                        onClick={clearSelectedGradient}
-                        className="px-2 py-1.5 rounded-lg border border-[var(--border)] hover:bg-[#f8f4ff]"
-                      >
-                        Clear
-                      </button>
-                      {GRADIENT_TEMPLATES.map((template) => (
-                        <button
-                          key={template.id}
-                          type="button"
-                          onClick={() => applyGradientTemplate(template)}
-                          title={template.label}
-                          className="h-7 w-7 rounded-lg border border-white shadow"
-                          style={{ background: `linear-gradient(${template.angle}deg, ${template.start}, ${template.end})` }}
-                        />
-                      ))}
+
+                      {topBarDropdown === "gradient" && (
+                        <div className="absolute left-0 top-12 z-[120] w-[320px] rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl">
+                          <div className="grid grid-cols-2 gap-3">
+                            <label className="text-xs font-bold">
+                              Start
+                              <input
+                                type="color"
+                                value={gradientStartColor}
+                                onChange={(event) => updateGradientPart("start", event.target.value)}
+                                className="mt-1 w-full h-10 rounded-xl border border-[var(--border)] bg-white p-1"
+                              />
+                            </label>
+
+                            <label className="text-xs font-bold">
+                              End
+                              <input
+                                type="color"
+                                value={gradientEndColor}
+                                onChange={(event) => updateGradientPart("end", event.target.value)}
+                                className="mt-1 w-full h-10 rounded-xl border border-[var(--border)] bg-white p-1"
+                              />
+                            </label>
+                          </div>
+
+                          <label className="mt-3 block text-xs font-bold">
+                            Angle
+                            <input
+                              type="number"
+                              min="0"
+                              max="360"
+                              value={gradientAngle}
+                              onChange={(event) => updateGradientPart("angle", event.target.value)}
+                              className="mt-1 w-full rounded-xl border border-[var(--border)] px-3 py-2 outline-none focus:border-[var(--primary)]"
+                            />
+                          </label>
+
+                          <div className="mt-3 grid grid-cols-5 gap-2">
+                            {GRADIENT_TEMPLATES.map((template) => (
+                              <button
+                                key={template.id}
+                                type="button"
+                                onClick={() => applyGradientTemplate(template)}
+                                title={template.label}
+                                className="h-9 rounded-xl border border-white shadow"
+                                style={{ background: `linear-gradient(${template.angle}deg, ${template.start}, ${template.end})` }}
+                              />
+                            ))}
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { updateQuickGradient(); setTopBarDropdown(""); }}
+                              className="rounded-xl bg-[var(--primary)] px-3 py-2 text-xs font-bold text-white"
+                            >
+                              Apply
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => { clearSelectedGradient(); setTopBarDropdown(""); }}
+                              className="rounded-xl border border-[var(--border)] px-3 py-2 text-xs font-bold hover:bg-[#f8f4ff]"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
@@ -6739,10 +6784,29 @@ export default function SmartPhotoEditor() {
                         <button type="button" onClick={copyEditorSelection} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Copy"><Copy size={17} /></button>
                         <button type="button" onClick={pasteEditorClipboard} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Paste"><Copy size={17} className="rotate-180" /></button>
                         <button type="button" onClick={duplicateSelectedObjects} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Duplicate"><Images size={17} /></button>
-                        <button type="button" onClick={() => reorderSelectedObjects("up")} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Bring up"><ArrowUpRight size={17} /></button>
-                        <button type="button" onClick={() => reorderSelectedObjects("down")} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Bring down"><ArrowUpRight size={17} className="rotate-180" /></button>
-                        <button type="button" onClick={() => reorderSelectedObjects("front")} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Bring to front"><ChevronUp size={17} /></button>
-                        <button type="button" onClick={() => reorderSelectedObjects("back")} className="h-11 w-11 rounded-xl border border-[var(--border)] inline-flex items-center justify-center hover:bg-[#f8f4ff]" title="Send to back"><ChevronDown size={17} /></button>
+
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setTopBarDropdown((current) => current === "arrange" ? "" : "arrange")}
+                            className="h-11 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold inline-flex items-center gap-2 hover:bg-[#f8f4ff]"
+                            title="Layer arrange options"
+                          >
+                            <Layers size={17} />
+                            Arrange
+                            <ChevronDown size={15} />
+                          </button>
+
+                          {topBarDropdown === "arrange" && (
+                            <div className="absolute left-0 top-12 z-[120] w-[210px] rounded-2xl border border-[var(--border)] bg-white p-2 shadow-2xl">
+                              <button type="button" onClick={() => { reorderSelectedObjects("up"); setTopBarDropdown(""); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold hover:bg-[#f8f4ff]">Bring Up</button>
+                              <button type="button" onClick={() => { reorderSelectedObjects("down"); setTopBarDropdown(""); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold hover:bg-[#f8f4ff]">Bring Down</button>
+                              <button type="button" onClick={() => { reorderSelectedObjects("front"); setTopBarDropdown(""); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold hover:bg-[#f8f4ff]">Bring To Front</button>
+                              <button type="button" onClick={() => { reorderSelectedObjects("back"); setTopBarDropdown(""); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold hover:bg-[#f8f4ff]">Send To Back</button>
+                            </div>
+                          )}
+                        </div>
+
                         <button type="button" onClick={deleteSelectedObject} className="h-11 w-11 rounded-xl border border-red-200 bg-red-50 text-red-700 inline-flex items-center justify-center hover:bg-red-100" title="Delete"><Trash2 size={17} /></button>
                       </div>
                     )}
@@ -7043,6 +7107,15 @@ export default function SmartPhotoEditor() {
   );
 }
 
+function PalettePreview({ start, end, angle }) {
+  return (
+    <span
+      className="inline-block h-5 w-5 rounded-md border border-white shadow"
+      style={{ background: `linear-gradient(${Number(angle || 0)}deg, ${start}, ${end})` }}
+    />
+  );
+}
+
 function NumberField({ label, value, onChange }) {
   return (
     <label className="block">
@@ -7240,12 +7313,17 @@ function createSelectionPathFromBox(box, mode = "rectSelect") {
 function drawBackgroundLayer(ctx, objects, width, height, fallbackColor = "#ffffff") {
   const background = objects.find((object) => object.type === "background");
 
-  fillCanvasBackground(
-    ctx,
-    width,
-    height,
-    background?.color || fallbackColor || "#ffffff"
-  );
+  fillCanvasBackground(ctx, width, height, fallbackColor || "#ffffff");
+
+  if (!background) return;
+
+  const box = getObjectBox(background) || { x: 0, y: 0, w: width, h: height };
+
+  ctx.save();
+  ctx.globalAlpha = clampNumber(background.opacity ?? 1, 0, 1);
+  ctx.fillStyle = background.color || fallbackColor || "#ffffff";
+  ctx.fillRect(box.x, box.y, box.w, box.h);
+  ctx.restore();
 }
 
 function drawObjects(ctx, objects) {
@@ -7289,7 +7367,7 @@ function drawImageObject(ctx, object) {
   if (!object.element) return;
 
   ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
+  ctx.imageSmoothingQuality = "medium";
   ctx.drawImage(object.element, object.x, object.y, object.w, object.h);
 }
 
@@ -8062,8 +8140,8 @@ function getObjectBox(object) {
 
   if (object.type === "background") {
     return {
-      x: 0,
-      y: 0,
+      x: Number.isFinite(Number(object.x)) ? Number(object.x) : 0,
+      y: Number.isFinite(Number(object.y)) ? Number(object.y) : 0,
       w: Math.max(1, Number(object.w || 1)),
       h: Math.max(1, Number(object.h || 1)),
     };
@@ -8130,8 +8208,8 @@ function moveObject(object, dx, dy) {
   if (object.type === "background") {
     return {
       ...object,
-      x: 0,
-      y: 0,
+      x: Number(object.x || 0) + dx,
+      y: Number(object.y || 0) + dy,
     };
   }
 
@@ -8158,8 +8236,8 @@ function scaleObject(object, scaleX, scaleY) {
   if (object.type === "background") {
     return {
       ...object,
-      x: 0,
-      y: 0,
+      x: Number(object.x || 0) * scaleX,
+      y: Number(object.y || 0) * scaleY,
       w: Number(object.w || 1) * scaleX,
       h: Number(object.h || 1) * scaleY,
     };
@@ -8691,8 +8769,8 @@ function resizeObjectToBox(object, box) {
   if (object.type === "background") {
     return {
       ...object,
-      x: 0,
-      y: 0,
+      x: Number.isFinite(Number(box.x)) ? box.x : 0,
+      y: Number.isFinite(Number(box.y)) ? box.y : 0,
       w: Math.max(1, box.w),
       h: Math.max(1, box.h),
     };
