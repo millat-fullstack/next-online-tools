@@ -7,10 +7,9 @@ import {
   FileSpreadsheet,
   AlertCircle,
   CheckCircle,
+  Loader2,
 } from "lucide-react";
-import Papa from "papaparse";
-import ExcelJS from "exceljs";
-import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
 export const toolData = {
@@ -18,51 +17,35 @@ export const toolData = {
   path: "/csv-to-xls-converter",
   category: "Document Tools",
   description:
-    "Convert CSV files to Excel format in seconds. Get clean, editable spreadsheet output for Microsoft Excel.",
+    "Convert CSV files to XLS or XLSX in seconds. Get clean, editable spreadsheet output for Microsoft Excel.",
   metaTitle: "CSV to XLS Converter | Convert CSV to Excel Online Free",
   metaDescription:
     "Convert CSV files to XLS or XLSX online for free. Fast, secure, browser-based CSV to Excel converter with preview and clean output.",
 };
 
+const MAX_FILE_SIZE_MB = 20;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const PREVIEW_ROW_LIMIT = 8;
+
 export default function CsvToXlsConverter() {
   const fileInputRef = useRef(null);
 
   const [file, setFile] = useState(null);
-  const [workbook, setWorkbook] = useState(null);
+  const [rows, setRows] = useState([]);
   const [previewRows, setPreviewRows] = useState([]);
   const [stats, setStats] = useState(null);
   const [outputFormat, setOutputFormat] = useState("xlsx");
   const [convertedUrl, setConvertedUrl] = useState("");
   const [convertedName, setConvertedName] = useState("");
   const [convertedSize, setConvertedSize] = useState(null);
+  const [processingTimeMs, setProcessingTimeMs] = useState(0);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const formatBytes = (bytes) => {
-    if (!bytes && bytes !== 0) return "0 B";
-
-    const sizes = ["B", "KB", "MB", "GB"];
-    const index = Math.floor(Math.log(bytes) / Math.log(1024));
-
-    return `${(bytes / Math.pow(1024, index)).toFixed(2)} ${sizes[index]}`;
-  };
-
-  const getBaseName = (name) => {
-    return name.replace(/\.[^/.]+$/, "");
-  };
-
-  const isValidCsvFile = (selectedFile) => {
-    const fileName = selectedFile.name.toLowerCase();
-
-    return (
-      fileName.endsWith(".csv") ||
-      selectedFile.type === "text/csv" ||
-      selectedFile.type === "application/vnd.ms-excel"
-    );
-  };
-
-  const clearOldOutput = () => {
+  function clearOldOutput() {
     if (convertedUrl) {
       URL.revokeObjectURL(convertedUrl);
     }
@@ -70,10 +53,31 @@ export default function CsvToXlsConverter() {
     setConvertedUrl("");
     setConvertedName("");
     setConvertedSize(null);
+    setProcessingTimeMs(0);
     setSuccess("");
-  };
+  }
 
-  const handleFile = (selectedFile) => {
+  function resetFileInput() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function isValidCsvFile(selectedFile) {
+    if (!selectedFile) return false;
+
+    const fileName = selectedFile.name.toLowerCase();
+
+    return (
+      fileName.endsWith(".csv") ||
+      selectedFile.type === "text/csv" ||
+      selectedFile.type === "application/csv" ||
+      selectedFile.type === "application/vnd.ms-excel" ||
+      selectedFile.type === "text/plain"
+    );
+  }
+
+  function handleFile(selectedFile) {
     setError("");
     setSuccess("");
     clearOldOutput();
@@ -82,13 +86,13 @@ export default function CsvToXlsConverter() {
 
     if (!isValidCsvFile(selectedFile)) {
       setError("Please upload a valid CSV file.");
+      resetFileInput();
       return;
     }
 
-    const maxSize = 20 * 1024 * 1024;
-
-    if (selectedFile.size > maxSize) {
-      setError("File is too large. Please upload a CSV file under 20MB.");
+    if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+      setError(`File is too large. Please upload a CSV file under ${MAX_FILE_SIZE_MB} MB.`);
+      resetFileInput();
       return;
     }
 
@@ -96,45 +100,52 @@ export default function CsvToXlsConverter() {
 
     reader.onload = (event) => {
       try {
-        const csvText = event.target.result;
+        const csvText = String(event.target?.result || "");
+
+        if (!csvText.trim()) {
+          setError("This CSV file seems empty.");
+          return;
+        }
 
         const parsedWorkbook = XLSX.read(csvText, {
           type: "string",
           raw: false,
           cellDates: true,
+          dense: false,
         });
 
         const firstSheetName = parsedWorkbook.SheetNames[0];
         const firstSheet = parsedWorkbook.Sheets[firstSheetName];
 
-        const rows = XLSX.utils.sheet_to_json(firstSheet, {
+        const parsedRows = XLSX.utils.sheet_to_json(firstSheet, {
           header: 1,
           defval: "",
           blankrows: false,
         });
 
-        if (!rows.length) {
+        if (!parsedRows.length) {
           setError("This CSV file seems empty.");
           return;
         }
 
-        const columnCount = rows.reduce(
-          (max, row) => Math.max(max, row.length),
+        const columnCount = parsedRows.reduce(
+          (max, row) => Math.max(max, Array.isArray(row) ? row.length : 0),
           0
         );
 
         setFile(selectedFile);
-        setWorkbook(parsedWorkbook);
-        setPreviewRows(rows.slice(0, 8));
+        setRows(parsedRows);
+        setPreviewRows(parsedRows.slice(0, PREVIEW_ROW_LIMIT));
         setStats({
           fileName: selectedFile.name,
           fileSize: selectedFile.size,
-          rows: rows.length,
+          rows: parsedRows.length,
           columns: columnCount,
         });
 
         setSuccess("CSV file loaded successfully. Ready to convert.");
       } catch (err) {
+        console.error("CSV read error:", err);
         setError("Could not read this CSV file. Please check the file format.");
       }
     };
@@ -144,57 +155,31 @@ export default function CsvToXlsConverter() {
     };
 
     reader.readAsText(selectedFile, "UTF-8");
-  };
+  }
 
-  const handleInputChange = (e) => {
-    const selectedFile = e.target.files?.[0];
-    handleFile(selectedFile);
-  };
+  function handleInputChange(event) {
+    handleFile(event.target.files?.[0]);
+  }
 
-  const handleDrop = (e) => {
-    e.preventDefault();
+  function handleDrop(event) {
+    event.preventDefault();
     setIsDragging(false);
+    handleFile(event.dataTransfer.files?.[0]);
+  }
 
-    const selectedFile = e.dataTransfer.files?.[0];
-    handleFile(selectedFile);
-  };
-
-  const autoFitColumns = (worksheet, rows) => {
-    const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
-
-    const columnWidths = Array.from({ length: columnCount }, (_, colIndex) => {
-      const maxLength = rows.reduce((max, row) => {
-        const value = row[colIndex] ? String(row[colIndex]) : "";
-        return Math.max(max, value.length);
-      }, 10);
-
-      return {
-        wch: Math.min(Math.max(maxLength + 2, 10), 45),
-      };
-    });
-
-    worksheet["!cols"] = columnWidths;
-  };
-
-  const handleConvert = () => {
+  function handleConvert() {
     setError("");
     setSuccess("");
 
-    if (!file || !workbook) {
+    if (!file || !rows.length) {
       setError("Please upload a CSV file first.");
       return;
     }
 
+    setIsProcessing(true);
+    const startTime = performance.now();
+
     try {
-      const firstSheetName = workbook.SheetNames[0];
-      const originalSheet = workbook.Sheets[firstSheetName];
-
-      const rows = XLSX.utils.sheet_to_json(originalSheet, {
-        header: 1,
-        defval: "",
-        blankrows: false,
-      });
-
       const newWorkbook = XLSX.utils.book_new();
       const newSheet = XLSX.utils.aoa_to_sheet(rows);
 
@@ -206,6 +191,7 @@ export default function CsvToXlsConverter() {
         bookType: outputFormat,
         type: "array",
         cellStyles: true,
+        compression: outputFormat === "xlsx",
       });
 
       const blob = new Blob([outputData], {
@@ -225,48 +211,61 @@ export default function CsvToXlsConverter() {
       setConvertedUrl(url);
       setConvertedName(name);
       setConvertedSize(blob.size);
-      setSuccess("Conversion completed successfully. Your Excel file is ready.");
+      setProcessingTimeMs(Math.max(1, Math.round(performance.now() - startTime)));
+      setSuccess(`${outputFormat.toUpperCase()} file created successfully. Download is ready.`);
     } catch (err) {
-      setError("Conversion failed. Please try another CSV file.");
+      console.error("CSV to Excel conversion error:", err);
+      setError(
+        outputFormat === "xls"
+          ? "XLS conversion failed. Make sure the xlsx package is installed, or try XLSX format."
+          : "Conversion failed. Please try another CSV file."
+      );
+    } finally {
+      setIsProcessing(false);
     }
-  };
+  }
 
-  const handleDownload = () => {
+  async function handleDownload() {
     if (!convertedUrl) return;
 
-    const link = document.createElement("a");
-    link.href = convertedUrl;
-    link.download = convertedName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+    try {
+      const link = document.createElement("a");
+      link.href = convertedUrl;
+      link.download = convertedName || `converted.${outputFormat}`;
+      link.rel = "noopener";
+      link.style.display = "none";
 
-  const handleReset = () => {
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      setError("Could not start the download. Please try again.");
+    }
+  }
+
+  function handleReset() {
     if (convertedUrl) {
       URL.revokeObjectURL(convertedUrl);
     }
 
     setFile(null);
-    setWorkbook(null);
+    setRows([]);
     setPreviewRows([]);
     setStats(null);
     setOutputFormat("xlsx");
     setConvertedUrl("");
     setConvertedName("");
     setConvertedSize(null);
+    setProcessingTimeMs(0);
     setError("");
     setSuccess("");
     setIsDragging(false);
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
+    setIsProcessing(false);
+    resetFileInput();
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      {/* TOOL HEADER */}
       <section className="bg-white border rounded-2xl shadow-sm p-6">
         <div className="flex items-start gap-4">
           <div className="w-14 h-14 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center shrink-0">
@@ -276,19 +275,18 @@ export default function CsvToXlsConverter() {
           <div>
             <h1 className="text-3xl font-bold mb-3">CSV to XLS Converter</h1>
             <p className="text-[var(--text-secondary)]">
-              Convert CSV files to Excel format in seconds. Preview your data,
-              choose XLS or XLSX, and download a clean spreadsheet file.
+              Convert CSV files to XLS or XLSX in seconds. Preview your data,
+              choose an output format, and download a clean Excel file.
             </p>
           </div>
         </div>
       </section>
 
-      {/* TOOL BODY */}
       <section className="bg-white border rounded-2xl shadow-sm p-6">
         <div
           onDrop={handleDrop}
-          onDragOver={(e) => {
-            e.preventDefault();
+          onDragOver={(event) => {
+            event.preventDefault();
             setIsDragging(true);
           }}
           onDragLeave={() => setIsDragging(false)}
@@ -304,7 +302,7 @@ export default function CsvToXlsConverter() {
 
           <h2 className="text-xl font-semibold mb-2">Upload CSV File</h2>
           <p className="text-sm text-[var(--text-secondary)] mb-5">
-            Drag and drop your CSV file here, or click the button below.
+            Drag and drop your CSV file here, or click the button below. Max {MAX_FILE_SIZE_MB} MB.
           </p>
 
           <input
@@ -331,7 +329,6 @@ export default function CsvToXlsConverter() {
           )}
         </div>
 
-        {/* FEEDBACK */}
         {error && (
           <div className="mt-5 flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">
             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -346,17 +343,14 @@ export default function CsvToXlsConverter() {
           </div>
         )}
 
-        {/* SETTINGS */}
         <div className="grid md:grid-cols-2 gap-5 mt-6">
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Output Format
-            </label>
+            <label className="block text-sm font-medium mb-2">Output Format</label>
 
             <select
               value={outputFormat}
-              onChange={(e) => {
-                setOutputFormat(e.target.value);
+              onChange={(event) => {
+                setOutputFormat(event.target.value);
                 clearOldOutput();
               }}
               className="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
@@ -369,30 +363,28 @@ export default function CsvToXlsConverter() {
           <div className="bg-gray-50 border rounded-xl p-4">
             <h3 className="font-semibold mb-1">Conversion Quality</h3>
             <p className="text-sm text-[var(--text-secondary)]">
-              The output keeps your rows and columns editable in Excel. XLSX is
-              recommended for the best compatibility with modern Microsoft
-              Office.
+              XLSX is best for modern Excel. XLS is older but supported through the xlsx library.
             </p>
           </div>
         </div>
 
-        {/* ACTION BUTTONS */}
         <div className="flex flex-col sm:flex-row gap-3 mt-6">
           <button
             type="button"
             onClick={handleConvert}
-            disabled={!file}
+            disabled={!file || isProcessing}
             className={`btn-primary inline-flex items-center justify-center gap-2 ${
-              !file ? "opacity-50 cursor-not-allowed" : ""
+              !file || isProcessing ? "opacity-50 cursor-not-allowed" : ""
             }`}
           >
-            <Zap className="w-4 h-4" />
-            Convert to Excel
+            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            {isProcessing ? "Converting..." : "Convert to Excel"}
           </button>
 
           <button
             type="button"
             onClick={handleReset}
+            disabled={isProcessing}
             className="btn-secondary inline-flex items-center justify-center gap-2"
           >
             <RotateCcw className="w-4 h-4" />
@@ -412,42 +404,20 @@ export default function CsvToXlsConverter() {
         </div>
       </section>
 
-      {/* STATS */}
       {stats && (
         <section className="bg-white border rounded-2xl shadow-sm p-6">
           <h2 className="text-xl font-bold mb-4">File Details</h2>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gray-50 border rounded-xl p-4">
-              <p className="text-sm text-[var(--text-secondary)]">Rows</p>
-              <p className="text-2xl font-bold">{stats.rows}</p>
-            </div>
-
-            <div className="bg-gray-50 border rounded-xl p-4">
-              <p className="text-sm text-[var(--text-secondary)]">Columns</p>
-              <p className="text-2xl font-bold">{stats.columns}</p>
-            </div>
-
-            <div className="bg-gray-50 border rounded-xl p-4">
-              <p className="text-sm text-[var(--text-secondary)]">
-                Original Size
-              </p>
-              <p className="text-2xl font-bold">{formatBytes(stats.fileSize)}</p>
-            </div>
-
-            <div className="bg-gray-50 border rounded-xl p-4">
-              <p className="text-sm text-[var(--text-secondary)]">
-                Converted Size
-              </p>
-              <p className="text-2xl font-bold">
-                {convertedSize ? formatBytes(convertedSize) : "-"}
-              </p>
-            </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <StatCard label="Rows" value={stats.rows} />
+            <StatCard label="Columns" value={stats.columns} />
+            <StatCard label="Original Size" value={formatBytes(stats.fileSize)} />
+            <StatCard label="Converted Size" value={convertedSize ? formatBytes(convertedSize) : "-"} />
+            <StatCard label="Processing" value={processingTimeMs ? `${(processingTimeMs / 1000).toFixed(1)}s` : "-"} />
           </div>
         </section>
       )}
 
-      {/* PREVIEW */}
       {previewRows.length > 0 && (
         <section className="bg-white border rounded-2xl shadow-sm p-6">
           <h2 className="text-xl font-bold mb-2">CSV Preview</h2>
@@ -459,15 +429,9 @@ export default function CsvToXlsConverter() {
             <table className="w-full text-sm border-collapse">
               <tbody>
                 {previewRows.map((row, rowIndex) => (
-                  <tr
-                    key={rowIndex}
-                    className={rowIndex === 0 ? "bg-gray-100" : "bg-white"}
-                  >
-                    {row.map((cell, cellIndex) => (
-                      <td
-                        key={cellIndex}
-                        className="border px-3 py-2 whitespace-nowrap"
-                      >
+                  <tr key={rowIndex} className={rowIndex === 0 ? "bg-gray-100" : "bg-white"}>
+                    {(Array.isArray(row) ? row : []).map((cell, cellIndex) => (
+                      <td key={cellIndex} className="border px-3 py-2 whitespace-nowrap">
                         {cell || "-"}
                       </td>
                     ))}
@@ -479,8 +443,47 @@ export default function CsvToXlsConverter() {
         </section>
       )}
 
-      {/* SUGGESTED TOOLS */}
       <SuggestedTools currentToolId="csv-to-xls-converter" />
     </div>
   );
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div className="bg-gray-50 border rounded-xl p-4">
+      <p className="text-sm text-[var(--text-secondary)]">{label}</p>
+      <p className="text-2xl font-bold break-all">{value}</p>
+    </div>
+  );
+}
+
+function autoFitColumns(worksheet, rows) {
+  const columnCount = rows.reduce((max, row) => Math.max(max, Array.isArray(row) ? row.length : 0), 0);
+
+  worksheet["!cols"] = Array.from({ length: columnCount }, (_, colIndex) => {
+    const maxLength = rows.reduce((max, row) => {
+      const value = row?.[colIndex] === undefined || row?.[colIndex] === null ? "" : String(row[colIndex]);
+      return Math.max(max, value.length);
+    }, 10);
+
+    return {
+      wch: Math.min(Math.max(maxLength + 2, 10), 45),
+    };
+  });
+}
+
+function getBaseName(name) {
+  return String(name || "converted").replace(/\.[^/.]+$/, "");
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+
+  if (value <= 0) return "0 B";
+
+  const units = ["B", "KB", "MB", "GB"];
+  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  const size = value / Math.pow(1024, index);
+
+  return `${size.toFixed(index === 0 ? 0 : 2)} ${units[index]}`;
 }

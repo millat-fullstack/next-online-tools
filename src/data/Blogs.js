@@ -1,5 +1,23 @@
 export const blogs = [
   {
+    "title": "Best LinkedIn Post Formatting Tips",
+    "slug": "best-linkedin-post-formatting-tips",
+    "date": "2026-06-07",
+    "category": "Text Tools",
+    "excerpt": "Discover the best LinkedIn post formatting tips to make your posts cleaner, easier to read, and more engaging for professional audiences.",
+    "image": "/images/linkedin-post-formatting-tips.png",
+    "pageFile": "best-linkedin-post-formatting-tips"
+  },
+  {
+    "title": "How to Format LinkedIn Posts with Bold and Italic Text",
+    "slug": "how-to-format-linkedin-posts-with-bold-and-italic-text",
+    "date": "2026-06-07",
+    "category": "Text Tools",
+    "excerpt": "Learn how to format LinkedIn posts with bold and italic text using simple online formatting tools to make your posts more readable and engaging.",
+    "image": "/images/format-linkedin-posts-bold-italic.png",
+    "pageFile": "how-to-format-linkedin-posts-with-bold-and-italic-text"
+  },
+  {
     "title": "Top Reasons to Add Geotags to Your Photos Online",
     "slug": "top-reasons-to-add-geotags-to-your-photos-online",
     "date": "2026-06-06",
