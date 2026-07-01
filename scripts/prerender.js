@@ -22,11 +22,37 @@ const staticRoutes = [
   "/terms-of-service",
 ];
 
-const prerenderRoutes = [
-  ...staticRoutes,
-  ...tools.map((tool) => `/tool/${tool.id}`),
-  ...blogs.map((blog) => `/blog/${blog.slug}`),
-];
+const useFullPrerender = process.env.PRERENDER_ALL === "true" || process.argv.includes("--full");
+const coreToolIds = new Set([
+  "image-compressor",
+  "case-converter",
+  "color-picker",
+  "csv-to-xls-converter",
+  "pdf-to-jpg-converter",
+  "merge-pdf",
+  "smart-photo-editor",
+]);
+const coreBlogSlugs = new Set([
+  "best-free-online-tools",
+  "how-to-compress-images-without-losing-quality",
+  "how-to-convert-heic-to-jpg-on-windows",
+]);
+
+const toolRoutes = (useFullPrerender
+  ? tools
+  : tools.filter((tool) => coreToolIds.has(tool.id))
+).map((tool) => `/tool/${tool.id}`);
+
+const blogRoutes = (useFullPrerender
+  ? blogs
+  : blogs.filter((blog) => coreBlogSlugs.has(blog.slug))
+).map((blog) => `/blog/${blog.slug}`);
+
+const prerenderRoutes = [...staticRoutes, ...toolRoutes, ...blogRoutes];
+
+if (!useFullPrerender) {
+  console.log(`Prerendering ${prerenderRoutes.length} core routes. Set PRERENDER_ALL=true to prerender every tool and blog page.`);
+}
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -92,8 +118,8 @@ async function renderRoute(page, route, port) {
   console.log(`Rendering ${url}`);
 
   const isBlogRoute = route.startsWith("/blog/");
-  const loadTimeout = isBlogRoute ? 180000 : 120000;
-  const waitTimeout = isBlogRoute ? 90000 : 45000;
+  const loadTimeout = isBlogRoute ? 120000 : 60000;
+  const waitTimeout = isBlogRoute ? 20000 : 10000;
 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: loadTimeout });
@@ -127,7 +153,7 @@ async function renderRoute(page, route, port) {
 
 async function prerender() {
   const port = process.env.PRERENDER_PORT ? Number(process.env.PRERENDER_PORT) : 4173;
-  const concurrency = Math.max(1, Number(process.env.PRERENDER_CONCURRENCY) || 3);
+  const concurrency = Math.max(1, Math.min(4, Number(process.env.PRERENDER_CONCURRENCY) || 2));
   const server = await startServer(port);
   console.log(`Prerender server started at http://localhost:${port}`);
 
