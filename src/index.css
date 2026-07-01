@@ -890,6 +890,9 @@ select {
 
 .home-category-chip {
   max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 11px 17px;
   border-radius: 999px;
   border: 1px solid rgba(155, 108, 227, 0.24);
@@ -899,6 +902,7 @@ select {
   font-weight: 800;
   line-height: 1.25;
   text-align: center;
+  text-decoration: none;
   overflow-wrap: anywhere;
 }
 
@@ -1426,112 +1430,59 @@ body {
 
 /* Better homepage spacing and first-screen polish */
 .home-page {
-  gap: 38px;
-  padding-top: 8px;
+  gap: 24px;
+  padding-top: 6px;
 }
 
 .home-hero {
   position: relative;
   isolation: isolate;
-  padding: clamp(38px, 6vw, 72px) clamp(18px, 4vw, 42px);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(196, 155, 245, 0.38), transparent 34%),
-    radial-gradient(circle at 100% 0%, rgba(110, 195, 227, 0.24), transparent 30%),
-    radial-gradient(circle at 50% 100%, rgba(155, 108, 227, 0.08), transparent 34%),
-    linear-gradient(135deg, #ffffff 0%, #fbf8ff 52%, #f3ecff 100%);
+  padding: clamp(28px, 5vw, 44px) clamp(18px, 4vw, 32px);
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: none;
 }
 
 .home-hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(155, 108, 227, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(155, 108, 227, 0.055) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(circle at 50% 35%, black, transparent 72%);
-  opacity: 0.75;
+  display: none;
 }
 
 .home-hero-badge {
-  box-shadow: inset 0 0 0 1px rgba(155, 108, 227, 0.08);
+  box-shadow: none;
+  border: 1px solid #ede9fe;
 }
 
 .home-hero h1 {
-  max-width: 920px;
+  max-width: 760px;
+  font-size: clamp(30px, 4vw, 46px);
 }
 
 .home-hero > p {
-  max-width: 830px;
+  max-width: 700px;
+  margin-left: 0;
 }
 
 .home-hero-actions {
-  margin-top: 26px;
+  margin-top: 22px;
+  justify-content: flex-start;
 }
 
 .home-primary-btn {
-  box-shadow: 0 12px 28px rgba(155, 108, 227, 0.24);
-}
-
-.home-primary-btn:hover,
-.home-primary-btn:focus-visible {
-  box-shadow: 0 16px 36px rgba(155, 108, 227, 0.3);
+  box-shadow: none;
 }
 
 .home-secondary-btn:hover,
 .home-secondary-btn:focus-visible {
-  border-color: rgba(155, 108, 227, 0.48);
-  box-shadow: 0 10px 24px rgba(155, 108, 227, 0.1);
+  border-color: rgba(155, 108, 227, 0.4);
+  box-shadow: none;
 }
 
-/* New stats section used by the updated Home.jsx */
-.home-hero-stats {
-  width: min(720px, 100%);
-  margin: 30px auto 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.home-hero-stats > div {
-  min-height: 92px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 18px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(155, 108, 227, 0.16);
-  box-shadow: 0 14px 36px rgba(51, 51, 51, 0.06);
-  backdrop-filter: blur(14px);
-}
-
-.home-hero-stats strong {
-  display: block;
-  color: var(--primary);
-  font-size: clamp(26px, 3vw, 36px);
-  font-weight: 950;
-  line-height: 1;
-  letter-spacing: -0.04em;
-}
-
-.home-hero-stats span {
-  display: block;
-  margin-top: 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-/* Section polish */
 .home-section,
 .home-blog-section,
 .home-benefits {
-  border-color: rgba(155, 108, 227, 0.14);
-  box-shadow: var(--shadow-soft);
+  border-color: #e5e7eb;
+  box-shadow: none;
 }
 
 .home-section-head span {
@@ -1547,36 +1498,35 @@ body {
   white-space: nowrap;
 }
 
-/* Card consistency */
 .home-tool-card,
 .home-blog-card,
 .home-benefit-card {
   outline: none;
+  background: #ffffff;
+  border-color: #e5e7eb;
+  box-shadow: none;
 }
 
 .home-tool-card {
-  min-height: 252px;
-  border-color: rgba(155, 108, 227, 0.13);
+  min-height: 220px;
+  border-color: #e5e7eb;
 }
 
-.home-tools-grid.popular .home-tool-card {
-  min-height: 268px;
-}
-
+.home-tools-grid.popular .home-tool-card,
 .home-tools-grid.featured .home-tool-card {
-  min-height: 240px;
+  min-height: auto;
 }
 
 .home-tool-card:hover,
 .home-blog-card:hover,
 .home-benefit-card:hover {
-  border-color: rgba(155, 108, 227, 0.32);
-  box-shadow: var(--shadow-primary);
+  border-color: #c7b7f8;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
 .home-tool-card:hover .home-tool-icon,
 .home-benefit-card:hover .home-benefit-icon {
-  background: #efe5ff;
+  background: #f3edff;
   color: var(--primary-hover);
 }
 
@@ -1619,11 +1569,10 @@ body {
 }
 
 .home-blog-card:hover {
-  border-color: rgba(155, 108, 227, 0.28);
-  background: linear-gradient(135deg, #ffffff, #f8f3ff);
+  border-color: #d8c9ff;
+  background: #fcfbff;
 }
 
-/* Better button tap/click behavior */
 .home-primary-btn,
 .home-secondary-btn,
 .home-view-btn,
@@ -1641,14 +1590,9 @@ body {
   opacity: 0.92;
 }
 
-/* Mobile refinements */
 @media (max-width: 1024px) {
   .home-page {
     gap: 30px;
-  }
-
-  .home-hero-stats {
-    width: min(640px, 100%);
   }
 }
 
@@ -1672,24 +1616,8 @@ body {
     flex: 1 1 220px;
   }
 
-  .home-hero-stats {
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin-top: 24px;
-  }
-
-  .home-hero-stats > div {
-    min-height: 82px;
-  }
-
   .home-section-head-row .home-view-btn {
     width: auto;
-  }
-
-  .home-tool-card,
-  .home-tools-grid.popular .home-tool-card,
-  .home-tools-grid.featured .home-tool-card {
-    min-height: auto;
   }
 }
 
@@ -1746,7 +1674,6 @@ body {
     animation-iteration-count: 1 !important;
   }
 }
-
 
 /* ============================= */
 /* ALL TOOLS PAGE - CLEAN CORPORATE PATCH */

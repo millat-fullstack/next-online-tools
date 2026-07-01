@@ -3,7 +3,6 @@ import * as Icons from "lucide-react";
 import { Helmet } from "react-helmet-async";
 
 import tools from "../data/tools.json";
-import { blogs } from "../data/Blogs";
 import Button from "../components/ui/Button";
 import SmartLink from "../components/ui/SmartLink";
 
@@ -81,33 +80,6 @@ const CATEGORY_DETAILS = {
   },
 };
 
-const WORKFLOWS = [
-  {
-    icon: "ImagePlus",
-    title: "Edit & optimize images",
-    text: "Compress, resize, crop, convert, geotag, and prepare clean images for blogs, products, and social media.",
-    to: "/tools?category=Image%20Tools",
-  },
-  {
-    icon: "Files",
-    title: "Work faster with PDF files",
-    text: "Convert, merge, compress, organize, and manage PDF files online without heavy desktop software.",
-    to: "/tools?category=PDF%20Tools",
-  },
-  {
-    icon: "Sheet",
-    title: "Clean sheets & lead data",
-    text: "Extract hidden links, clean phone numbers, and format spreadsheet data so it is easier to copy and reuse.",
-    to: "/tools?category=Spreadsheet%20Tools",
-  },
-  {
-    icon: "PenLine",
-    title: "Write, format & publish",
-    text: "Use text, SEO, slug, and formatting helpers to prepare cleaner content for websites and social platforms.",
-    to: "/tools?category=Text%20Tools",
-  },
-];
-
 function HomeToolIcon({ icon }) {
   const IconComponent = Icons[icon] || Icons.Wrench;
 
@@ -154,37 +126,6 @@ function ToolCard({ tool, compact = false }) {
           </div>
         </div>
       )}
-    </SmartLink>
-  );
-}
-
-function InfoCard({ icon, title, text, to, label = "Explore" }) {
-  const content = (
-    <>
-      <div className="home-tool-card-top">
-        <HomeToolIcon icon={icon} />
-      </div>
-
-      <h3>{title}</h3>
-      <p>{text}</p>
-
-      <div className="home-tool-card-bottom">
-        <span>{label}</span>
-
-        <div aria-hidden="true">
-          <Icons.ArrowRight size={17} />
-        </div>
-      </div>
-    </>
-  );
-
-  if (!to) {
-    return <article className="home-tool-card">{content}</article>;
-  }
-
-  return (
-    <SmartLink to={to} className="home-tool-card" aria-label={title}>
-      {content}
     </SmartLink>
   );
 }
@@ -239,10 +180,6 @@ export default function Home() {
     return getUniqueTools([...trendingTools, ...priorityTools]).slice(0, 6);
   }, []);
 
-  const featuredTools = useMemo(() => {
-    return findToolsByKeywords(tools, PRIORITY_TOOL_KEYWORDS, 8);
-  }, []);
-
   const categoryHighlights = useMemo(() => {
     return categories.slice(0, 8).map((category) => {
       const detail = CATEGORY_DETAILS[category];
@@ -258,59 +195,6 @@ export default function Home() {
       };
     });
   }, [categories]);
-
-  const latestBlogs = useMemo(() => blogs.slice(0, 3), []);
-
-  const trustPoints = [
-    {
-      icon: "BadgeCheck",
-      title: "Free to start",
-      text: "Open the tools you need and finish common digital tasks without complex setup.",
-    },
-    {
-      icon: "MonitorSmartphone",
-      title: "Browser-based",
-      text: "Use tools from a modern desktop or mobile browser without installing heavy software.",
-    },
-    {
-      icon: "ClipboardCheck",
-      title: "Clean output",
-      text: "Designed for practical copying, downloading, formatting, and reusing in real workflows.",
-    },
-    {
-      icon: "Layers3",
-      title: "Many categories",
-      text: "Find tools for images, PDFs, text, sheets, SEO, colors, conversion, and productivity.",
-    },
-  ];
-
-  const faqItems = [
-    {
-      question: "What is Next Online Tools?",
-      answer:
-        "Next Online Tools is a free online tools website for everyday digital tasks such as PDF work, image editing, text formatting, sheet data cleaning, SEO helpers, and file conversion.",
-    },
-    {
-      question: "Are the tools free to use?",
-      answer:
-        "Yes. The tools are built to be free, simple, and easy to use for students, creators, marketers, freelancers, and daily office work.",
-    },
-    {
-      question: "Do I need to install software?",
-      answer:
-        "No. Next Online Tools works in your browser, so you can complete many tasks without installing extra desktop software.",
-    },
-    {
-      question: "Which tools are available on Next Online Tools?",
-      answer:
-        "You can find tools for images, PDFs, text, Google Sheets, SEO, colors, calculators, converters, social media, and other productivity tasks.",
-    },
-    {
-      question: "Can I use these tools for work and business?",
-      answer:
-        "Yes. The tools are useful for small businesses, content creators, students, data entry work, lead generation, ecommerce images, blogs, and office productivity.",
-    },
-  ];
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -394,18 +278,6 @@ export default function Home() {
           url: `${SITE_URL}/tools?category=${encodeURIComponent(category.name)}`,
         })),
       },
-      {
-        "@type": "FAQPage",
-        "@id": `${SITE_URL}/#faq`,
-        mainEntity: faqItems.map((item) => ({
-          "@type": "Question",
-          name: item.question,
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: item.answer,
-          },
-        })),
-      },
     ],
   };
 
@@ -450,63 +322,27 @@ export default function Home() {
 
       {/* HERO */}
       <section className="home-hero">
-        <div className="home-hero-badge">
-          <Icons.Sparkles size={16} />
-          <span>Free browser-based tools for daily digital work</span>
-        </div>
-
-        <h1>
-          {tools.length}+ Free Online Tools for PDF, Images, Text, SEO & Daily
-          Work
-        </h1>
+        <h1>{tools.length}+ free online tools for PDFs, images, text, and everyday work</h1>
 
         <p>
-          Complete quick tasks in one place: edit images, compress files, convert
-          PDFs, extract Google Sheet links, clean text, resize social media
-          content, create QR codes, and prepare better website content.
+          A simple collection of browser-based tools for editing, converting,
+          organizing, and cleaning up everyday files and content.
         </p>
 
         <div className="home-hero-actions">
           <Button to="/tools" className="home-primary-btn">
-            Browse All Tools
+            Browse all tools
           </Button>
-
-          <Button to="/tools?category=Image%20Tools" variant="secondary" className="home-secondary-btn">
-            Start with Image Tools
-          </Button>
-        </div>
-
-        <div className="home-hero-stats" aria-label="Next Online Tools summary">
-          <div>
-            <strong>{tools.length}+</strong>
-            <span>Free tools</span>
-          </div>
-          <div>
-            <strong>{categories.length}+</strong>
-            <span>Categories</span>
-          </div>
-          <div>
-            <strong>{blogs.length}+</strong>
-            <span>Helpful guides</span>
-          </div>
         </div>
       </section>
 
       {/* POPULAR TOOLS */}
       <section className="home-section" id="popular-tools">
-        <div className="home-section-head home-section-head-row">
+        <div className="home-section-head">
           <div>
             <span>Popular</span>
-            <h2>Popular Free Online Tools</h2>
-            <p>
-              Start with the most useful tools for images, PDFs, spreadsheet
-              cleanup, text formatting, QR codes, and daily productivity.
-            </p>
+            <h2>Popular tools</h2>
           </div>
-
-          <SmartLink to="/tools" className="home-secondary-btn home-view-btn">
-            View All Tools
-          </SmartLink>
         </div>
 
         <div className="home-tools-grid popular">
@@ -516,254 +352,29 @@ export default function Home() {
         </div>
       </section>
 
-      {/* WORKFLOWS */}
-      <section className="home-section">
-        <div className="home-section-head">
-          <div>
-            <span>Work by Task</span>
-            <h2>What Do You Want to Do Today?</h2>
-            <p>
-              Choose a practical workflow and jump directly to the right group
-              of tools instead of searching manually.
-            </p>
-          </div>
-        </div>
-
-        <div className="home-tools-grid featured">
-          {WORKFLOWS.map((workflow) => (
-            <InfoCard
-              key={workflow.title}
-              icon={workflow.icon}
-              title={workflow.title}
-              text={workflow.text}
-              to={workflow.to}
-              label="Open workflow"
-            />
-          ))}
-        </div>
-      </section>
-
       {/* CATEGORY CONTENT */}
       <section className="home-section">
         <div className="home-section-head">
           <div>
-            <span>Browse Faster</span>
-            <h2>Explore Tools by Category</h2>
-            <p>
-              Every category is organized around a real task, so users can find
-              the right tool quickly and finish their work with fewer steps.
-            </p>
+            <span>Browse</span>
+            <h2>Browse by category</h2>
           </div>
         </div>
 
-        <div className="home-tools-grid featured">
+        <div className="home-category-grid">
           {categoryHighlights.map((category) => (
             <SmartLink
               key={category.name}
               to={`/tools?category=${encodeURIComponent(category.name)}`}
-              className="home-tool-card"
+              className="home-category-chip"
               aria-label={`Browse ${category.name}`}
             >
-              <div className="home-tool-card-top">
-                <HomeToolIcon icon={category.icon} />
-
-                {category.count > 0 && (
-                  <span className="home-trending-badge">
-                    {category.count} tools
-                  </span>
-                )}
-              </div>
-
-              <h3>{category.name}</h3>
-              <p>{category.text}</p>
-
-              <div className="home-tool-card-bottom">
-                <span>Browse category</span>
-
-                <div aria-hidden="true">
-                  <Icons.ArrowRight size={17} />
-                </div>
-              </div>
+              {category.name}
             </SmartLink>
           ))}
         </div>
       </section>
 
-      {/* FEATURED TOOLS */}
-      <section className="home-section">
-        <div className="home-section-head home-section-head-row">
-          <div>
-            <span>Featured</span>
-            <h2>Featured Tools for Daily Work</h2>
-            <p>
-              A hand-picked set of high-value tools for common online tasks,
-              content creation, business work, and productivity.
-            </p>
-          </div>
-
-          <SmartLink to="/tools" className="home-secondary-btn home-view-btn">
-            Discover More
-          </SmartLink>
-        </div>
-
-        <div className="home-tools-grid featured">
-          {featuredTools.map((tool) => (
-            <ToolCard key={tool.id} tool={tool} compact />
-          ))}
-        </div>
-      </section>
-
-      {/* BENEFITS */}
-      <section className="home-benefits">
-        <div className="home-benefits-content">
-          <div className="home-hero-badge">
-            <Icons.HeartHandshake size={16} />
-            <span>Why Next Online Tools?</span>
-          </div>
-
-          <h2>Simple Online Tools That Save Time in Real Workflows</h2>
-
-          <p>
-            Next Online Tools is built for people who need fast, clean, and
-            practical solutions without complex software. Whether you are
-            editing an image, preparing a PDF, cleaning spreadsheet data,
-            writing content, creating social posts, or building a website, the
-            goal is to help you finish small digital tasks with less confusion.
-          </p>
-
-          <div className="home-benefit-grid">
-            {trustPoints.map((item) => {
-              const Icon = Icons[item.icon] || Icons.Wrench;
-
-              return (
-                <div key={item.title} className="home-benefit-card">
-                  <div className="home-benefit-icon" aria-hidden="true">
-                    <Icon size={25} strokeWidth={2.2} />
-                  </div>
-
-                  <h3>{item.title}</h3>
-                  <p>{item.text}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* USE CASES */}
-      <section className="home-section">
-        <div className="home-section-head">
-          <div>
-            <span>Use Cases</span>
-            <h2>Built for Students, Creators, Freelancers & Small Teams</h2>
-            <p>
-              Use Next Online Tools whenever you need a quick result without
-              opening multiple websites or installing separate apps.
-            </p>
-          </div>
-        </div>
-
-        <div className="home-tools-grid featured">
-          <InfoCard
-            icon="GraduationCap"
-            title="For students"
-            text="Convert files, clean text, prepare images, create QR codes, and finish daily academic tasks faster."
-            to="/tools"
-            label="Find student tools"
-          />
-          <InfoCard
-            icon="BriefcaseBusiness"
-            title="For office work"
-            text="Clean spreadsheet data, extract links, format text, manage PDFs, and prepare professional files."
-            to="/tools?category=Spreadsheet%20Tools"
-            label="Find office tools"
-          />
-          <InfoCard
-            icon="Megaphone"
-            title="For creators"
-            text="Resize social images, edit photos, create thumbnails, format captions, and prepare content quickly."
-            to="/tools?category=Social%20Media%20Tools"
-            label="Find creator tools"
-          />
-          <InfoCard
-            icon="ShoppingBag"
-            title="For small business"
-            text="Prepare product images, clean leads, format content, create website assets, and handle basic PDF work."
-            to="/tools?category=Image%20Tools"
-            label="Find business tools"
-          />
-        </div>
-      </section>
-
-      {/* BLOGS */}
-      <section className="home-blog-section">
-        <div className="home-section-head home-section-head-row">
-          <div>
-            <span>Guides & Tips</span>
-            <h2>Latest Helpful Blogs</h2>
-            <p>
-              Learn how to use online tools better, avoid common mistakes, and
-              finish digital tasks faster.
-            </p>
-          </div>
-
-          <SmartLink to="/blog" className="home-secondary-btn home-view-btn">
-            View All Blogs
-          </SmartLink>
-        </div>
-
-        <div className="home-blog-grid">
-          {latestBlogs.map((blog, index) => (
-            <SmartLink
-              key={blog.id || blog.slug || index}
-              to={`/blog/${blog.slug}`}
-              className="home-blog-card"
-              aria-label={`Read ${blog.title}`}
-            >
-              <div className="home-blog-card-top">
-                <span>{blog.category || "Guide"}</span>
-                {blog.date && <small>{blog.date}</small>}
-              </div>
-
-              <h3>{blog.title}</h3>
-
-              <p>
-                {blog.excerpt ||
-                  "Read this helpful guide and improve your online workflow."}
-              </p>
-
-              <strong>Read guide →</strong>
-            </SmartLink>
-          ))}
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section className="home-section">
-        <div className="home-section-head">
-          <div>
-            <span>FAQ</span>
-            <h2>Frequently Asked Questions</h2>
-            <p>
-              Quick answers about using Next Online Tools for everyday digital
-              tasks.
-            </p>
-          </div>
-        </div>
-
-        <div className="home-tools-grid featured">
-          {faqItems.map((item) => (
-            <article key={item.question} className="home-tool-card">
-              <div className="home-tool-card-top">
-                <HomeToolIcon icon="CircleHelp" />
-              </div>
-
-              <h3>{item.question}</h3>
-              <p>{item.answer}</p>
-            </article>
-          ))}
-        </div>
-      </section>
     </main>
   );
 }

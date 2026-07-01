@@ -6,7 +6,7 @@
     "description": "Calculate your exact age in years, months, and days. Also find total days, weeks, months, and next birthday countdown.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.453Z"
+    "createdAt": "2026-07-01T07:25:06.555Z"
   },
   {
     "id": "audio-joiner",
@@ -15,7 +15,7 @@
     "description": "Join multiple audio files online for free. Upload audio files, arrange the order, merge them, preview, and download as one file.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.459Z"
+    "createdAt": "2026-07-01T07:25:06.558Z"
   },
   {
     "id": "audio-to-text-converter",
@@ -24,7 +24,7 @@
     "description": "Convert audio, voice notes, and speech recordings into text. Upload an audio file and transcribe it online in your browser.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.464Z"
+    "createdAt": "2026-07-01T07:25:06.561Z"
   },
   {
     "id": "avif-to-jpg-converter",
@@ -33,7 +33,7 @@
     "description": "Convert AVIF images to JPG online for free with quality control and instant download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.469Z"
+    "createdAt": "2026-07-01T07:25:06.563Z"
   },
   {
     "id": "blur-image",
@@ -42,7 +42,7 @@
     "description": "Blur images online quickly with full image blur, selected area blur, and pixel privacy blur.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.475Z"
+    "createdAt": "2026-07-01T07:25:06.566Z"
   },
   {
     "id": "case-converter",
@@ -51,7 +51,7 @@
     "description": "Convert text to uppercase, lowercase, title case, sentence case, camelCase, snake_case, and kebab-case. Copy your result with a single click.",
     "icon": "Type",
     "trending": true,
-    "createdAt": "2026-06-30T08:28:42.478Z"
+    "createdAt": "2026-07-01T07:25:06.568Z"
   },
   {
     "id": "character-counter",
@@ -60,7 +60,7 @@
     "description": "Count characters, words, sentences, paragraphs, reading time, keyword density, and text limits for SEO, social media, ads, and writing.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.482Z"
+    "createdAt": "2026-07-01T07:25:06.570Z"
   },
   {
     "id": "clean-url-slug-generator",
@@ -69,7 +69,7 @@
     "description": "Generate clean, SEO-friendly URL slugs from titles, page names, product names, or article headings.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.667Z"
+    "createdAt": "2026-07-01T07:25:06.654Z"
   },
   {
     "id": "color-picker",
@@ -78,16 +78,7 @@
     "description": "Pick colors from images with precision. Get HEX, RGB, RGBA, HSL, and CMYK values instantly.",
     "icon": "Palette",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.486Z"
-  },
-  {
-    "id": "color-preview",
-    "name": "Color Preview",
-    "category": "Design Tools",
-    "description": "Preview any color using HEX color code.",
-    "icon": "Palette",
-    "trending": true,
-    "createdAt": "2026-06-30T08:28:42.489Z"
+    "createdAt": "2026-07-01T07:25:06.571Z"
   },
   {
     "id": "compress-pdf",
@@ -96,7 +87,7 @@
     "description": "Compress PDF files online by reducing file size while keeping pages easy to view and share.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.554Z"
+    "createdAt": "2026-07-01T07:25:06.608Z"
   },
   {
     "id": "csv-to-xls-converter",
@@ -105,7 +96,7 @@
     "description": "Convert CSV files to Excel format in seconds. Get clean, editable spreadsheet output for Microsoft Excel.",
     "icon": "FileSpreadsheet",
     "trending": true,
-    "createdAt": "2026-06-30T08:28:42.493Z"
+    "createdAt": "2026-07-01T07:25:06.573Z"
   },
   {
     "id": "extract-images-from-google-docs",
@@ -114,7 +105,7 @@
     "description": "Extract images from Google Docs by uploading a DOCX file. Preview and download all images instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.496Z"
+    "createdAt": "2026-07-01T07:25:06.574Z"
   },
   {
     "id": "favicon-generator",
@@ -123,7 +114,7 @@
     "description": "Create favicons from your logo or text. Generate multiple favicon sizes and download a ready-to-use favicon package.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.500Z"
+    "createdAt": "2026-07-01T07:25:06.576Z"
   },
   {
     "id": "google-sheet-links-extractor",
@@ -132,7 +123,7 @@
     "description": "Paste Google Sheets hyperlinked text and extract links into the same row order with Not found for cells without links.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.504Z"
+    "createdAt": "2026-07-01T07:25:06.578Z"
   },
   {
     "id": "heic-to-jpg-converter",
@@ -141,7 +132,7 @@
     "description": "Convert HEIC and HEIF images to JPG online with clean preview, quality control, and instant download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.508Z"
+    "createdAt": "2026-07-01T07:25:06.581Z"
   },
   {
     "id": "image-compressor",
@@ -150,7 +141,7 @@
     "description": "Compress images directly in your browser with adjustable quality control. Fast, secure, and no server uploads needed.",
     "icon": "Wrench",
     "trending": true,
-    "createdAt": "2026-06-30T08:28:42.511Z"
+    "createdAt": "2026-07-01T07:25:06.582Z"
   },
   {
     "id": "image-cropper-tool",
@@ -159,7 +150,7 @@
     "description": "Crop images perfectly for Facebook, Instagram, YouTube, LinkedIn, Pinterest, and custom sizes. Drag to adjust and download in JPG, PNG, or WEBP.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.515Z"
+    "createdAt": "2026-07-01T07:25:06.585Z"
   },
   {
     "id": "image-geotag-maker",
@@ -168,7 +159,7 @@
     "description": "Add, edit, read, or remove GPS location metadata from images online using a privacy-friendly browser-based image geotag tool.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.519Z"
+    "createdAt": "2026-07-01T07:25:06.587Z"
   },
   {
     "id": "image-resizer",
@@ -177,7 +168,7 @@
     "description": "Resize images online with a clean smart artboard, presets, drag positioning, zoom, format options, and instant download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.523Z"
+    "createdAt": "2026-07-01T07:25:06.589Z"
   },
   {
     "id": "image-to-text-converter",
@@ -186,7 +177,7 @@
     "description": "Extract text from images online using OCR. Upload an image and convert it into editable text.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.526Z"
+    "createdAt": "2026-07-01T07:25:06.590Z"
   },
   {
     "id": "instagram-video-downloader",
@@ -195,7 +186,7 @@
     "description": "Download Instagram videos directly to your device by simply pasting the video URL. No apps, no signups.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.529Z"
+    "createdAt": "2026-07-01T07:25:06.592Z"
   },
   {
     "id": "instagram-video-resizer",
@@ -204,7 +195,7 @@
     "description": "Resize and crop videos for Instagram Feed, Reels, and Stories. Upload a video, choose an Instagram size, preview, and download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.533Z"
+    "createdAt": "2026-07-01T07:25:06.596Z"
   },
   {
     "id": "jpg-to-pdf-converter",
@@ -213,7 +204,7 @@
     "description": "Convert JPG, PNG, or WEBP images to one high-quality PDF with ordered page preview and full PDF view.",
     "icon": "Wrench",
     "trending": true,
-    "createdAt": "2026-06-30T08:28:42.537Z"
+    "createdAt": "2026-07-01T07:25:06.599Z"
   },
   {
     "id": "linkedin-text-formatter",
@@ -222,7 +213,7 @@
     "description": "Format and optimize LinkedIn posts with bold, italic, underline, strikethrough, Unicode text styles, templates, hook score, post preview, and character counter.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.541Z"
+    "createdAt": "2026-07-01T07:25:06.601Z"
   },
   {
     "id": "merge-pdf",
@@ -231,7 +222,7 @@
     "description": "Merge multiple PDF files online for free. Upload PDFs, arrange the order, combine them, and download one merged PDF.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.544Z"
+    "createdAt": "2026-07-01T07:25:06.602Z"
   },
   {
     "id": "motivational-quote-image-maker",
@@ -240,7 +231,7 @@
     "description": "Create and download motivational quote images for Instagram, Facebook, Pinterest, stories, and social media posts.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.547Z"
+    "createdAt": "2026-07-01T07:25:06.604Z"
   },
   {
     "id": "passport-size-photo-maker",
@@ -249,7 +240,7 @@
     "description": "Create passport size photos online. Upload, drag to fit, crop, tone up, add optional border, choose copies, and download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.551Z"
+    "createdAt": "2026-07-01T07:25:06.606Z"
   },
   {
     "id": "pdf-invoice-generator",
@@ -258,7 +249,7 @@
     "description": "Create professional invoices with itemized billing, tax, discount, notes, and instant PDF download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.558Z"
+    "createdAt": "2026-07-01T07:25:06.610Z"
   },
   {
     "id": "pdf-page-number-adder",
@@ -267,7 +258,7 @@
     "description": "Add page numbers to PDF files online with custom position, style, start page, and instant download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.561Z"
+    "createdAt": "2026-07-01T07:25:06.612Z"
   },
   {
     "id": "pdf-page-remover",
@@ -276,7 +267,7 @@
     "description": "Remove unwanted pages from PDF files online. Upload a PDF, select pages to delete, and download a clean PDF directly from your browser.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.567Z"
+    "createdAt": "2026-07-01T07:25:06.613Z"
   },
   {
     "id": "pdf-page-reorder",
@@ -285,7 +276,7 @@
     "description": "Reorder PDF pages online. Upload a PDF, drag pages into a new order, preview pages, and download the reordered PDF directly from your browser.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.572Z"
+    "createdAt": "2026-07-01T07:25:06.615Z"
   },
   {
     "id": "pdf-to-jpg-converter",
@@ -294,7 +285,7 @@
     "description": "Convert PDF files to high-quality JPG images. Download every PDF page as JPG or save all pages in one ZIP file.",
     "icon": "Wrench",
     "trending": true,
-    "createdAt": "2026-06-30T08:28:42.575Z"
+    "createdAt": "2026-07-01T07:25:06.618Z"
   },
   {
     "id": "pdf-watermark-adder",
@@ -303,7 +294,7 @@
     "description": "Add text or image watermarks to PDF files online with opacity, position, rotation, page range, repeated pattern, preview, and download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.585Z"
+    "createdAt": "2026-07-01T07:25:06.620Z"
   },
   {
     "id": "phone-number-cleaner",
@@ -312,7 +303,7 @@
     "description": "Clean and format phone numbers in bulk for Google Sheets and Excel. Remove plus signs, formula symbols, spaces, dashes, brackets, and unwanted formatting while preserving spreadsheet rows and columns.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.590Z"
+    "createdAt": "2026-07-01T07:25:06.623Z"
   },
   {
     "id": "photo-collage-maker",
@@ -321,7 +312,7 @@
     "description": "Create beautiful photo collages online. Choose a template, upload photos, customize spacing, background, border, and download instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.599Z"
+    "createdAt": "2026-07-01T07:25:06.625Z"
   },
   {
     "id": "profile-picture-maker",
@@ -330,7 +321,7 @@
     "description": "Create perfect profile pictures online. Upload a photo, choose a profile size, add a circle frame, border, background, shadow, and download instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.604Z"
+    "createdAt": "2026-07-01T07:25:06.628Z"
   },
   {
     "id": "qr-code-generator",
@@ -339,7 +330,7 @@
     "description": "Create custom QR codes for URLs, text, email, SMS, WiFi, WhatsApp, vCard, and more. Customize colors, size, and download as PNG or SVG.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.610Z"
+    "createdAt": "2026-07-01T07:25:06.630Z"
   },
   {
     "id": "quick-flip-image",
@@ -348,7 +339,7 @@
     "description": "Flip images online quickly. Upload, drag, or paste an image, then flip horizontally, vertically, rotate, and download instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.614Z"
+    "createdAt": "2026-07-01T07:25:06.632Z"
   },
   {
     "id": "quick-photo-editor",
@@ -357,7 +348,7 @@
     "description": "Edit photos online with text, image layers, draw, blur, patch, clone, shapes, resize, and quick export.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.621Z"
+    "createdAt": "2026-07-01T07:25:06.636Z"
   },
   {
     "id": "rotate-pdf",
@@ -366,7 +357,7 @@
     "description": "Rotate PDF pages online. Upload a PDF, rotate selected pages, preview, and download a corrected PDF.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.627Z"
+    "createdAt": "2026-07-01T07:25:06.638Z"
   },
   {
     "id": "screenshot-editor",
@@ -375,7 +366,16 @@
     "description": "Edit screenshots online with arrows, text, shapes, highlights, blur, emojis, step numbers, and instant download.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.631Z"
+    "createdAt": "2026-07-01T07:25:06.641Z"
+  },
+  {
+    "id": "color-preview",
+    "name": "Smart Color Previewer",
+    "category": "Design Tools",
+    "description": "Preview any HEX color, copy HEX RGB and HSL values, check contrast, and create quick shades.",
+    "icon": "Palette",
+    "trending": true,
+    "createdAt": "2026-07-01T07:25:06.641Z"
   },
   {
     "id": "smart-video-cutter",
@@ -384,7 +384,7 @@
     "description": "Upload one or multiple videos, split clips, trim, arrange, preview, and export the final video.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.641Z"
+    "createdAt": "2026-07-01T07:25:06.643Z"
   },
   {
     "id": "social-media-emoji-finder",
@@ -393,7 +393,7 @@
     "description": "Find and copy the best emojis for ecommerce posts, sales captions, product promotions, delivery updates, reviews, and social media marketing.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.646Z"
+    "createdAt": "2026-07-01T07:25:06.647Z"
   },
   {
     "id": "svg-to-png-converter",
@@ -402,7 +402,7 @@
     "description": "Convert SVG files to PNG online for free. Upload SVG, choose output size and background, then download PNG instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.652Z"
+    "createdAt": "2026-07-01T07:25:06.649Z"
   },
   {
     "id": "unit-converter",
@@ -411,7 +411,7 @@
     "description": "Convert length, weight, temperature, area, volume, speed, time, storage, pressure, energy, and power units instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.657Z"
+    "createdAt": "2026-07-01T07:25:06.652Z"
   },
   {
     "id": "video-to-images",
@@ -420,7 +420,7 @@
     "description": "Upload a video, pause at any moment, capture frames, view images, and download them as PNG or JPG.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.670Z"
+    "createdAt": "2026-07-01T07:25:06.656Z"
   },
   {
     "id": "webp-to-jpg-converter",
@@ -429,7 +429,7 @@
     "description": "Convert up to 10 WEBP images in one batch. Transparent WEBP files are saved as PNG, and opaque files are saved as JPG.",
     "icon": "ImagePlus",
     "trending": true,
-    "createdAt": "2026-06-30T08:28:42.676Z"
+    "createdAt": "2026-07-01T07:25:06.658Z"
   },
   {
     "id": "word-cloud-generator",
@@ -438,7 +438,7 @@
     "description": "Transform your text into beautiful visual word clouds. Paste your content and generate a visual summary of the most frequent words.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.680Z"
+    "createdAt": "2026-07-01T07:25:06.661Z"
   },
   {
     "id": "word-counter",
@@ -447,7 +447,7 @@
     "description": "Quickly count words, characters, sentences, and paragraphs in any text.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.687Z"
+    "createdAt": "2026-07-01T07:25:06.663Z"
   },
   {
     "id": "youtube-thumbnail-downloader",
@@ -456,6 +456,6 @@
     "description": "Download YouTube video thumbnails in multiple sizes. Paste a YouTube video or Shorts link and get thumbnail previews instantly.",
     "icon": "Wrench",
     "trending": false,
-    "createdAt": "2026-06-30T08:28:42.692Z"
+    "createdAt": "2026-07-01T07:25:06.666Z"
   }
 ]
