@@ -36,7 +36,7 @@ export default function About() {
   const [isLoading, setIsLoading] = useState(false);
 
   const seoTitle =
-    "About Next Online Tools | Free Browser-Based Tools for Everyday Tasks";
+    "About Next Online Tools | Free Tools for Everyday Tasks";
 
   const seoDescription =
     "Learn about Next Online Tools, a free browser-based tools platform for image tools, text tools, PDF tools, SEO tools, color tools, conversions, and daily productivity tasks.";
