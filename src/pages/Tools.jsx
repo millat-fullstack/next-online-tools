@@ -52,8 +52,11 @@ function ToolIcon({ icon }) {
   const IconComponent = Icons[icon] || Icons.Wrench;
 
   return (
-    <div className="tools-pro-icon" aria-hidden="true">
-      <IconComponent size={22} strokeWidth={2.1} />
+    <div
+      className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f5f0ff] text-[var(--primary)]"
+      aria-hidden="true"
+    >
+      <IconComponent size={20} strokeWidth={2.1} />
     </div>
   );
 }
@@ -62,30 +65,36 @@ function ToolCard({ tool }) {
   return (
     <SmartLink
       to={`/tool/${tool.id}`}
-      className="tools-pro-card"
+      className="group block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--primary)] hover:shadow-md"
       aria-label={`Open ${tool.name}`}
     >
-      <div className="tools-pro-card-top">
+      <div className="flex items-start justify-between gap-3">
         <ToolIcon icon={tool.icon} />
 
         {tool.trending && (
-          <span className="tools-pro-badge">
-            <Icons.Flame size={13} />
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+            <Icons.Flame size={12} />
             Popular
           </span>
         )}
       </div>
 
-      <h3>{tool.name}</h3>
+      <h3 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">
+        {tool.name}
+      </h3>
 
-      <p>{tool.description || "Simple, fast, and free online tool."}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+        {tool.description || "Simple, fast, and free online tool."}
+      </p>
 
-      <div className="tools-pro-card-bottom">
-        <span>{tool.category || "Online Tool"}</span>
+      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3 text-sm">
+        <span className="text-[var(--text-secondary)]">
+          {tool.category || "Online Tool"}
+        </span>
 
-        <div aria-hidden="true">
+        <span className="text-[var(--primary)] transition-transform duration-200 group-hover:translate-x-0.5">
           <Icons.ArrowRight size={16} strokeWidth={2.2} />
-        </div>
+        </span>
       </div>
     </SmartLink>
   );
@@ -273,67 +282,90 @@ export default function Tools() {
         </script>
       </Helmet>
 
-      <main className="tools-pro-page">
-        <nav className="tools-pro-breadcrumb" aria-label="Breadcrumb">
-          <SmartLink to="/">Home</SmartLink>
+      <main className="space-y-6">
+        <nav
+          className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]"
+          aria-label="Breadcrumb"
+        >
+          <SmartLink to="/" className="transition-colors hover:text-[var(--primary)]">
+            Home
+          </SmartLink>
           <Icons.ChevronRight size={14} aria-hidden="true" />
-          <SmartLink to="/tools">Tools</SmartLink>
+          <SmartLink to="/tools" className="transition-colors hover:text-[var(--primary)]">
+            Tools
+          </SmartLink>
 
           {selectedCategory && (
             <>
               <Icons.ChevronRight size={14} aria-hidden="true" />
-              <span>{selectedCategory}</span>
+              <span className="text-[var(--text-primary)]">{selectedCategory}</span>
             </>
           )}
         </nav>
 
-        <section className="tools-pro-hero">
-          <div className="tools-pro-hero-content">
-            <span className="tools-pro-kicker">Free browser-based tools</span>
+        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center rounded-full border border-[#efe7ff] bg-[#f7f3ff] px-3 py-1 text-sm font-medium text-[var(--primary)]">
+                Free browser-based tools
+              </span>
 
-            <h1>
-              {selectedCategory ? selectedCategory : "All Online Tools"}
-            </h1>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+                {selectedCategory ? selectedCategory : "All Online Tools"}
+              </h1>
 
-            <p>
-              {selectedCategory
-                ? `Browse clean and simple ${selectedCategory.toLowerCase()} for everyday digital work.`
-                : "A clean collection of practical tools for PDF, images, text, SEO, spreadsheets, converters, colors, and productivity."}
-            </p>
+              <p className="mt-3 text-base leading-7 text-[var(--text-secondary)]">
+                {selectedCategory
+                  ? `Browse clean and simple ${selectedCategory.toLowerCase()} for everyday digital work.`
+                  : "A clean collection of practical tools for PDF, images, text, SEO, spreadsheets, converters, colors, and productivity."}
+              </p>
 
-            <div className="tools-pro-actions">
-              <SmartLink to="/blog" className="tools-pro-secondary-btn">
-                Read Guides
-              </SmartLink>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <SmartLink
+                  to="/blog"
+                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                >
+                  Read Guides
+                </SmartLink>
 
-              <SmartLink to="/contact" className="tools-pro-primary-btn">
-                Request a Tool
-              </SmartLink>
-            </div>
-          </div>
-
-          <div className="tools-pro-stats" aria-label="Tools overview">
-            <div>
-              <strong>{totalTools}</strong>
-              <span>Total tools</span>
-            </div>
-
-            <div>
-              <strong>{totalCategories}</strong>
-              <span>Categories</span>
+                <SmartLink
+                  to="/contact"
+                  className="rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                >
+                  Request a Tool
+                </SmartLink>
+              </div>
             </div>
 
-            <div>
-              <strong>{popularToolsCount}</strong>
-              <span>Popular tools</span>
+            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[320px]">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <strong className="block text-xl font-semibold text-[var(--text-primary)]">
+                  {totalTools}
+                </strong>
+                <span className="text-sm text-[var(--text-secondary)]">Total tools</span>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <strong className="block text-xl font-semibold text-[var(--text-primary)]">
+                  {totalCategories}
+                </strong>
+                <span className="text-sm text-[var(--text-secondary)]">Categories</span>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <strong className="block text-xl font-semibold text-[var(--text-primary)]">
+                  {popularToolsCount}
+                </strong>
+                <span className="text-sm text-[var(--text-secondary)]">Popular</span>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="tools-pro-panel" aria-label="Search and filter tools">
-          <div className="tools-pro-search-row">
-            <label className="tools-pro-search">
-              <Icons.Search size={18} aria-hidden="true" />
+        <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-label="Search and filter tools">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <label className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <Icons.Search size={18} className="text-[var(--text-secondary)]" aria-hidden="true" />
 
               <input
                 type="search"
@@ -341,22 +373,24 @@ export default function Tools() {
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search tools like compress image, merge PDF, link extractor"
                 aria-label="Search tools"
+                className="w-full border-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
               />
 
               {searchTerm && (
-                <button type="button" onClick={() => setSearchTerm("")}>
+                <button type="button" onClick={() => setSearchTerm("")} className="text-sm text-[var(--text-secondary)] hover:text-[var(--primary)]">
                   Clear
                 </button>
               )}
             </label>
 
-            <label className="tools-pro-sort">
-              <span>Sort</span>
+            <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <span className="text-sm text-[var(--text-secondary)]">Sort</span>
 
               <select
                 value={sortBy}
                 onChange={(event) => setSortBy(event.target.value)}
                 aria-label="Sort tools"
+                className="bg-transparent text-sm outline-none"
               >
                 <option value="popular">Popular first</option>
                 <option value="az">A to Z</option>
@@ -365,53 +399,58 @@ export default function Tools() {
             </label>
           </div>
 
-          <div className="tools-pro-categories" aria-label="Tool categories">
+          <div className="mt-4 flex flex-wrap gap-2" aria-label="Tool categories">
             <SmartLink
               to="/tools"
-              className={!selectedCategory ? "active" : ""}
+              className={`rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+                !selectedCategory
+                  ? "bg-[var(--primary)] text-white"
+                  : "border border-slate-200 bg-white text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              }`}
               aria-current={!selectedCategory ? "page" : undefined}
             >
               All
-              <span>{totalTools}</span>
+              <span className="ml-2 opacity-80">{totalTools}</span>
             </SmartLink>
 
             {categories.map((category) => (
               <SmartLink
                 key={category}
                 to={getCategoryPath(category)}
-                className={selectedCategory === category ? "active" : ""}
-                aria-current={
-                  selectedCategory === category ? "page" : undefined
-                }
+                className={`rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+                  selectedCategory === category
+                    ? "bg-[var(--primary)] text-white"
+                    : "border border-slate-200 bg-white text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                }`}
+                aria-current={selectedCategory === category ? "page" : undefined}
               >
                 {category.replace(" Tools", "")}
-                <span>{categoryCounts[category] || 0}</span>
+                <span className="ml-2 opacity-80">{categoryCounts[category] || 0}</span>
               </SmartLink>
             ))}
           </div>
 
           {(selectedCategory || searchTerm) && (
-            <div className="tools-pro-active-filter">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-[var(--text-secondary)]">
               <p>
-                Showing{" "}
-                <strong>{filteredTools.length}</strong>{" "}
+                Showing <strong className="text-[var(--text-primary)]">{filteredTools.length}</strong>{" "}
                 {filteredTools.length === 1 ? "tool" : "tools"}
                 {selectedCategory && (
                   <>
                     {" "}
-                    in <strong>{selectedCategory}</strong>
+                    in <strong className="text-[var(--text-primary)]">{selectedCategory}</strong>
                   </>
                 )}
                 {searchTerm && (
                   <>
                     {" "}
-                    for <strong>“{searchTerm}”</strong>
+                    for <strong className="text-[var(--text-primary)]">“{searchTerm}”</strong>
                   </>
                 )}
               </p>
 
               {searchTerm && (
-                <button type="button" onClick={clearFilters}>
+                <button type="button" onClick={clearFilters} className="font-medium text-[var(--primary)] hover:opacity-80">
                   Reset search
                 </button>
               )}
@@ -419,37 +458,41 @@ export default function Tools() {
           )}
         </section>
 
-        <section className="tools-pro-results" aria-label="Tools collection">
-          <div className="tools-pro-section-head">
+        <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-label="Tools collection">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <span>Tools collection</span>
-              <h2>
+              <span className="text-sm font-medium uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                Tools collection
+              </span>
+              <h2 className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">
                 {selectedCategory ? selectedCategory : "Choose a tool to start"}
               </h2>
             </div>
 
-            <p>
+            <p className="text-sm text-[var(--text-secondary)]">
               {filteredTools.length}{" "}
               {filteredTools.length === 1 ? "result" : "results"}
             </p>
           </div>
 
           {filteredTools.length === 0 ? (
-            <EmptyState
-              title="No tools found"
-              message="Try searching with another keyword or choose a different category."
-              action={
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="tools-pro-primary-btn"
-                >
-                  Reset search
-                </button>
-              }
-            />
+            <div className="mt-6">
+              <EmptyState
+                title="No tools found"
+                message="Try searching with another keyword or choose a different category."
+                action={
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white"
+                  >
+                    Reset search
+                  </button>
+                }
+              />
+            </div>
           ) : (
-            <div className="tools-pro-grid">
+            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filteredTools.map((tool) => (
                 <ToolCard key={tool.id} tool={tool} />
               ))}
@@ -457,29 +500,35 @@ export default function Tools() {
           )}
         </section>
 
-        <section className="tools-pro-support">
-          <article>
-            <Icons.Zap size={22} />
-            <div>
-              <h3>Fast and simple</h3>
-              <p>Open a tool, complete your task, and get your output quickly.</p>
+        <section className="grid gap-4 md:grid-cols-3">
+          <article className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5f0ff] text-[var(--primary)]">
+              <Icons.Zap size={20} />
             </div>
+            <h3 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">Fast and simple</h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+              Open a tool, complete your task, and get your output quickly.
+            </p>
           </article>
 
-          <article>
-            <Icons.ShieldCheck size={22} />
-            <div>
-              <h3>Browser-based workflow</h3>
-              <p>Use practical tools without installing heavy software.</p>
+          <article className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5f0ff] text-[var(--primary)]">
+              <Icons.ShieldCheck size={20} />
             </div>
+            <h3 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">Browser-based workflow</h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+              Use practical tools without installing heavy software.
+            </p>
           </article>
 
-          <article>
-            <Icons.Layers size={22} />
-            <div>
-              <h3>Organized categories</h3>
-              <p>Find tools faster with clean categories and search.</p>
+          <article className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5f0ff] text-[var(--primary)]">
+              <Icons.Layers size={20} />
             </div>
+            <h3 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">Organized categories</h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+              Find tools faster with simple categories and search.
+            </p>
           </article>
         </section>
       </main>

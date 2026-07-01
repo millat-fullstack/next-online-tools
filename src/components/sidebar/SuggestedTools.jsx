@@ -3,10 +3,112 @@ import * as Icons from "lucide-react";
 import tools from "../../data/tools.json";
 import SeoArticle from "../seo/SeoArticle";
 
+const stopWords = new Set([
+  "a",
+  "an",
+  "and",
+  "for",
+  "from",
+  "how",
+  "in",
+  "into",
+  "is",
+  "of",
+  "on",
+  "online",
+  "or",
+  "the",
+  "to",
+  "tool",
+  "tools",
+  "with",
+  "your",
+  "you"
+]);
+
+function extractKeywords(text = "") {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !stopWords.has(word));
+}
+
+function getSuggestionScore(currentTool, candidateTool) {
+  const currentText = `${currentTool.name} ${currentTool.description} ${currentTool.category}`;
+  const candidateText = `${candidateTool.name} ${candidateTool.description} ${candidateTool.category}`;
+  const currentKeywords = new Set(extractKeywords(currentText));
+  const candidateKeywords = extractKeywords(candidateText);
+
+  let score = 0;
+  const sharedKeywords = candidateKeywords.filter((word) => currentKeywords.has(word));
+
+  score += sharedKeywords.length * 2;
+
+  if (currentTool.category === candidateTool.category) {
+    score += 5;
+  }
+
+  const currentCategory = currentTool.category.toLowerCase();
+  const candidateCategory = candidateTool.category.toLowerCase();
+
+  if (currentCategory.includes("image") && candidateCategory.includes("image")) {
+    score += 3;
+  }
+
+  if (currentCategory.includes("pdf") && candidateCategory.includes("pdf")) {
+    score += 3;
+  }
+
+  if (currentCategory.includes("audio") && candidateCategory.includes("audio")) {
+    score += 3;
+  }
+
+  if (currentCategory.includes("video") && candidateCategory.includes("video")) {
+    score += 3;
+  }
+
+  if (currentCategory.includes("text") && candidateCategory.includes("text")) {
+    score += 3;
+  }
+
+  if (currentText.includes("convert") && candidateText.includes("convert")) {
+    score += 2;
+  }
+
+  if (currentText.includes("compress") && candidateText.includes("compress")) {
+    score += 2;
+  }
+
+  if (currentText.includes("resize") && candidateText.includes("resize")) {
+    score += 2;
+  }
+
+  if (currentText.includes("pdf") && candidateText.includes("pdf")) {
+    score += 2;
+  }
+
+  if (currentText.includes("image") && candidateText.includes("image")) {
+    score += 2;
+  }
+
+  return score;
+}
+
 export default function SuggestedTools({ currentToolId }) {
-  const suggestions = tools
-    .filter((tool) => tool.id !== currentToolId)
-    .slice(0, 6);
+  const currentTool = tools.find((tool) => tool.id === currentToolId);
+
+  const suggestions = currentTool
+    ? tools
+        .filter((tool) => tool.id !== currentToolId)
+        .map((tool) => ({
+          ...tool,
+          score: getSuggestionScore(currentTool, tool)
+        }))
+        .filter((tool) => tool.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 6)
+    : tools.filter((tool) => tool.id !== currentToolId).slice(0, 6);
 
   return (
     <>
