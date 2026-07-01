@@ -1,10 +1,11 @@
-// src/tools/QuickPhotoEditor.jsx
+// src/tools/SmartPhotoEditor.jsx
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Upload,
   Download,
   RotateCcw,
+  RotateCw,
   Undo2,
   Redo2,
   Type,
@@ -51,12 +52,12 @@ import {
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
 export const toolData = {
-  title: "Quick Photo Editor",
-  path: "/quick-photo-editor",
+  title: "Smart Photo Editor",
+  path: "/smart-photo-editor",
   category: "Image Tools",
   description:
     "Edit photos online with text, image layers, draw, blur, patch, clone, shapes, resize, and quick export.",
-  metaTitle: "Quick Photo Editor Online | Edit, Retouch, Blur, Draw & Add Text",
+  metaTitle: "Smart Photo Editor Online | Edit, Retouch, Blur, Draw & Add Text",
   metaDescription:
     "Edit photos online for free. Upload a photo, choose canvas size, drag image on artboard, add text, blur, patch, clone, resize, and download as PNG, JPG, or WEBP.",
 };
@@ -105,7 +106,7 @@ const PRINT_SIZE_PRESETS = [
   { id: "business-card", label: "Business Card", width: 1050, height: 600 },
 ];
 
-const SHAPE_INCH_DPI = 300;
+const SHAPE_SHAPE_INCH_DPI = 300;
 
 const OUTPUT_FORMATS = [
   { value: "image/png", label: "PNG", extension: "png" },
@@ -244,7 +245,7 @@ const GRADIENT_TEMPLATES = [
 
 
 
-export default function QuickPhotoEditor() {
+export default function SmartPhotoEditor() {
   const mainFileInputRef = useRef(null);
   const addImageInputRef = useRef(null);
   const textEditorRef = useRef(null);
@@ -438,6 +439,15 @@ export default function QuickPhotoEditor() {
     : fontSize;
 
   const quickSelectedStrokeWidth = selectedObject?.strokeWidth || shapeStrokeWidth;
+
+  const quickSelectedRotation = useMemo(() => {
+    if (!selectedObjects.length) return 0;
+
+    const rotationValue = Number(selectedObjects[0]?.rotation || 0);
+    const normalized = ((rotationValue % 360) + 360) % 360;
+
+    return Math.round(normalized);
+  }, [selectedObjects]);
 
   const topBarSizeEditable = Boolean(
     selectedObjects.length &&
@@ -1965,6 +1975,61 @@ export default function QuickPhotoEditor() {
       : getObjectBox(selected);
     const resizeHandle = getResizeHandleAtBox(point, selectedBox, previewZoom, canvasSize);
 
+    const shouldAltDragCopy = event.altKey && !resizeHandle;
+
+    if (shouldAltDragCopy) {
+      if (activeSelectionHasBackground(nextIds)) {
+        setErrorMessage("The Artboard Background layer cannot be copied by Alt + drag.");
+        return;
+      }
+
+      if (activeSelectionHasLockedItem(nextIds)) {
+        setErrorMessage("This layer is locked. Unlock it before copying by Alt + drag.");
+        return;
+      }
+
+      const duplicatedItems = duplicateObjectsForDrag(selectedItemsForAction);
+
+      if (!duplicatedItems.length) return;
+
+      const duplicatedIds = duplicatedItems.map((item) => item.id);
+      const duplicatedBox = duplicatedItems.length > 1
+        ? getGroupBox(duplicatedItems)
+        : getObjectBox(duplicatedItems[0]);
+
+      pushHistory();
+
+      setObjects((current) => [...current, ...duplicatedItems]);
+      setSelectedObjectId(duplicatedIds[duplicatedIds.length - 1]);
+      setSelectedObjectIds(duplicatedIds);
+      setActivePanel(duplicatedItems.length > 1 ? "select" : duplicatedItems[0]?.type === "text" ? "text" : duplicatedItems[0]?.type === "image" ? "image" : "shape");
+      setToolPopupOpen(true);
+
+      pointerRef.current = {
+        active: true,
+        mode: duplicatedItems.length > 1 ? "move-group" : "move-object",
+        startPoint: point,
+        lastPoint: point,
+        selectedStart: duplicatedItems.length > 1
+          ? duplicatedItems.map(cloneObject)
+          : cloneObject(duplicatedItems[0]),
+        dragStartBox: duplicatedBox,
+        resizeHandle: null,
+        selectedIds: duplicatedIds,
+      };
+
+      setGuideInfo(
+        buildGuideInfo(
+          duplicatedBox,
+          canvasSize,
+          event.shiftKey ? "Copied • Shift keeps movement straight" : "Copied • Drag to place"
+        )
+      );
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      clearOutput();
+      return;
+    }
+
     pushHistory();
 
     pointerRef.current = {
@@ -2067,6 +2132,45 @@ export default function QuickPhotoEditor() {
     if (activeSelectionHasLockedItem(nextIds)) {
       setGuideInfo(buildGuideInfo(selectedBox, canvasSize, "Locked layer selected"));
       setSuccessMessage("This layer is locked. Unlock it before moving.");
+      return;
+    }
+
+    if (event.altKey) {
+      if (activeSelectionHasBackground(nextIds)) {
+        setErrorMessage("The Artboard Background layer cannot be copied by Alt + drag.");
+        return;
+      }
+
+      const duplicatedItems = duplicateObjectsForDrag(selectedItemsForAction);
+
+      if (!duplicatedItems.length) return;
+
+      const duplicatedIds = duplicatedItems.map((item) => item.id);
+      const duplicatedBox = duplicatedItems.length > 1
+        ? getGroupBox(duplicatedItems)
+        : getObjectBox(duplicatedItems[0]);
+
+      pushHistory();
+      setObjects((current) => [...current, ...duplicatedItems]);
+      setSelectedObjectId(duplicatedIds[duplicatedIds.length - 1]);
+      setSelectedObjectIds(duplicatedIds);
+
+      pointerRef.current = {
+        active: true,
+        mode: duplicatedItems.length > 1 ? "move-group" : "move-object",
+        startPoint: point,
+        lastPoint: point,
+        selectedStart: duplicatedItems.length > 1
+          ? duplicatedItems.map(cloneObject)
+          : cloneObject(duplicatedItems[0]),
+        dragStartBox: duplicatedBox,
+        resizeHandle: null,
+        selectedIds: duplicatedIds,
+      };
+
+      setGuideInfo(buildGuideInfo(duplicatedBox, canvasSize, event.shiftKey ? "Copied • Shift keeps movement straight" : "Copied • Drag to place"));
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      clearOutput();
       return;
     }
 
@@ -3204,6 +3308,7 @@ export default function QuickPhotoEditor() {
       textCase,
       bold: fontWeight >= 700 || boldText,
       shadow: textShadow,
+      rotation: 0,
       opacity: 1,
     };
   }
@@ -3220,6 +3325,7 @@ export default function QuickPhotoEditor() {
         stroke: shapeStrokeColor,
         strokeWidth: shapeStrokeWidth,
         strokeEnabled: true,
+        rotation: 0,
         opacity: brushOpacity,
       };
     }
@@ -3237,6 +3343,7 @@ export default function QuickPhotoEditor() {
       strokeWidth: shapeStrokeWidth,
       fillEnabled: shapeFillEnabled,
       strokeEnabled: shapeStrokeEnabled,
+      rotation: 0,
       opacity: brushOpacity,
     };
   }
@@ -3467,6 +3574,43 @@ export default function QuickPhotoEditor() {
         ? { strokeWidth: nextWidth }
         : {}
     , "Stroke updated");
+  }
+
+  function updateSelectedRotation(value) {
+    const activeIds = getActiveSelectedIds();
+
+    if (!activeIds.length) {
+      setErrorMessage("Select an item first to rotate it.");
+      return;
+    }
+
+    if (activeSelectionHasLockedItem(activeIds)) {
+      setErrorMessage("This layer is locked. Unlock it before rotating.");
+      return;
+    }
+
+    const nextRotation = normalizeRotation(value);
+
+    updateSelectedItems({ rotation: nextRotation }, "Rotation updated");
+  }
+
+  function rotateSelectedBy(delta) {
+    const activeIds = getActiveSelectedIds();
+
+    if (!activeIds.length) {
+      setErrorMessage("Select an item first to rotate it.");
+      return;
+    }
+
+    const baseRotation = Number(selectedObjects[0]?.rotation || 0);
+
+    updateSelectedRotation(baseRotation + delta);
+  }
+
+  function duplicateObjectsForDrag(sourceItems) {
+    return sourceItems
+      .filter((item) => item.type !== "background")
+      .map((item) => offsetCopiedObject(cloneObject(item), 0, 0));
   }
 
   function updateSelectedObjectSize(dimension, value) {
@@ -3826,14 +3970,21 @@ export default function QuickPhotoEditor() {
     const activeIds = getActiveSelectedIds();
     const selectedItems = objects.filter((item) => activeIds.includes(item.id));
 
-    if (selectedItems.length < 2) {
-      setErrorMessage("Select two or more items first to use alignment.");
+    if (!selectedItems.length) {
+      setErrorMessage("Select an item first to use alignment.");
       return;
     }
 
-    const groupBox = getGroupBox(selectedItems);
+    if (activeSelectionHasLockedItem(activeIds)) {
+      setErrorMessage("This layer is locked. Unlock it before aligning.");
+      return;
+    }
 
-    if (!groupBox) return;
+    const referenceBox = selectedItems.length > 1
+      ? getGroupBox(selectedItems)
+      : { x: 0, y: 0, w: canvasSize.width, h: canvasSize.height };
+
+    if (!referenceBox) return;
 
     pushHistory();
 
@@ -3845,12 +3996,12 @@ export default function QuickPhotoEditor() {
       let dx = 0;
       let dy = 0;
 
-      if (mode === "left") dx = groupBox.x - box.x;
-      if (mode === "center") dx = groupBox.x + groupBox.w / 2 - (box.x + box.w / 2);
-      if (mode === "right") dx = groupBox.x + groupBox.w - (box.x + box.w);
-      if (mode === "top") dy = groupBox.y - box.y;
-      if (mode === "middle") dy = groupBox.y + groupBox.h / 2 - (box.y + box.h / 2);
-      if (mode === "bottom") dy = groupBox.y + groupBox.h - (box.y + box.h);
+      if (mode === "left") dx = referenceBox.x - box.x;
+      if (mode === "center") dx = referenceBox.x + referenceBox.w / 2 - (box.x + box.w / 2);
+      if (mode === "right") dx = referenceBox.x + referenceBox.w - (box.x + box.w);
+      if (mode === "top") dy = referenceBox.y - box.y;
+      if (mode === "middle") dy = referenceBox.y + referenceBox.h / 2 - (box.y + box.h / 2);
+      if (mode === "bottom") dy = referenceBox.y + referenceBox.h - (box.y + box.h);
 
       return moveObject(item, dx, dy);
     });
@@ -3863,7 +4014,13 @@ export default function QuickPhotoEditor() {
     );
 
     const nextGroupBox = getGroupBox(alignedObjects);
-    setGuideInfo(buildGuideInfo(nextGroupBox || groupBox, canvasSize, `Aligned ${mode}`));
+    setGuideInfo(
+      buildGuideInfo(
+        nextGroupBox || referenceBox,
+        canvasSize,
+        selectedItems.length > 1 ? `Aligned ${mode}` : `Aligned ${mode} to artboard`
+      )
+    );
     clearOutput();
   }
 
@@ -4219,7 +4376,7 @@ export default function QuickPhotoEditor() {
         await addImageLayerFromSource({
           src: clipboardItem.src,
           name: clipboardItem.name || "pasted-selection",
-          message: "Copied image area pasted as a new layer.",
+          message: "Copied image area pasted as a new layer. Press Ctrl+V again to paste another copy.",
         });
         setSelectionActionBox(null);
         return;
@@ -4242,7 +4399,7 @@ export default function QuickPhotoEditor() {
         setToolPopupOpen(true);
         setGuideInfo(buildGuideInfo(getGroupBox(pastedObjects), canvasSize, "Pasted group"));
         clearOutput();
-        setSuccessMessage(`${pastedObjects.length} copied items pasted.`);
+        setSuccessMessage(`${pastedObjects.length} copied items pasted. Press Ctrl+V again to paste another copy.`);
         return;
       }
 
@@ -4259,7 +4416,7 @@ export default function QuickPhotoEditor() {
         setToolPopupOpen(true);
         setGuideInfo(buildGuideInfo(getObjectBox(nextObject), canvasSize, "Pasted"));
         clearOutput();
-        setSuccessMessage("Copied item pasted.");
+        setSuccessMessage("Copied item pasted. Press Ctrl+V again to paste another copy.");
       }
     } catch {
       setErrorMessage("Could not paste the copied item. Please try again.");
@@ -4634,6 +4791,7 @@ export default function QuickPhotoEditor() {
           stroke: shapeStrokeColor,
           strokeWidth: shapeStrokeWidth,
           strokeEnabled: true,
+          rotation: 0,
           opacity: brushOpacity,
         }
       : {
@@ -4649,6 +4807,7 @@ export default function QuickPhotoEditor() {
           strokeWidth: shapeStrokeWidth,
           fillEnabled: shapeFillEnabled,
           strokeEnabled: shapeStrokeEnabled,
+          rotation: 0,
           opacity: brushOpacity,
         };
 
@@ -4697,46 +4856,46 @@ export default function QuickPhotoEditor() {
       />
 
       <style>{`
-        .quick-photo-editor-workspace {
+        .smart-photo-editor-workspace {
           scrollbar-gutter: stable both-edges;
           scrollbar-width: thin;
           scrollbar-color: #9b6ce3 #e5e7eb;
         }
-        .quick-photo-editor-workspace::-webkit-scrollbar {
+        .smart-photo-editor-workspace::-webkit-scrollbar {
           width: 14px;
           height: 14px;
         }
-        .quick-photo-editor-workspace::-webkit-scrollbar-track {
+        .smart-photo-editor-workspace::-webkit-scrollbar-track {
           background: #e5e7eb;
           border-radius: 999px;
         }
-        .quick-photo-editor-workspace::-webkit-scrollbar-thumb {
+        .smart-photo-editor-workspace::-webkit-scrollbar-thumb {
           background: #9b6ce3;
           border: 3px solid #e5e7eb;
           border-radius: 999px;
         }
-        .quick-photo-editor-workspace::-webkit-scrollbar-corner {
+        .smart-photo-editor-workspace::-webkit-scrollbar-corner {
           background: #e5e7eb;
         }
-        .quick-photo-editor-toolbar-scroll::-webkit-scrollbar {
+        .smart-photo-editor-toolbar-scroll::-webkit-scrollbar {
           width: 6px;
         }
-        .quick-photo-editor-toolbar-scroll::-webkit-scrollbar-thumb {
+        .smart-photo-editor-toolbar-scroll::-webkit-scrollbar-thumb {
           background: rgba(255,255,255,0.28);
           border-radius: 999px;
         }
-        .quick-photo-editor-options-scroll {
+        .smart-photo-editor-options-scroll {
           scrollbar-width: thin;
           scrollbar-color: #9b6ce3 #f1e9ff;
         }
-        .quick-photo-editor-options-scroll::-webkit-scrollbar {
+        .smart-photo-editor-options-scroll::-webkit-scrollbar {
           width: 10px;
         }
-        .quick-photo-editor-options-scroll::-webkit-scrollbar-track {
+        .smart-photo-editor-options-scroll::-webkit-scrollbar-track {
           background: #f1e9ff;
           border-radius: 999px;
         }
-        .quick-photo-editor-options-scroll::-webkit-scrollbar-thumb {
+        .smart-photo-editor-options-scroll::-webkit-scrollbar-thumb {
           background: #9b6ce3;
           border: 2px solid #f1e9ff;
           border-radius: 999px;
@@ -4748,7 +4907,7 @@ export default function QuickPhotoEditor() {
           <Sparkles size={28} className="text-[var(--primary)]" />
         </div>
 
-        <h1 className="text-3xl font-bold mb-3">Quick Photo Editor</h1>
+        <h1 className="text-3xl font-bold mb-3">Smart Photo Editor</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
           Choose a canvas size, upload a photo or start with a colored page,
@@ -4927,7 +5086,7 @@ export default function QuickPhotoEditor() {
         ) : (
           <div className="grid lg:grid-cols-[72px_minmax(0,1fr)] min-h-[760px] bg-[#f3f4f6]">
             <aside className="relative z-40 border-r border-[var(--border)] bg-[#111827] p-2">
-              <div ref={toolbarRef} className="sticky top-3 quick-photo-editor-toolbar-scroll flex max-h-[calc(100vh-2rem)] flex-col gap-2 overflow-y-auto pr-1">
+              <div ref={toolbarRef} className="sticky top-3 smart-photo-editor-toolbar-scroll flex max-h-[calc(100vh-2rem)] flex-col gap-2 overflow-y-auto pr-1">
                 <button
                   type="button"
                   onClick={openMainFilePicker}
@@ -5117,7 +5276,7 @@ export default function QuickPhotoEditor() {
               {shouldShowSettings && (
                 <div
                   ref={optionsPanelRef}
-                  className="quick-photo-editor-options-scroll fixed w-[min(440px,calc(100vw-24px))] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
+                  className="smart-photo-editor-options-scroll fixed w-[min(440px,calc(100vw-24px))] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
                   style={{
                     top: `${popupTop}px`,
                     left: `${popupLeft}px`,
@@ -5254,7 +5413,9 @@ export default function QuickPhotoEditor() {
                         <p>Ctrl/Cmd + C copies selected object or Free Select area.</p>
                         <p>Ctrl/Cmd + V pastes copied item as a new layer.</p>
                         <p>Ctrl/Cmd + D hides Free Select manually.</p>
+                        <p>Alt + drag copies the selected item. Alt + Shift keeps the copied item moving straight.</p>
                         <p>Alt + corner drag scales images/text/shapes from center.</p>
+                        <p>Use the rotate control in the top bar to rotate any selected item.</p>
                         <p>Ctrl/Cmd + +/- zooms the artboard.</p>
                       </div>
                     </div>
@@ -6399,6 +6560,42 @@ export default function QuickPhotoEditor() {
                       </div>
                     )}
 
+                    {(selectedObjectId || selectedObjectIds.length > 0) && (
+                      <div className="h-11 shrink-0 inline-flex items-center gap-1 rounded-xl border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => rotateSelectedBy(-15)}
+                          className="h-8 w-8 rounded-lg hover:bg-[#f8f4ff] inline-flex items-center justify-center"
+                          title="Rotate left 15°"
+                        >
+                          <RotateCcw size={16} />
+                        </button>
+
+                        <RotateCw size={16} className="text-[var(--primary)]" />
+
+                        <input
+                          type="number"
+                          min="-360"
+                          max="360"
+                          step="1"
+                          value={quickSelectedRotation}
+                          onChange={(event) => updateSelectedRotation(event.target.value)}
+                          className="w-16 rounded-lg border border-[var(--border)] px-2 py-1 outline-none focus:border-[var(--primary)]"
+                          title="Rotation angle"
+                        />
+                        <span>°</span>
+
+                        <button
+                          type="button"
+                          onClick={() => rotateSelectedBy(15)}
+                          className="h-8 w-8 rounded-lg hover:bg-[#f8f4ff] inline-flex items-center justify-center"
+                          title="Rotate right 15°"
+                        >
+                          <RotateCw size={16} />
+                        </button>
+                      </div>
+                    )}
+
                     <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
                       Color
                       <input
@@ -6511,7 +6708,7 @@ export default function QuickPhotoEditor() {
                       </label>
                     )}
 
-                    {selectedObjects.length > 1 && (
+                    {(selectedObjectId || selectedObjectIds.length > 0) && (
                       <div className="relative shrink-0">
                         <button
                           type="button"
@@ -6595,7 +6792,7 @@ export default function QuickPhotoEditor() {
                   onDragLeave={handleDragLeave}
                   onWheel={handleWorkspaceWheel}
                   onContextMenu={(event) => event.preventDefault()}
-                  className={`quick-photo-editor-workspace absolute inset-0 overflow-auto p-4 sm:p-8 ${
+                  className={`smart-photo-editor-workspace absolute inset-0 overflow-auto p-4 sm:p-8 ${
                     isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
                   }`}
                 >
@@ -6749,7 +6946,7 @@ export default function QuickPhotoEditor() {
 
         <div className="text-[var(--text-secondary)] leading-7 space-y-3">
           <p>
-            Quick Photo Editor helps you choose a canvas size before uploading,
+            Smart Photo Editor helps you choose a canvas size before uploading,
             place your image on the artboard, drag it to adjust, then edit with
             image layers, text, drawing, blur, patch, clone, resize, and export.
           </p>
@@ -6841,7 +7038,7 @@ export default function QuickPhotoEditor() {
         </div>
       )}
 
-      <SuggestedTools currentToolId="quick-photo-editor" />
+      <SuggestedTools currentToolId="smart-photo-editor" />
     </div>
   );
 }
@@ -7063,6 +7260,15 @@ function drawObject(ctx, object) {
 
   ctx.save();
   ctx.globalAlpha = object.opacity ?? 1;
+
+  const rotation = Number(object.rotation || 0);
+  const box = getObjectBox(object);
+
+  if (rotation && box) {
+    ctx.translate(box.x + box.w / 2, box.y + box.h / 2);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.translate(-(box.x + box.w / 2), -(box.y + box.h / 2));
+  }
 
   if (object.type === "image") drawImageObject(ctx, object);
   if (object.type === "text") drawTextObject(ctx, object);
@@ -9003,7 +9209,7 @@ function convertShapeSizeToPixels(value, unit = "px") {
   if (!Number.isFinite(number) || number <= 0) return 0;
 
   if (unit === "in") {
-    return clampNumber(number * SHAPE_INCH_DPI, 1, 5000);
+    return clampNumber(number * SHAPE_SHAPE_INCH_DPI, 1, 5000);
   }
 
   return clampNumber(number, 1, 5000);
@@ -9056,6 +9262,14 @@ async function hydrateObjects(objects) {
   return hydrated;
 }
 
+function normalizeRotation(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return 0;
+
+  return Math.round((((number % 360) + 360) % 360) * 100) / 100;
+}
+
 function cloneObject(object) {
   if (object.type === "image") {
     return {
@@ -9090,7 +9304,7 @@ function formatSizeForUnit(pixelValue, unit = "px") {
   const pixels = Math.max(0, Number(pixelValue || 0));
 
   if (unit === "in") {
-    return Number((pixels / INCH_DPI).toFixed(2));
+    return Number((pixels / SHAPE_INCH_DPI).toFixed(2));
   }
 
   return Math.round(pixels);
@@ -9102,7 +9316,7 @@ function sizeInputToPixels(value, unit = "px") {
   if (!Number.isFinite(numericValue)) return NaN;
 
   if (unit === "in") {
-    return numericValue * INCH_DPI;
+    return numericValue * SHAPE_INCH_DPI;
   }
 
   return numericValue;
