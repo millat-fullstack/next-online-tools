@@ -92,11 +92,11 @@ async function renderRoute(page, route, port) {
   console.log(`Rendering ${url}`);
 
   const isBlogRoute = route.startsWith("/blog/");
-  const loadTimeout = isBlogRoute ? 90000 : 60000;
-  const waitTimeout = isBlogRoute ? 60000 : 30000;
+  const loadTimeout = isBlogRoute ? 180000 : 120000;
+  const waitTimeout = isBlogRoute ? 90000 : 45000;
 
   try {
-    await page.goto(url, { waitUntil: "networkidle2", timeout: loadTimeout });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: loadTimeout });
     await page.waitForSelector("#root > *", { timeout: waitTimeout });
 
     if (isBlogRoute) {
