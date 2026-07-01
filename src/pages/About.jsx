@@ -1,20 +1,9 @@
 import { useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle,
-  Globe2,
-  Layers,
-  Loader,
-  Send,
-  ShieldCheck,
-  Sparkles,
-  Target,
-  Users,
-  Wrench,
-  XCircle,
-  Zap,
-} from "lucide-react";
+import * as Icons from "lucide-react";
 import { Helmet } from "react-helmet-async";
+
+import tools from "../data/tools.json";
+import SmartLink from "../components/ui/SmartLink";
 
 const SITE_URL = "https://nextonlinetools.com";
 const ABOUT_URL = `${SITE_URL}/about`;
@@ -24,6 +13,20 @@ const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 const NEWSLETTER_ENDPOINT =
   "https://script.google.com/macros/s/AKfycbxhMabtrxX_b_m4mAaro95wZC8u64HklkGVkqo3Zcew9oAx-tLk7e78lcFhRIrs-QpOWg/exec";
+
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function IconBox({ icon, className = "" }) {
+  const IconComponent = Icons[icon] || Icons.Sparkles;
+
+  return (
+    <div className={`about-v2-icon ${className}`} aria-hidden="true">
+      <IconComponent size={24} strokeWidth={2.1} />
+    </div>
+  );
+}
 
 export default function About() {
   const [formData, setFormData] = useState({
@@ -35,14 +38,110 @@ export default function About() {
   const [responseType, setResponseType] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const categories = useMemo(() => {
+    return [...new Set(tools.map((tool) => normalizeText(tool.category)).filter(Boolean))];
+  }, []);
+
+  const totalTools = tools.length;
+  const totalCategories = categories.length;
+
   const seoTitle =
-    "About Next Online Tools | Free Tools for Everyday Tasks";
+    "About Next Online Tools | Free Browser-Based Tools for Daily Work";
 
   const seoDescription =
-    "Learn about Next Online Tools, a free browser-based tools platform for image tools, text tools, PDF tools, SEO tools, color tools, conversions, and daily productivity tasks.";
+    "Learn about Next Online Tools, a clean free online tools platform for images, PDFs, text, SEO, spreadsheets, conversions, social media, and everyday digital work.";
 
-  const seoKeywords =
-    "about Next Online Tools, free online tools, browser based tools, image tools, text tools, PDF tools, SEO tools, color tools, productivity tools, online utility tools, free web tools";
+  const focusCards = [
+    {
+      title: "Simple by design",
+      label: "UX",
+      description:
+        "Every page is built around one clear task, visible actions, helpful labels, and a clean result area.",
+      icon: "MousePointerClick",
+    },
+    {
+      title: "Fast everyday workflow",
+      label: "Speed",
+      description:
+        "Open a tool, complete the job, and continue your work without installing heavy software.",
+      icon: "Zap",
+    },
+    {
+      title: "Useful tool categories",
+      label: "Library",
+      description:
+        "Images, PDFs, text, SEO, spreadsheets, social content, converters, colors, and productivity tools.",
+      icon: "Layers",
+    },
+    {
+      title: "Built for real users",
+      label: "Practical",
+      description:
+        "Made for students, creators, marketers, office teams, developers, and small business owners.",
+      icon: "Users",
+    },
+  ];
+
+  const userGroups = [
+    {
+      title: "Creators and marketers",
+      description:
+        "Resize social images, format LinkedIn posts, compress visuals, prepare thumbnails, and clean campaign assets.",
+      icon: "Megaphone",
+    },
+    {
+      title: "Students and office users",
+      description:
+        "Work with PDFs, count words, convert files, organize documents, and prepare quick daily tasks.",
+      icon: "BriefcaseBusiness",
+    },
+    {
+      title: "Website and SEO teams",
+      description:
+        "Generate slugs, prepare image files, clean text, create QR codes, and improve publishing workflows.",
+      icon: "SearchCheck",
+    },
+  ];
+
+  const operatingPrinciples = [
+    "Keep every tool focused on one clear job.",
+    "Make the first action obvious for new visitors.",
+    "Avoid clutter, unnecessary steps, and confusing labels.",
+    "Create pages that are useful for both users and search engines.",
+    "Improve tools based on real workflow problems.",
+  ];
+
+  const faqItems = [
+    {
+      question: "What is Next Online Tools?",
+      answer:
+        "Next Online Tools is a free browser-based tools platform for everyday digital tasks such as image editing, PDF work, text formatting, SEO preparation, spreadsheet cleanup, conversions, colors, and productivity tasks.",
+    },
+    {
+      question: "Are the tools free to use?",
+      answer:
+        "Yes. The platform is focused on simple free tools that help users finish common digital jobs quickly.",
+    },
+    {
+      question: "Do I need to install any software?",
+      answer:
+        "No. The tools are designed to work directly in the browser, so users can open a page, complete a task, and download or copy the result.",
+    },
+    {
+      question: "Who is this website made for?",
+      answer:
+        "It is made for creators, students, marketers, office users, developers, website owners, small businesses, and anyone who needs quick online utility tools.",
+    },
+  ];
+
+  const responseIcon =
+    responseType === "success" ? (
+      <Icons.CheckCircle size={20} />
+    ) : responseType === "warning" ? (
+      <Icons.AlertTriangle size={20} />
+    ) : responseType === "error" ? (
+      <Icons.XCircle size={20} />
+    ) : null;
 
   const structuredData = useMemo(() => {
     return {
@@ -52,9 +151,11 @@ export default function About() {
           "@type": "WebSite",
           "@id": `${SITE_URL}/#website`,
           name: "Next Online Tools",
+          alternateName: ["NextOnlineTools", "nextonlinetools.com"],
           url: SITE_URL,
           description:
-            "Free browser-based online tools for images, text, PDF, SEO, conversions, colors, productivity, and daily digital tasks.",
+            "Free browser-based online tools for images, PDFs, text, SEO, spreadsheets, conversions, social media, colors, and daily digital tasks.",
+          inLanguage: "en",
           potentialAction: {
             "@type": "SearchAction",
             target: `${TOOLS_URL}?search={search_term_string}`,
@@ -66,7 +167,10 @@ export default function About() {
           "@id": `${SITE_URL}/#organization`,
           name: "Next Online Tools",
           url: SITE_URL,
-          logo: DEFAULT_OG_IMAGE,
+          logo: {
+            "@type": "ImageObject",
+            url: DEFAULT_OG_IMAGE,
+          },
           contactPoint: {
             "@type": "ContactPoint",
             contactType: "customer support",
@@ -87,10 +191,10 @@ export default function About() {
           about: {
             "@id": `${SITE_URL}/#organization`,
           },
-          inLanguage: "en",
           mainEntity: {
             "@id": `${SITE_URL}/#organization`,
           },
+          inLanguage: "en",
         },
         {
           "@type": "BreadcrumbList",
@@ -113,97 +217,30 @@ export default function About() {
         {
           "@type": "FAQPage",
           "@id": `${ABOUT_URL}#faq`,
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "What is Next Online Tools?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Next Online Tools is a free browser-based tools website that helps users complete everyday digital tasks such as image processing, text editing, SEO checks, color work, conversions, and productivity tasks.",
-              },
+          mainEntity: faqItems.map((item) => ({
+            "@type": "Question",
+            name: item.question,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: item.answer,
             },
-            {
-              "@type": "Question",
-              name: "Are the tools free to use?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "Yes. Next Online Tools focuses on providing simple and free online tools for common digital tasks.",
-              },
-            },
-            {
-              "@type": "Question",
-              name: "Do users need to install software?",
-              acceptedAnswer: {
-                "@type": "Answer",
-                text: "No. The tools are designed to work directly in the browser without requiring complicated software installation.",
-              },
-            },
-          ],
+          })),
         },
       ],
     };
-  }, [seoDescription, seoTitle]);
+  }, [faqItems, seoDescription, seoTitle]);
 
-  const focusCards = [
-    {
-      title: "Free to Use",
-      label: "Access",
-      description:
-        "Useful tools for users who need quick online solutions without payment barriers.",
-      icon: <CheckCircle size={26} strokeWidth={2.1} />,
-    },
-    {
-      title: "Fast Workflow",
-      label: "Speed",
-      description:
-        "Each tool is designed around one clear task so users can finish work faster.",
-      icon: <Zap size={26} strokeWidth={2.1} />,
-    },
-    {
-      title: "User Friendly",
-      label: "Simple",
-      description:
-        "Clean layouts, clear actions, and beginner-friendly tool experiences for everyone.",
-      icon: <Users size={26} strokeWidth={2.1} />,
-    },
-    {
-      title: "Practical Tools",
-      label: "Utility",
-      description:
-        "Focused on real daily tasks like image editing, PDF work, SEO, text, and conversions.",
-      icon: <Wrench size={26} strokeWidth={2.1} />,
-    },
-  ];
+  function handleChange(event) {
+    const { name, value } = event.target;
 
-  const responseIcon =
-    responseType === "success" ? (
-      <CheckCircle size={20} />
-    ) : responseType === "warning" ? (
-      <AlertTriangle size={20} />
-    ) : responseType === "error" ? (
-      <XCircle size={20} />
-    ) : null;
-
-  const responseColor =
-    responseType === "success"
-      ? "green"
-      : responseType === "warning"
-      ? "#a16207"
-      : responseType === "error"
-      ? "red"
-      : "inherit";
-
-  function handleChange(e) {
-    const { name, value } = e.target;
-
-    setFormData((prev) => ({
-      ...prev,
+    setFormData((previousData) => ({
+      ...previousData,
       [name]: value,
     }));
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
 
     if (formData.website) {
       return;
@@ -231,7 +268,7 @@ export default function About() {
 
       if (response.ok) {
         setResponseType("success");
-        setResponseMsg("You have successfully subscribed!");
+        setResponseMsg("You have successfully subscribed.");
         setFormData({
           email: "",
           website: "",
@@ -240,9 +277,9 @@ export default function About() {
         setResponseType("error");
         setResponseMsg("Something went wrong. Please try again.");
       }
-    } catch (err) {
+    } catch (error) {
       setResponseType("error");
-      setResponseMsg("Network error, please try again.");
+      setResponseMsg("Network error. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -252,15 +289,13 @@ export default function About() {
     <>
       <Helmet>
         <title>{seoTitle}</title>
-
         <meta name="description" content={seoDescription} />
-        <meta name="keywords" content={seoKeywords} />
-        <meta name="robots" content="index, follow, max-image-preview:large" />
+        <link rel="canonical" href={ABOUT_URL} />
         <meta
-          name="googlebot"
-          content="index, follow, max-image-preview:large"
+          name="keywords"
+          content="about Next Online Tools, free online tools, browser based tools, image tools, PDF tools, text tools, SEO tools, spreadsheet tools, social media tools, productivity tools"
         />
-        <meta name="bingbot" content="index, follow, max-image-preview:large" />
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
 
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Next Online Tools" />
@@ -286,333 +321,260 @@ export default function About() {
         </script>
       </Helmet>
 
-      <main className="tools-page">
-        {/* HERO */}
-        <section className="tools-hero">
-          <div className="tools-hero-badge">
-            <Sparkles size={16} />
-            <span>About Next Online Tools</span>
-          </div>
+      <main className="about-v2-page">
+        <nav className="about-v2-breadcrumb" aria-label="Breadcrumb">
+          <SmartLink to="/">Home</SmartLink>
+          <Icons.ChevronRight size={14} aria-hidden="true" />
+          <span>About</span>
+        </nav>
 
-          <h1>Free Online Tools Built for Everyday Digital Tasks</h1>
-
-          <p>
-            Next Online Tools helps users complete image, text, PDF, SEO, color,
-            conversion, and productivity tasks with simple browser-based tools
-            that are fast, clean, and easy to use.
-          </p>
-        </section>
-
-        {/* ABOUT OVERVIEW */}
-        <section className="tools-list-section">
-          <div className="tools-section-head">
-            <div>
-              <span>Who We Are</span>
-              <h2>A simple tool platform for faster online work</h2>
+        <section className="about-v2-hero">
+          <div className="about-v2-hero-content">
+            <div className="about-v2-kicker">
+              <Icons.Sparkles size={16} />
+              <span>About Next Online Tools</span>
             </div>
 
-            <p>No complicated software. No confusing steps. Just useful tools.</p>
-          </div>
+            <h1>Clean, practical online tools for everyday digital work.</h1>
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 card p-6 sm:p-8">
-              <div className="flex items-start gap-4 mb-5">
-                <div className="tools-icon shrink-0">
-                  <Target size={26} strokeWidth={2.1} />
-                </div>
-
-                <div>
-                  <span className="text-sm font-semibold text-[var(--primary)]">
-                    Our Mission
-                  </span>
-                  <h2 className="text-2xl font-bold mt-1">
-                    Make everyday digital tasks easier for everyone
-                  </h2>
-                </div>
-              </div>
-
-              <p className="text-[var(--text-secondary)] leading-7 mb-4">
-                Next Online Tools is created to help students, creators,
-                marketers, developers, office users, small business owners, and
-                everyday internet users complete small but important digital
-                tasks quickly. Many online tasks look simple, but they often
-                take extra time when users need to install software, create
-                accounts, search for the right feature, or move between
-                different websites.
-              </p>
-
-              <p className="text-[var(--text-secondary)] leading-7 mb-4">
-                Our goal is to bring these useful tools into one clean and
-                easy-to-use platform. Whether someone needs to count words,
-                compress an image, convert text, prepare a PDF, generate
-                colors, check SEO basics, create a quick QR code, or use a
-                simple productivity utility, Next Online Tools is designed to
-                make the process faster and more comfortable.
-              </p>
-
-              <p className="text-[var(--text-secondary)] leading-7 mb-4">
-                We focus on browser-based tools that are simple from the first
-                click. Users should be able to open a tool, understand what it
-                does, complete the task, and move forward without confusion.
-                That is why we give importance to clean design, clear labels,
-                helpful instructions, fast loading, mobile-friendly layouts, and
-                practical features that solve real everyday problems.
-              </p>
-
-              <p className="text-[var(--text-secondary)] leading-7">
-                As the website grows, we aim to build a wider library of free
-                tools for images, text, PDF, SEO, colors, conversions, and daily
-                web tasks. Every new tool will follow the same direction: simple
-                interface, useful output, smooth experience, and a design that
-                helps users finish their work with less effort.
-              </p>
-
-              <div className="grid sm:grid-cols-2 gap-4 mt-6">
-                <div className="rounded-2xl border border-[var(--border)] bg-white p-5">
-                  <h3 className="font-bold mb-2">Built for quick tasks</h3>
-                  <p className="text-sm text-[var(--text-secondary)] leading-6">
-                    The platform is focused on everyday actions that users need
-                    often, such as editing text, preparing images, checking web
-                    content, and converting simple files or values.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-[var(--border)] bg-white p-5">
-                  <h3 className="font-bold mb-2">Designed for easy use</h3>
-                  <p className="text-sm text-[var(--text-secondary)] leading-6">
-                    Each page is planned with clear instructions, visible
-                    buttons, simple input areas, and useful results so visitors
-                    can complete tasks without learning complicated steps.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-3 gap-4 mt-6">
-                <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-5">
-                  <h3 className="text-2xl font-bold text-[var(--primary)]">
-                    100+
-                  </h3>
-                  <p className="text-sm text-[var(--text-secondary)] mt-1">
-                    Planned free tools
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-5">
-                  <h3 className="text-2xl font-bold text-[var(--primary)]">
-                    24/7
-                  </h3>
-                  <p className="text-sm text-[var(--text-secondary)] mt-1">
-                    Browser access
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-5">
-                  <h3 className="text-2xl font-bold text-[var(--primary)]">
-                    Free
-                  </h3>
-                  <p className="text-sm text-[var(--text-secondary)] mt-1">
-                    Simple online utility
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <aside className="flex flex-col gap-5">
-              <div className="tool-card">
-                <div className="tool-card-top">
-                  <div className="tools-icon">
-                    <Globe2 size={26} strokeWidth={2.1} />
-                  </div>
-                </div>
-
-                <h3>Browser-Based</h3>
-
-                <p>
-                  Our tools are designed to work directly online, so users can
-                  complete quick tasks without installing extra apps.
-                </p>
-
-                <div className="tool-card-bottom">
-                  <span>Online Tools</span>
-                  <div>
-                    <Globe2 size={17} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="tool-card">
-                <div className="tool-card-top">
-                  <div className="tools-icon">
-                    <Layers size={26} strokeWidth={2.1} />
-                  </div>
-                </div>
-
-                <h3>Multiple Categories</h3>
-
-                <p>
-                  We are building tools for images, text, PDF, SEO, colors,
-                  conversions, productivity, and everyday digital work.
-                </p>
-
-                <div className="tool-card-bottom">
-                  <span>Tool Library</span>
-                  <div>
-                    <Layers size={17} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="tool-card">
-                <div className="tool-card-top">
-                  <div className="tools-icon">
-                    <ShieldCheck size={26} strokeWidth={2.1} />
-                  </div>
-                </div>
-
-                <h3>Simple & Transparent</h3>
-
-                <p>
-                  We keep the interface clear, avoid unnecessary complexity, and
-                  design every page to help users understand what to do next.
-                </p>
-
-                <div className="tool-card-bottom">
-                  <span>Trust</span>
-                  <div>
-                    <ShieldCheck size={17} />
-                  </div>
-                </div>
-              </div>
-            </aside>
-          </div>
-        </section>
-
-        {/* NEWSLETTER */}
-        <section className="tools-list-section">
-          <div className="card p-6 sm:p-8 text-center">
-            <div className="tools-icon mx-auto mb-4">
-              <Send size={26} strokeWidth={2.1} />
-            </div>
-
-            <span className="text-sm font-semibold text-[var(--primary)]">
-              Tool Updates
-            </span>
-
-            <h2 className="text-2xl sm:text-3xl font-bold mt-2 mb-3">
-              Stay Updated with Our Latest Tools
-            </h2>
-
-            <p className="text-[var(--text-secondary)] max-w-2xl mx-auto mb-6 leading-7">
-              Subscribe to get notified when we release new free tools,
-              improvements, and useful updates for Next Online Tools.
+            <p>
+              Next Online Tools helps people complete small but important tasks
+              faster, including image editing, PDF work, text formatting, SEO
+              preparation, spreadsheet cleanup, social media content, and quick
+              file conversions.
             </p>
 
-            {responseMsg && (
-              <div
-                className="mb-5 rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4 text-sm font-medium max-w-2xl mx-auto"
-                style={{ color: responseColor }}
-                role="status"
-                aria-live="polite"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  {responseIcon}
-                  <span>{responseMsg}</span>
+            <div className="about-v2-hero-actions">
+              <SmartLink to="/tools" className="about-v2-primary-btn">
+                Explore Tools
+                <Icons.ArrowRight size={17} />
+              </SmartLink>
+
+              <SmartLink to="/contact" className="about-v2-secondary-btn">
+                Request a Tool
+              </SmartLink>
+            </div>
+          </div>
+
+          <div className="about-v2-hero-panel" aria-label="Website highlights">
+            <div className="about-v2-stat-card about-v2-stat-main">
+              <strong>{totalTools}+</strong>
+              <span>Free browser-based tools available now</span>
+            </div>
+
+            <div className="about-v2-stat-card">
+              <strong>{totalCategories}+</strong>
+              <span>Organized tool categories</span>
+            </div>
+
+            <div className="about-v2-stat-card">
+              <strong>24/7</strong>
+              <span>Access from any modern browser</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="about-v2-section about-v2-story">
+          <div className="about-v2-story-main">
+            <div className="about-v2-section-head">
+              <span>Who we are</span>
+              <h2>A focused utility platform built around real user tasks.</h2>
+              <p>
+                Many digital jobs are small, but they slow people down when the
+                right tool is hard to find. Next Online Tools brings those
+                everyday utilities into one clean place.
+              </p>
+            </div>
+
+            <div className="about-v2-copy">
+              <p>
+                The goal of Next Online Tools is simple: help users open a tool,
+                understand the next step, complete the task, and continue their
+                work without confusion. That is why the platform focuses on
+                clean pages, direct actions, helpful instructions, and outputs
+                that are easy to copy, download, or reuse.
+              </p>
+
+              <p>
+                The website is designed for practical workflows. A creator may
+                need to resize and compress an image before publishing. A student
+                may need to count words or prepare a PDF. A marketer may need to
+                format a LinkedIn post, clean a list, or generate a quick QR
+                code. Each tool is built to solve these moments with less effort.
+              </p>
+            </div>
+          </div>
+
+          <aside className="about-v2-mission-card">
+            <IconBox icon="Target" />
+
+            <span>Our mission</span>
+
+            <h3>Make useful online tools simple, fast, and accessible.</h3>
+
+            <p>
+              We are building a growing library of free tools that support
+              everyday online work without complicated software, unnecessary
+              clutter, or a steep learning curve.
+            </p>
+          </aside>
+        </section>
+
+        <section className="about-v2-section">
+          <div className="about-v2-section-head">
+            <span>What we focus on</span>
+            <h2>Clear tools, clean design, and faster workflows.</h2>
+          </div>
+
+          <div className="about-v2-focus-grid">
+            {focusCards.map((card) => (
+              <article key={card.title} className="about-v2-focus-card">
+                <div className="about-v2-card-top">
+                  <IconBox icon={card.icon} />
+                  <span>{card.label}</span>
                 </div>
+
+                <h3>{card.title}</h3>
+                <p>{card.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="about-v2-section">
+          <div className="about-v2-section-head-row">
+            <div className="about-v2-section-head">
+              <span>Built for</span>
+              <h2>Different users, one simple tool library.</h2>
+              <p>
+                The platform is useful for anyone who works with digital files,
+                content, documents, websites, or everyday online tasks.
+              </p>
+            </div>
+
+            <SmartLink to="/tools" className="about-v2-view-all">
+              Browse all tools
+            </SmartLink>
+          </div>
+
+          <div className="about-v2-user-grid">
+            {userGroups.map((group) => (
+              <article key={group.title} className="about-v2-user-card">
+                <IconBox icon={group.icon} />
+                <h3>{group.title}</h3>
+                <p>{group.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="about-v2-section about-v2-principles">
+          <div>
+            <div className="about-v2-section-head">
+              <span>How we build</span>
+              <h2>Our product principles</h2>
+              <p>
+                Every update should make the website easier to understand,
+                faster to use, and more helpful for real work.
+              </p>
+            </div>
+
+            <SmartLink to="/contact" className="about-v2-secondary-btn">
+              Suggest an improvement
+            </SmartLink>
+          </div>
+
+          <div className="about-v2-principle-list">
+            {operatingPrinciples.map((principle) => (
+              <div key={principle} className="about-v2-principle-item">
+                <Icons.CheckCircle2 size={18} aria-hidden="true" />
+                <span>{principle}</span>
               </div>
-            )}
+            ))}
+          </div>
+        </section>
 
-            <form
-              onSubmit={handleSubmit}
-              className="mx-auto flex max-w-2xl flex-col sm:flex-row gap-4 justify-center"
-            >
-              <input
-                type="text"
-                name="website"
-                value={formData.website}
-                onChange={handleChange}
-                className="hidden"
-                tabIndex="-1"
-                autoComplete="off"
-                aria-hidden="true"
-              />
+        <section className="about-v2-newsletter" aria-label="Newsletter subscription">
+          <div className="about-v2-newsletter-content">
+            <IconBox icon="Send" />
+            <span>Tool updates</span>
+            <h2>Get updates when new tools are released.</h2>
+            <p>
+              Subscribe for new tool launches, improvements, and practical
+              updates from Next Online Tools.
+            </p>
+          </div>
 
+          <form onSubmit={handleSubmit} className="about-v2-newsletter-form">
+            <input
+              type="text"
+              name="website"
+              value={formData.website}
+              onChange={handleChange}
+              className="about-v2-honeypot"
+              tabIndex="-1"
+              autoComplete="off"
+              aria-hidden="true"
+            />
+
+            <label>
+              <span>Email address</span>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="Enter your email"
-                className="input flex-1"
                 required
                 disabled={isLoading}
                 autoComplete="email"
               />
+            </label>
 
-              <button
-                type="submit"
-                className="btn-primary justify-center"
-                disabled={isLoading}
+            <button type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Icons.Loader className="about-v2-spin" size={18} />
+                  Subscribing
+                </>
+              ) : (
+                <>
+                  <Icons.Send size={18} />
+                  Subscribe
+                </>
+              )}
+            </button>
+
+            {responseMsg && (
+              <div
+                className={`about-v2-response about-v2-response-${responseType || "info"}`}
+                role="status"
+                aria-live="polite"
               >
-                {isLoading ? (
-                  <>
-                    <Loader className="animate-spin" size={18} />
-                    Subscribing...
-                  </>
-                ) : (
-                  <>
-                    <Send size={18} />
-                    Subscribe
-                  </>
-                )}
-              </button>
-            </form>
+                {responseIcon}
+                <span>{responseMsg}</span>
+              </div>
+            )}
 
-            <p className="text-xs text-[var(--text-secondary)] mt-4">
+            <p className="about-v2-form-note">
               We use your email only for tool updates and website news.
             </p>
-          </div>
+          </form>
         </section>
 
-        {/* FAQ */}
-        <section className="tools-list-section">
-          <div className="tools-section-head">
-            <div>
-              <span>Quick Answers</span>
-              <h2>About Next Online Tools</h2>
-            </div>
-
-            <p>Helpful information for new visitors.</p>
+        <section className="about-v2-section">
+          <div className="about-v2-section-head">
+            <span>FAQ</span>
+            <h2>Common questions about Next Online Tools</h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-5">
-            <div className="card p-6">
-              <h3 className="font-bold text-lg mb-2">
-                What is Next Online Tools?
-              </h3>
-              <p className="text-sm text-[var(--text-secondary)] leading-6">
-                It is a free online tools platform for everyday tasks like image
-                processing, text editing, PDF work, SEO checks, colors,
-                conversions, and productivity.
-              </p>
-            </div>
-
-            <div className="card p-6">
-              <h3 className="font-bold text-lg mb-2">Are the tools free?</h3>
-              <p className="text-sm text-[var(--text-secondary)] leading-6">
-                Yes. The website focuses on simple, free, browser-based tools
-                that help users finish common digital tasks quickly.
-              </p>
-            </div>
-
-            <div className="card p-6">
-              <h3 className="font-bold text-lg mb-2">
-                Do I need to install anything?
-              </h3>
-              <p className="text-sm text-[var(--text-secondary)] leading-6">
-                No. The tools are designed to work directly in the browser, so
-                users can open a page and complete the task online.
-              </p>
-            </div>
+          <div className="about-v2-faq-grid">
+            {faqItems.map((item) => (
+              <article key={item.question}>
+                <h3>{item.question}</h3>
+                <p>{item.answer}</p>
+              </article>
+            ))}
           </div>
         </section>
       </main>
