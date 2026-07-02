@@ -123,10 +123,13 @@ export default function SmartVideoCutter() {
   const [clips, setClips] = useState([]);
   const [dragClipId, setDragClipId] = useState("");
   const [selectedClipIds, setSelectedClipIds] = useState([]);
+  const [selectedTextOverlayIds, setSelectedTextOverlayIds] = useState([]);
+  const [selectedMusicClipIds, setSelectedMusicClipIds] = useState([]);
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [thumbnailZoomOpen, setThumbnailZoomOpen] = useState(true);
   const [hoverTimeline, setHoverTimeline] = useState({ active: false, time: 0, x: 0 });
   const [resizeState, setResizeState] = useState(null);
+  const [timelineItemDragState, setTimelineItemDragState] = useState(null);
   const [pendingSeek, setPendingSeek] = useState(null);
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -141,6 +144,7 @@ export default function SmartVideoCutter() {
   const [musicFile, setMusicFile] = useState(null);
   const [musicUrl, setMusicUrl] = useState("");
   const [musicName, setMusicName] = useState("");
+  const [musicClips, setMusicClips] = useState([]);
   const [muteOriginalAudio, setMuteOriginalAudio] = useState(false);
   const [musicVolume, setMusicVolume] = useState(85);
   const [originalAudioVolume, setOriginalAudioVolume] = useState(100);
@@ -210,10 +214,19 @@ export default function SmartVideoCutter() {
     return 0;
   }, [currentTime, playMode.type, selectedClip, selectedVideo, timelineClips, totalTimelineDuration]);
 
+  const activePreviewTextOverlays = useMemo(() => {
+    return textOverlays.filter(
+      (overlay) =>
+        timelinePlayheadTime >= Number(overlay.start || 0) &&
+        timelinePlayheadTime <= Number(overlay.end || 0)
+    );
+  }, [textOverlays, timelinePlayheadTime]);
+
   const canSplit = Boolean(selectedVideo && !isProcessing);
   const canExport = Boolean(clips.length && !isProcessing);
   const hasTextOverlays = textOverlays.length > 0;
-  const hasMusicEdits = Boolean(musicFile || muteOriginalAudio);
+  const hasMutedVideoClips = clips.some((clip) => clip.muteAudio);
+  const hasMusicEdits = Boolean(musicFile || musicClips.length || muteOriginalAudio || hasMutedVideoClips);
   const needsEnhancedExport = hasTextOverlays || hasMusicEdits;
 
   useEffect(() => {
@@ -328,7 +341,10 @@ export default function SmartVideoCutter() {
         }
       }
 
-      if ((event.key === "Delete" || event.key === "Backspace") && selectedClipIds.length) {
+      if (
+        (event.key === "Delete" || event.key === "Backspace") &&
+        (selectedClipIds.length || selectedTextOverlayIds.length || selectedMusicClipIds.length)
+      ) {
         event.preventDefault();
         removeSelectedClips();
       }
@@ -337,53 +353,102 @@ export default function SmartVideoCutter() {
     window.addEventListener("keydown", handleKeyDown);
 
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hoverTimeline, clips, selectedClipIds]);
+  }, [hoverTimeline, clips, selectedClipIds, selectedTextOverlayIds, selectedMusicClipIds]);
 
   useEffect(() => {
     if (!resizeState) return;
 
     function handlePointerMove(event) {
       const deltaSeconds = (event.clientX - resizeState.startClientX) / Math.max(1, resizeState.pixelsPerSecond);
+      const kind = resizeState.kind || "clip";
 
       clearExportOutput();
 
-      setClips((current) =>
-        current.map((clip) => {
-          if (clip.id !== resizeState.clipId) return clip;
+      if (kind === "clip") {
+        setClips((current) =>
+          current.map((clip) => {
+            if (clip.id !== resizeState.itemId) return clip;
 
-          const sourceVideo = videos.find((video) => video.id === clip.videoId);
-          const maxDuration = sourceVideo?.duration || resizeState.originalEnd;
-          let nextStart = resizeState.originalStart;
-          let nextEnd = resizeState.originalEnd;
+            const sourceVideo = videos.find((video) => video.id === clip.videoId);
+            const maxDuration = sourceVideo?.duration || resizeState.originalEnd;
+            let nextStart = resizeState.originalStart;
+            let nextEnd = resizeState.originalEnd;
 
-          if (resizeState.side === "left") {
-            nextStart = clampNumber(
-              resizeState.originalStart + deltaSeconds,
-              0,
-              resizeState.originalEnd - MIN_CLIP_DURATION
-            );
-          }
+            if (resizeState.side === "left") {
+              nextStart = clampNumber(
+                resizeState.originalStart + deltaSeconds,
+                0,
+                resizeState.originalEnd - MIN_CLIP_DURATION
+              );
+            }
 
-          if (resizeState.side === "right") {
-            nextEnd = clampNumber(
-              resizeState.originalEnd + deltaSeconds,
-              resizeState.originalStart + MIN_CLIP_DURATION,
-              maxDuration
-            );
-          }
+            if (resizeState.side === "right") {
+              nextEnd = clampNumber(
+                resizeState.originalEnd + deltaSeconds,
+                resizeState.originalStart + MIN_CLIP_DURATION,
+                maxDuration
+              );
+            }
 
-          return {
-            ...clip,
-            start: roundTime(nextStart),
-            end: roundTime(nextEnd),
-          };
-        })
-      );
+            return {
+              ...clip,
+              start: roundTime(nextStart),
+              end: roundTime(nextEnd),
+            };
+          })
+        );
+        return;
+      }
+
+      if (kind === "text") {
+        setTextOverlays((current) =>
+          current.map((overlay) => {
+            if (overlay.id !== resizeState.itemId) return overlay;
+
+            const nextRange = resizeTimelineRange({
+              originalStart: resizeState.originalStart,
+              originalEnd: resizeState.originalEnd,
+              side: resizeState.side,
+              deltaSeconds,
+              maxDuration: totalTimelineDuration,
+            });
+
+            return {
+              ...overlay,
+              start: nextRange.start,
+              end: nextRange.end,
+            };
+          })
+        );
+        return;
+      }
+
+      if (kind === "music") {
+        setMusicClips((current) =>
+          current.map((musicClip) => {
+            if (musicClip.id !== resizeState.itemId) return musicClip;
+
+            const nextRange = resizeTimelineRange({
+              originalStart: resizeState.originalStart,
+              originalEnd: resizeState.originalEnd,
+              side: resizeState.side,
+              deltaSeconds,
+              maxDuration: totalTimelineDuration,
+            });
+
+            return {
+              ...musicClip,
+              start: nextRange.start,
+              end: nextRange.end,
+            };
+          })
+        );
+      }
     }
 
     function handlePointerUp() {
       setResizeState(null);
-      setSuccess("Clip trim updated.");
+      setSuccess("Timeline item trim updated.");
     }
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -393,7 +458,58 @@ export default function SmartVideoCutter() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [resizeState, videos]);
+  }, [resizeState, videos, totalTimelineDuration]);
+
+  useEffect(() => {
+    if (!timelineItemDragState) return;
+
+    function handlePointerMove(event) {
+      const deltaSeconds = (event.clientX - timelineItemDragState.startClientX) / Math.max(1, timelineItemDragState.pixelsPerSecond);
+      const duration = timelineItemDragState.originalEnd - timelineItemDragState.originalStart;
+      const nextStart = clampNumber(
+        timelineItemDragState.originalStart + deltaSeconds,
+        0,
+        Math.max(0, totalTimelineDuration - duration)
+      );
+      const nextEnd = nextStart + duration;
+
+      clearExportOutput();
+
+      if (timelineItemDragState.kind === "text") {
+        setTextOverlays((current) =>
+          current.map((overlay) =>
+            overlay.id === timelineItemDragState.itemId
+              ? { ...overlay, start: roundTime(nextStart), end: roundTime(nextEnd) }
+              : overlay
+          )
+        );
+      }
+
+      if (timelineItemDragState.kind === "music") {
+        setMusicClips((current) =>
+          current.map((musicClip) =>
+            musicClip.id === timelineItemDragState.itemId
+              ? { ...musicClip, start: roundTime(nextStart), end: roundTime(nextEnd) }
+              : musicClip
+          )
+        );
+      }
+    }
+
+    function handlePointerUp() {
+      setTimelineItemDragState(null);
+      setSuccess("Timeline item moved.");
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [timelineItemDragState, totalTimelineDuration]);
+
 
   function clearFeedback() {
     setError("");
@@ -664,10 +780,34 @@ export default function SmartVideoCutter() {
   }
 
   function splitClipAtTimelineTime(timelineTime) {
+    const selectedText = textOverlays.find(
+      (overlay) =>
+        selectedTextOverlayIds.includes(overlay.id) &&
+        timelineTime > overlay.start + MIN_CLIP_DURATION &&
+        timelineTime < overlay.end - MIN_CLIP_DURATION
+    );
+
+    if (selectedText) {
+      splitTextOverlayAtTime(selectedText.id, timelineTime);
+      return;
+    }
+
+    const selectedMusic = musicClips.find(
+      (musicClip) =>
+        selectedMusicClipIds.includes(musicClip.id) &&
+        timelineTime > musicClip.start + MIN_CLIP_DURATION &&
+        timelineTime < musicClip.end - MIN_CLIP_DURATION
+    );
+
+    if (selectedMusic) {
+      splitMusicClipAtTime(selectedMusic.id, timelineTime);
+      return;
+    }
+
     const timelineClip = findTimelineClipAtTime(timelineClips, timelineTime);
 
     if (!timelineClip) {
-      setError("Move your mouse over a clip on the timeline, then press S or click Split.");
+      setError("Move your mouse over a timeline item, then press S or click Split.");
       return;
     }
 
@@ -748,6 +888,11 @@ export default function SmartVideoCutter() {
   function selectClip(clipId, event) {
     const multi = event?.shiftKey || event?.ctrlKey || event?.metaKey;
 
+    if (!multi) {
+      setSelectedTextOverlayIds([]);
+      setSelectedMusicClipIds([]);
+    }
+
     setSelectedClipIds((current) => {
       if (!multi) return [clipId];
 
@@ -757,31 +902,111 @@ export default function SmartVideoCutter() {
     });
   }
 
+  function selectTextOverlay(overlayId, event) {
+    const multi = event?.shiftKey || event?.ctrlKey || event?.metaKey;
+
+    if (!multi) {
+      setSelectedClipIds([]);
+      setSelectedMusicClipIds([]);
+    }
+
+    setSelectedTextOverlayIds((current) => {
+      if (!multi) return [overlayId];
+
+      return current.includes(overlayId)
+        ? current.filter((id) => id !== overlayId)
+        : [...current, overlayId];
+    });
+  }
+
+  function selectMusicClip(musicClipId, event) {
+    const multi = event?.shiftKey || event?.ctrlKey || event?.metaKey;
+
+    if (!multi) {
+      setSelectedClipIds([]);
+      setSelectedTextOverlayIds([]);
+    }
+
+    setSelectedMusicClipIds((current) => {
+      if (!multi) return [musicClipId];
+
+      return current.includes(musicClipId)
+        ? current.filter((id) => id !== musicClipId)
+        : [...current, musicClipId];
+    });
+  }
+
   function removeSelectedClips() {
-    if (!selectedClipIds.length) return;
+    if (!selectedClipIds.length && !selectedTextOverlayIds.length && !selectedMusicClipIds.length) return;
 
     clearExportOutput();
     clearFeedback();
-    setClips((current) => current.filter((clip) => !selectedClipIds.includes(clip.id)));
+
+    if (selectedClipIds.length) {
+      setClips((current) => current.filter((clip) => !selectedClipIds.includes(clip.id)));
+    }
+
+    if (selectedTextOverlayIds.length) {
+      setTextOverlays((current) => current.filter((overlay) => !selectedTextOverlayIds.includes(overlay.id)));
+    }
+
+    if (selectedMusicClipIds.length) {
+      setMusicClips((current) => current.filter((musicClip) => !selectedMusicClipIds.includes(musicClip.id)));
+    }
+
     setSelectedClipIds([]);
-    setSuccess("Selected clips deleted.");
+    setSelectedTextOverlayIds([]);
+    setSelectedMusicClipIds([]);
+    setSuccess("Selected timeline item(s) deleted.");
   }
 
-  function startTimelineTrim(clipId, side, event) {
+  function startTimelineTrim(kind, itemId, side, event) {
     event.preventDefault();
     event.stopPropagation();
 
-    const clip = clips.find((item) => item.id === clipId);
+    let item = null;
 
-    if (!clip) return;
+    if (kind === "clip") item = clips.find((clip) => clip.id === itemId);
+    if (kind === "text") item = textOverlays.find((overlay) => overlay.id === itemId);
+    if (kind === "music") item = musicClips.find((musicClip) => musicClip.id === itemId);
 
-    setSelectedClipIds((current) => current.length ? current : [clipId]);
+    if (!item) return;
+
+    if (kind === "clip") setSelectedClipIds((current) => current.length ? current : [itemId]);
+    if (kind === "text") setSelectedTextOverlayIds((current) => current.length ? current : [itemId]);
+    if (kind === "music") setSelectedMusicClipIds((current) => current.length ? current : [itemId]);
+
     setResizeState({
-      clipId,
+      kind,
+      itemId,
       side,
       startClientX: event.clientX,
-      originalStart: clip.start,
-      originalEnd: clip.end,
+      originalStart: item.start,
+      originalEnd: item.end,
+      pixelsPerSecond: timelinePixelsPerSecond,
+    });
+  }
+
+  function startTimelineItemDrag(kind, itemId, event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    let item = null;
+
+    if (kind === "text") item = textOverlays.find((overlay) => overlay.id === itemId);
+    if (kind === "music") item = musicClips.find((musicClip) => musicClip.id === itemId);
+
+    if (!item) return;
+
+    if (kind === "text") selectTextOverlay(itemId, event);
+    if (kind === "music") selectMusicClip(itemId, event);
+
+    setTimelineItemDragState({
+      kind,
+      itemId,
+      startClientX: event.clientX,
+      originalStart: item.start,
+      originalEnd: item.end,
       pixelsPerSecond: timelinePixelsPerSecond,
     });
   }
@@ -984,8 +1209,70 @@ export default function SmartVideoCutter() {
 
   function removeTextOverlay(id) {
     setTextOverlays((current) => current.filter((overlay) => overlay.id !== id));
+    setSelectedTextOverlayIds((current) => current.filter((overlayId) => overlayId !== id));
     clearExportOutput();
     clearFeedback();
+  }
+
+  function splitTextOverlayAtTime(overlayId, timelineTime) {
+    const overlay = textOverlays.find((item) => item.id === overlayId);
+
+    if (!overlay) return;
+
+    if (timelineTime <= overlay.start + MIN_CLIP_DURATION || timelineTime >= overlay.end - MIN_CLIP_DURATION) {
+      setError("Split point is too close to the text edge.");
+      return;
+    }
+
+    const first = { ...overlay, id: createId(), end: roundTime(timelineTime) };
+    const second = { ...overlay, id: createId(), start: roundTime(timelineTime) };
+
+    clearExportOutput();
+    setTextOverlays((current) => current.flatMap((item) => (item.id === overlayId ? [first, second] : [item])));
+    setSelectedTextOverlayIds([first.id, second.id]);
+    setSuccess("Text layer split on timeline.");
+  }
+
+  function splitMusicClipAtTime(musicClipId, timelineTime) {
+    const musicClip = musicClips.find((item) => item.id === musicClipId);
+
+    if (!musicClip) return;
+
+    if (timelineTime <= musicClip.start + MIN_CLIP_DURATION || timelineTime >= musicClip.end - MIN_CLIP_DURATION) {
+      setError("Split point is too close to the music edge.");
+      return;
+    }
+
+    const first = { ...musicClip, id: createId(), end: roundTime(timelineTime) };
+    const second = {
+      ...musicClip,
+      id: createId(),
+      start: roundTime(timelineTime),
+      sourceStart: roundTime(Number(musicClip.sourceStart || 0) + (timelineTime - musicClip.start)),
+    };
+
+    clearExportOutput();
+    setMusicClips((current) => current.flatMap((item) => (item.id === musicClipId ? [first, second] : [item])));
+    setSelectedMusicClipIds([first.id, second.id]);
+    setSuccess("Music clip split on timeline.");
+  }
+
+  function removeMusicClip(musicClipId) {
+    setMusicClips((current) => current.filter((musicClip) => musicClip.id !== musicClipId));
+    setSelectedMusicClipIds((current) => current.filter((id) => id !== musicClipId));
+    clearExportOutput();
+    clearFeedback();
+  }
+
+  function toggleClipMute(clipId) {
+    clearExportOutput();
+    setClips((current) =>
+      current.map((clip) =>
+        clip.id === clipId
+          ? { ...clip, muteAudio: !clip.muteAudio }
+          : clip
+      )
+    );
   }
 
   function handleMusicInput(event) {
@@ -1014,13 +1301,25 @@ export default function SmartVideoCutter() {
 
     const objectUrl = URL.createObjectURL(file);
 
+    const fullTimelineEnd = Math.max(MIN_CLIP_DURATION, totalTimelineDuration || 30);
+
     setMusicFile(file);
     setMusicUrl(objectUrl);
     setMusicName(file.name);
+    setMusicClips([
+      {
+        id: createId(),
+        name: file.name,
+        start: 0,
+        end: fullTimelineEnd,
+        sourceStart: 0,
+      },
+    ]);
+    setSelectedMusicClipIds([]);
     setMusicPanelOpen(true);
     clearExportOutput();
     setError("");
-    setSuccess("Music added. You can mute original video audio if needed.");
+    setSuccess("Music added to the audio timeline. Drag or trim the music track below.");
     resetMusicInput();
   }
 
@@ -1032,6 +1331,8 @@ export default function SmartVideoCutter() {
     setMusicFile(null);
     setMusicUrl("");
     setMusicName("");
+    setMusicClips([]);
+    setSelectedMusicClipIds([]);
     clearExportOutput();
     clearFeedback();
   }
@@ -1145,25 +1446,56 @@ export default function SmartVideoCutter() {
               "make_zero",
               segmentName,
             ]
-          : [
-              "-ss",
-              String(clip.start),
-              "-i",
-              inputName,
-              "-t",
-              String(duration),
-              "-c:v",
-              "mpeg4",
-              "-q:v",
-              "2",
-              "-c:a",
-              "aac",
-              "-b:a",
-              "192k",
-              "-movflags",
-              "+faststart",
-              segmentName,
-            ];
+          : clip.muteAudio
+            ? [
+                "-ss",
+                String(clip.start),
+                "-i",
+                inputName,
+                "-f",
+                "lavfi",
+                "-t",
+                String(duration),
+                "-i",
+                "anullsrc=channel_layout=stereo:sample_rate=44100",
+                "-t",
+                String(duration),
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
+                "-c:v",
+                "mpeg4",
+                "-q:v",
+                "2",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-shortest",
+                "-movflags",
+                "+faststart",
+                segmentName,
+              ]
+            : [
+                "-ss",
+                String(clip.start),
+                "-i",
+                inputName,
+                "-t",
+                String(duration),
+                "-c:v",
+                "mpeg4",
+                "-q:v",
+                "2",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-movflags",
+                "+faststart",
+                segmentName,
+              ];
 
         await ffmpeg.exec(command);
         segmentNames.push(segmentName);
@@ -1212,6 +1544,7 @@ export default function SmartVideoCutter() {
           outputName,
           textOverlays,
           musicFile,
+          musicClips,
           musicVolume,
           originalAudioVolume,
           muteOriginalAudio,
@@ -1294,10 +1627,13 @@ export default function SmartVideoCutter() {
     setClips([]);
     setDragClipId("");
     setSelectedClipIds([]);
+    setSelectedTextOverlayIds([]);
+    setSelectedMusicClipIds([]);
     setTimelineZoom(1);
     setThumbnailZoomOpen(true);
     setHoverTimeline({ active: false, time: 0, x: 0 });
     setResizeState(null);
+    setTimelineItemDragState(null);
     setPendingSeek(null);
     setCurrentTime(0);
     setSettingsOpen(false);
@@ -1314,6 +1650,7 @@ export default function SmartVideoCutter() {
     setMusicFile(null);
     setMusicUrl("");
     setMusicName("");
+    setMusicClips([]);
     setMuteOriginalAudio(false);
     setMusicVolume(85);
     setOriginalAudioVolume(100);
@@ -1506,7 +1843,7 @@ export default function SmartVideoCutter() {
                       }}
                     />
 
-                    <div className="rounded-2xl overflow-hidden bg-black">
+                    <div className="relative rounded-2xl overflow-hidden bg-black">
                       <video
                         ref={videoRef}
                         src={selectedVideo.url}
@@ -1517,11 +1854,48 @@ export default function SmartVideoCutter() {
                         onTimeUpdate={handleTimeUpdate}
                         className="w-full max-h-[560px] bg-black"
                       />
+
+                      <VideoTextPreview overlays={activePreviewTextOverlays} />
                     </div>
 
+                    <TimelineEditor
+                      timelineRef={timelineRef}
+                      clips={timelineClips}
+                      videos={videos}
+                      textOverlays={textOverlays}
+                      musicClips={musicClips}
+                      totalDuration={totalTimelineDuration}
+                      pixelsPerSecond={timelinePixelsPerSecond}
+                      timelineZoom={timelineZoom}
+                      onZoomChange={setTimelineZoom}
+                      hoverTimeline={hoverTimeline}
+                      playheadTime={timelinePlayheadTime}
+                      selectedClipIds={selectedClipIds}
+                      selectedTextOverlayIds={selectedTextOverlayIds}
+                      selectedMusicClipIds={selectedMusicClipIds}
+                      dragClipId={dragClipId}
+                      onPointerMove={handleTimelinePointerMove}
+                      onPointerLeave={handleTimelinePointerLeave}
+                      onTimelineClick={handleTimelineClick}
+                      onSplitAtHover={() => splitClipAtTimelineTime(hoverTimeline.time)}
+                      onClipSelect={selectClip}
+                      onTextOverlaySelect={selectTextOverlay}
+                      onMusicClipSelect={selectMusicClip}
+                      onTextOverlayRemove={removeTextOverlay}
+                      onMusicClipRemove={removeMusicClip}
+                      onDragStart={handleClipDragStart}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={handleClipDrop}
+                      onPreview={previewClip}
+                      onRemove={removeClip}
+                      onTrimStart={startTimelineTrim}
+                      onTimelineItemDragStart={startTimelineItemDrag}
+                      onToggleClipMute={toggleClipMute}
+                    />
+
                     <TimelineTopBar
-                      selectedCount={selectedClipIds.length}
-                      canSplit={Boolean(hoverTimeline.active && findTimelineClipAtTime(timelineClips, hoverTimeline.time))}
+                      selectedCount={selectedClipIds.length + selectedTextOverlayIds.length + selectedMusicClipIds.length}
+                      canSplit={Boolean(hoverTimeline.active)}
                       canExport={canExport}
                       isProcessing={isProcessing}
                       onAddText={addTextOverlay}
@@ -1530,29 +1904,6 @@ export default function SmartVideoCutter() {
                       onPreview={previewFinalVideo}
                       onSplit={() => splitClipAtTimelineTime(hoverTimeline.time)}
                       onExport={exportFinalVideo}
-                    />
-
-                    <TimelineEditor
-                      timelineRef={timelineRef}
-                      clips={timelineClips}
-                      videos={videos}
-                      totalDuration={totalTimelineDuration}
-                      pixelsPerSecond={timelinePixelsPerSecond}
-                      hoverTimeline={hoverTimeline}
-                      playheadTime={timelinePlayheadTime}
-                      selectedClipIds={selectedClipIds}
-                      dragClipId={dragClipId}
-                      onPointerMove={handleTimelinePointerMove}
-                      onPointerLeave={handleTimelinePointerLeave}
-                      onTimelineClick={handleTimelineClick}
-                      onSplitAtHover={() => splitClipAtTimelineTime(hoverTimeline.time)}
-                      onClipSelect={selectClip}
-                      onDragStart={handleClipDragStart}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={handleClipDrop}
-                      onPreview={previewClip}
-                      onRemove={removeClip}
-                      onTrimStart={startTimelineTrim}
                     />
 
 
@@ -1673,6 +2024,37 @@ export default function SmartVideoCutter() {
       `}</style>
 
       <SuggestedTools currentToolId="smart-video-cutter" />
+    </div>
+  );
+}
+
+function VideoTextPreview({ overlays }) {
+  if (!overlays?.length) return null;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10">
+      {overlays.map((overlay) => {
+        const positionStyle = getPreviewTextPositionStyle(overlay);
+
+        return (
+          <div
+            key={overlay.id}
+            className="absolute max-w-[92%] whitespace-pre-wrap rounded-xl px-4 py-2 text-center font-bold leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.65)]"
+            style={{
+              ...positionStyle,
+              color: overlay.color || "#ffffff",
+              fontFamily: overlay.fontFamily || "Arial",
+              fontSize: `clamp(18px, ${Math.max(2.4, Number(overlay.fontSize || 42) / 18)}vw, ${Number(overlay.fontSize || 42)}px)`,
+              backgroundColor:
+                Number(overlay.backgroundOpacity || 0) > 0
+                  ? hexToRgba(overlay.backgroundColor || "#000000", Number(overlay.backgroundOpacity || 0) / 100)
+                  : "transparent",
+            }}
+          >
+            {overlay.text}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2245,49 +2627,86 @@ function TimelineEditor({
   timelineRef,
   clips,
   videos,
+  textOverlays,
+  musicClips,
   totalDuration,
   pixelsPerSecond,
+  timelineZoom,
+  onZoomChange,
   hoverTimeline,
   playheadTime,
   selectedClipIds,
+  selectedTextOverlayIds,
+  selectedMusicClipIds,
   dragClipId,
   onPointerMove,
   onPointerLeave,
   onTimelineClick,
   onSplitAtHover,
   onClipSelect,
+  onTextOverlaySelect,
+  onMusicClipSelect,
+  onTextOverlayRemove,
+  onMusicClipRemove,
   onDragStart,
   onDragOver,
   onDrop,
   onPreview,
   onRemove,
   onTrimStart,
+  onTimelineItemDragStart,
+  onToggleClipMute,
 }) {
   const timelineWidth = Math.max(720, totalDuration * pixelsPerSecond + 40);
   const hoverClip = hoverTimeline.active ? findTimelineClipAtTime(clips, hoverTimeline.time) : null;
+  const canSplitTimelineItem = Boolean(
+    hoverClip ||
+    textOverlays.some((overlay) => hoverTimeline.time > overlay.start && hoverTimeline.time < overlay.end) ||
+    musicClips.some((musicClip) => hoverTimeline.time > musicClip.start && hoverTimeline.time < musicClip.end)
+  );
 
   return (
-    <div className="mt-5 rounded-2xl border border-[var(--border)] bg-white overflow-hidden">
-      <div className="p-4 border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="mt-3 rounded-2xl border border-[var(--border)] bg-white overflow-hidden">
+      <div className="p-4 border-b border-[var(--border)] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-2">
           <MousePointer2 size={19} className="text-[var(--primary)]" />
           <div>
             <h3 className="font-bold">Editor Timeline</h3>
             <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Click to seek • Press <strong>S</strong> to split at mouse • Shift/Ctrl click to select multiple
+              Text track above • Video track middle • Music track below • Press <strong>S</strong> to split at mouse
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onSplitAtHover}
-          disabled={!hoverClip}
-          className="btn-primary inline-flex items-center justify-center gap-2 text-sm disabled:opacity-40"
-        >
-          <Scissors size={17} />
-          Split at Mouse
-        </button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[#fafafa] px-3 py-2">
+            <ZoomOut size={16} className="text-[var(--primary)]" />
+            <input
+              type="range"
+              min="0.6"
+              max="5"
+              step="0.1"
+              value={timelineZoom}
+              onChange={(event) => onZoomChange(Number(event.target.value))}
+              className="w-44 accent-[var(--primary)]"
+              title="Timeline zoom"
+            />
+            <ZoomIn size={16} className="text-[var(--primary)]" />
+            <span className="w-12 text-right text-xs font-bold text-[var(--primary)]">
+              {Math.round(timelineZoom * 100)}%
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={onSplitAtHover}
+            disabled={!canSplitTimelineItem}
+            className="btn-primary inline-flex items-center justify-center gap-2 text-sm disabled:opacity-40"
+          >
+            <Scissors size={17} />
+            Split at Mouse
+          </button>
+        </div>
       </div>
 
       <div
@@ -2297,10 +2716,32 @@ function TimelineEditor({
         onPointerLeave={onPointerLeave}
         onClick={onTimelineClick}
       >
-        <div className="relative h-36 rounded-xl bg-[#1f2937] border border-white/10" style={{ width: timelineWidth }}>
+        <div className="relative h-60 rounded-xl bg-[#1f2937] border border-white/10" style={{ width: timelineWidth }}>
           <TimeRuler totalDuration={totalDuration} pixelsPerSecond={pixelsPerSecond} />
 
-          <div className="absolute left-0 right-0 top-10 h-20">
+          <TrackLabel top={38} label="TEXT" />
+          <TrackLabel top={104} label="VIDEO" />
+          <TrackLabel top={174} label="MUSIC" />
+
+          <div className="absolute left-0 right-0 top-10 h-14 border-b border-white/10">
+            {textOverlays.map((overlay, index) => (
+              <TimelineOverlayBlock
+                key={overlay.id}
+                item={overlay}
+                index={index}
+                kind="text"
+                label={overlay.text || `Text ${index + 1}`}
+                pixelsPerSecond={pixelsPerSecond}
+                selected={selectedTextOverlayIds.includes(overlay.id)}
+                onSelect={onTextOverlaySelect}
+                onRemove={onTextOverlayRemove}
+                onTrimStart={onTrimStart}
+                onDragStart={onTimelineItemDragStart}
+              />
+            ))}
+          </div>
+
+          <div className="absolute left-0 right-0 top-[104px] h-16 border-b border-white/10">
             {clips.map((clip) => (
               <TimelineClipBlock
                 key={clip.id}
@@ -2316,8 +2757,33 @@ function TimelineEditor({
                 onPreview={onPreview}
                 onRemove={onRemove}
                 onTrimStart={onTrimStart}
+                onToggleMute={onToggleClipMute}
               />
             ))}
+          </div>
+
+          <div className="absolute left-0 right-0 top-[174px] h-16">
+            {musicClips.map((musicClip, index) => (
+              <TimelineOverlayBlock
+                key={musicClip.id}
+                item={musicClip}
+                index={index}
+                kind="music"
+                label={musicClip.name || `Music ${index + 1}`}
+                pixelsPerSecond={pixelsPerSecond}
+                selected={selectedMusicClipIds.includes(musicClip.id)}
+                onSelect={onMusicClipSelect}
+                onRemove={onMusicClipRemove}
+                onTrimStart={onTrimStart}
+                onDragStart={onTimelineItemDragStart}
+              />
+            ))}
+
+            {!musicClips.length && (
+              <div className="absolute left-4 top-3 rounded-xl border border-dashed border-white/15 px-4 py-2 text-xs font-bold text-white/45">
+                Add music to see the audio track here.
+              </div>
+            )}
           </div>
 
           {hoverTimeline.active && (
@@ -2341,6 +2807,101 @@ function TimelineEditor({
   );
 }
 
+function TrackLabel({ top, label }) {
+  return (
+    <div
+      className="absolute left-2 z-20 rounded-md bg-black/45 px-2 py-1 text-[10px] font-black text-white/70 pointer-events-none"
+      style={{ top }}
+    >
+      {label}
+    </div>
+  );
+}
+
+function TimelineOverlayBlock({
+  item,
+  index,
+  kind,
+  label,
+  pixelsPerSecond,
+  selected,
+  onSelect,
+  onRemove,
+  onTrimStart,
+  onDragStart,
+}) {
+  const duration = Math.max(MIN_CLIP_DURATION, Number(item.end || 0) - Number(item.start || 0));
+  const width = Math.max(96, duration * pixelsPerSecond);
+  const left = Number(item.start || 0) * pixelsPerSecond;
+  const isText = kind === "text";
+
+  return (
+    <div
+      onPointerDown={(event) => {
+        if (event.target.closest("button")) return;
+        onDragStart(kind, item.id, event);
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(item.id, event);
+      }}
+      className={`absolute top-2 h-10 rounded-xl border overflow-hidden shadow-lg select-none cursor-grab ${
+        selected
+          ? "border-yellow-300 ring-2 ring-yellow-300/70"
+          : isText
+            ? "border-purple-300/60"
+            : "border-emerald-300/60"
+      }`}
+      style={{
+        left,
+        width,
+        background: isText
+          ? "linear-gradient(135deg,#7c3aed,#a855f7)"
+          : "linear-gradient(135deg,#059669,#0d9488)",
+      }}
+      title="Drag to move. Drag edges to trim. Select and press S to split."
+    >
+      <button
+        type="button"
+        onPointerDown={(event) => onTrimStart(kind, item.id, "left", event)}
+        className="absolute left-0 top-0 bottom-0 w-4 bg-white/25 hover:bg-yellow-300/80 cursor-ew-resize z-20"
+        title="Trim start"
+        aria-label="Trim start"
+      />
+
+      <button
+        type="button"
+        onPointerDown={(event) => onTrimStart(kind, item.id, "right", event)}
+        className="absolute right-0 top-0 bottom-0 w-4 bg-white/25 hover:bg-yellow-300/80 cursor-ew-resize z-20"
+        title="Trim end"
+        aria-label="Trim end"
+      />
+
+      <div className="h-full pl-5 pr-10 py-1.5 text-white">
+        <p className="text-[11px] font-black truncate">
+          {isText ? `Text ${index + 1}` : `Music ${index + 1}`}
+        </p>
+        <p className="text-[10px] font-bold opacity-90 truncate">
+          {label} • {formatTime(item.start)} → {formatTime(item.end)}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove(item.id);
+        }}
+        className="absolute right-1 top-1 h-8 w-8 rounded-lg bg-red-500/80 hover:bg-red-500 text-white inline-flex items-center justify-center"
+        title={`Remove ${kind}`}
+      >
+        <Trash2 size={13} />
+      </button>
+    </div>
+  );
+}
+
+
 function ZoomThumbnailSection({
   open,
   onToggle,
@@ -2360,6 +2921,7 @@ function ZoomThumbnailSection({
   onPreview,
   onRemove,
   onTrimStart,
+  onToggleMute,
 }) {
   const zoomedPixelsPerSecond = pixelsPerSecond * 1.45;
   const width = Math.max(820, totalDuration * zoomedPixelsPerSecond + 40);
@@ -2507,14 +3069,14 @@ function TimelineClipBlock({
     >
       <button
         type="button"
-        onPointerDown={(event) => onTrimStart(clip.id, "left", event)}
+        onPointerDown={(event) => onTrimStart("clip", clip.id, "left", event)}
         className="absolute left-0 top-0 bottom-0 w-4 bg-white/25 hover:bg-yellow-300/80 cursor-ew-resize z-20"
         title="Trim start"
         aria-label="Trim clip start"
       />
       <button
         type="button"
-        onPointerDown={(event) => onTrimStart(clip.id, "right", event)}
+        onPointerDown={(event) => onTrimStart("clip", clip.id, "right", event)}
         className="absolute right-0 top-0 bottom-0 w-4 bg-white/25 hover:bg-yellow-300/80 cursor-ew-resize z-20"
         title="Trim end"
         aria-label="Trim clip end"
@@ -2538,6 +3100,19 @@ function TimelineClipBlock({
                 title="Preview clip"
               >
                 <Eye size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleMute?.(clip.id);
+                }}
+                className={`h-7 w-7 rounded-lg inline-flex items-center justify-center ${
+                  clip.muteAudio ? "bg-yellow-300 text-black" : "bg-white/20 hover:bg-white/35"
+                }`}
+                title={clip.muteAudio ? "Clip audio muted" : "Mute this clip audio"}
+              >
+                {clip.muteAudio ? <VolumeX size={14} /> : <Volume2 size={14} />}
               </button>
               <button
                 type="button"
@@ -2783,12 +3358,75 @@ function getRulerInterval(totalDuration) {
   return 60;
 }
 
+function resizeTimelineRange({ originalStart, originalEnd, side, deltaSeconds, maxDuration }) {
+  let nextStart = Number(originalStart || 0);
+  let nextEnd = Number(originalEnd || 0);
+
+  if (side === "left") {
+    nextStart = clampNumber(nextStart + deltaSeconds, 0, nextEnd - MIN_CLIP_DURATION);
+  }
+
+  if (side === "right") {
+    nextEnd = clampNumber(nextEnd + deltaSeconds, nextStart + MIN_CLIP_DURATION, Math.max(MIN_CLIP_DURATION, maxDuration || nextEnd));
+  }
+
+  return {
+    start: roundTime(nextStart),
+    end: roundTime(nextEnd),
+  };
+}
+
+function getPreviewTextPositionStyle(overlay) {
+  if (overlay.position === "top") {
+    return {
+      left: "50%",
+      top: "10%",
+      transform: "translateX(-50%)",
+    };
+  }
+
+  if (overlay.position === "bottom") {
+    return {
+      left: "50%",
+      bottom: "10%",
+      transform: "translateX(-50%)",
+    };
+  }
+
+  if (overlay.position === "custom") {
+    return {
+      left: `${clampNumber(Number(overlay.xPercent || 50), 0, 100)}%`,
+      top: `${clampNumber(Number(overlay.yPercent || 50), 0, 100)}%`,
+      transform: "translate(-50%, -50%)",
+    };
+  }
+
+  return {
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%, -50%)",
+  };
+}
+
+function hexToRgba(hex, alpha = 1) {
+  const clean = String(hex || "#000000").replace("#", "");
+  const value = clean.length === 3
+    ? clean.split("").map((char) => char + char).join("")
+    : clean.padEnd(6, "0").slice(0, 6);
+  const number = Number.parseInt(value, 16);
+
+  if (!Number.isFinite(number)) return `rgba(0,0,0,${alpha})`;
+
+  return `rgba(${(number >> 16) & 255},${(number >> 8) & 255},${number & 255},${clampNumber(alpha, 0, 1)})`;
+}
+
 async function applyTextAndMusicExport({
   ffmpeg,
   inputName,
   outputName,
   textOverlays,
   musicFile,
+  musicClips,
   musicVolume,
   originalAudioVolume,
   muteOriginalAudio,
@@ -2804,6 +3442,7 @@ async function applyTextAndMusicExport({
   }
 
   const hasText = textOverlays.length > 0;
+  const hasMusicTracks = Boolean(musicFile && musicClips?.length);
   const filterParts = [];
   let videoMap = "0:v";
   let audioMap = "";
@@ -2820,11 +3459,34 @@ async function applyTextAndMusicExport({
     }
   }
 
-  if (musicFile && muteOriginalAudio) {
-    filterParts.push(`[1:a]volume=${Number(musicVolume || 100) / 100}[aout]`);
+  const audioInputs = [];
+
+  if (!muteOriginalAudio) {
+    filterParts.push(`[0:a]volume=${Number(originalAudioVolume || 100) / 100}[a0]`);
+    audioInputs.push("[a0]");
+  }
+
+  if (hasMusicTracks) {
+    musicClips.forEach((musicClip, index) => {
+      const start = Math.max(0, Number(musicClip.start || 0));
+      const end = Math.max(start + 0.1, Number(musicClip.end || start + 0.1));
+      const duration = end - start;
+      const sourceStart = Math.max(0, Number(musicClip.sourceStart || 0));
+      const delayMs = Math.round(start * 1000);
+      const volume = Number(musicClip.volume ?? musicVolume ?? 100) / 100;
+
+      filterParts.push(
+        `[1:a]atrim=start=${sourceStart}:duration=${duration},asetpts=PTS-STARTPTS,volume=${volume},adelay=${delayMs}:all=1[m${index}]`
+      );
+      audioInputs.push(`[m${index}]`);
+    });
+  }
+
+  if (audioInputs.length > 1) {
+    filterParts.push(`${audioInputs.join("")}amix=inputs=${audioInputs.length}:duration=first:dropout_transition=0[aout]`);
     audioMap = "[aout]";
-  } else if (musicFile) {
-    filterParts.push(`[0:a]volume=${Number(originalAudioVolume || 100) / 100}[a0];[1:a]volume=${Number(musicVolume || 100) / 100}[a1];[a0][a1]amix=inputs=2:duration=first:dropout_transition=0[aout]`);
+  } else if (audioInputs.length === 1) {
+    filterParts.push(`${audioInputs[0]}anull[aout]`);
     audioMap = "[aout]";
   }
 
@@ -2860,6 +3522,7 @@ async function applyTextAndMusicExport({
   await safeDeleteFile(ffmpeg, outputName);
   await ffmpeg.exec(args);
 }
+
 
 function buildDrawTextFilter(overlay) {
   const safeText = escapeFfmpegDrawText(overlay.text);
