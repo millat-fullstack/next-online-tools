@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Helmet } from "react-helmet-async";
+import "../styles/contact.css";
 
 const SITE_URL = "https://nextonlinetools.com";
 const CONTACT_URL = `${SITE_URL}/contact`;

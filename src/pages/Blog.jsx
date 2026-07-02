@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import * as Icons from "lucide-react";
 import { blogs } from "../data/Blogs";
 import SmartLink from "../components/ui/SmartLink";
+import "../styles/blog.css";
 
 const SITE_URL = "https://nextonlinetools.com";
 const BLOG_URL = `${SITE_URL}/blog`;

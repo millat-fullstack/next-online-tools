@@ -5,6 +5,7 @@ import { Helmet } from "react-helmet-async";
 import tools from "../data/tools.json";
 import Button from "../components/ui/Button";
 import SmartLink from "../components/ui/SmartLink";
+import "../styles/home.css";
 
 const SITE_URL = "https://nextonlinetools.com";
 const HOME_IMAGE = `${SITE_URL}/images/home-page-banner.png`;

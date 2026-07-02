@@ -6,6 +6,7 @@ import * as Icons from "lucide-react";
 import tools from "../data/tools.json";
 import { blogs } from "../data/Blogs";
 import SmartLink from "../components/ui/SmartLink";
+import "../styles/tools.css";
 
 const SITE_URL = "https://nextonlinetools.com";
 const TOOLS_URL = `${SITE_URL}/tools`;

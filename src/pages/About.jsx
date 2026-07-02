@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import * as Icons from "lucide-react";
 import { Helmet } from "react-helmet-async";
+import * as Icons from "lucide-react";
 
 import tools from "../data/tools.json";
 import SmartLink from "../components/ui/SmartLink";
+import "../styles/about.css";
 
 const SITE_URL = "https://nextonlinetools.com";
 const ABOUT_URL = `${SITE_URL}/about`;
@@ -18,13 +19,13 @@ function normalizeText(value) {
   return String(value || "").trim();
 }
 
-function IconBox({ icon, className = "" }) {
+function IconBox({ icon, size = 22 }) {
   const IconComponent = Icons[icon] || Icons.Sparkles;
 
   return (
-    <div className={`about-v2-icon ${className}`} aria-hidden="true">
-      <IconComponent size={24} strokeWidth={2.1} />
-    </div>
+    <span className="about-icon" aria-hidden="true">
+      <IconComponent size={size} strokeWidth={2.1} />
+    </span>
   );
 }
 
@@ -39,7 +40,9 @@ export default function About() {
   const [isLoading, setIsLoading] = useState(false);
 
   const categories = useMemo(() => {
-    return [...new Set(tools.map((tool) => normalizeText(tool.category)).filter(Boolean))];
+    return [
+      ...new Set(tools.map((tool) => normalizeText(tool.category)).filter(Boolean)),
+    ];
   }, []);
 
   const totalTools = tools.length;
@@ -54,61 +57,70 @@ export default function About() {
   const focusCards = [
     {
       title: "Simple by design",
-      label: "UX",
+      label: "Clarity",
       description:
-        "Every page is built around one clear task, visible actions, helpful labels, and a clean result area.",
+        "Every tool page is planned around one clear task, obvious actions, useful guidance, and a result that is easy to copy or download.",
       icon: "MousePointerClick",
     },
     {
       title: "Fast everyday workflow",
       label: "Speed",
       description:
-        "Open a tool, complete the job, and continue your work without installing heavy software.",
+        "Users can open a tool, complete the job, and continue their work without installing heavy software or creating complicated setups.",
       icon: "Zap",
     },
     {
-      title: "Useful tool categories",
-      label: "Library",
+      title: "Practical tool library",
+      label: "Utility",
       description:
-        "Images, PDFs, text, SEO, spreadsheets, social content, converters, colors, and productivity tools.",
+        "The platform focuses on useful categories such as image tools, PDF tools, text tools, SEO tools, spreadsheet tools, and converters.",
       icon: "Layers",
     },
     {
-      title: "Built for real users",
-      label: "Practical",
+      title: "Built for real use cases",
+      label: "People",
       description:
-        "Made for students, creators, marketers, office teams, developers, and small business owners.",
+        "The site is shaped for students, creators, marketers, office users, developers, website owners, and small business teams.",
       icon: "Users",
     },
   ];
 
-  const userGroups = [
+  const audiences = [
     {
       title: "Creators and marketers",
       description:
-        "Resize social images, format LinkedIn posts, compress visuals, prepare thumbnails, and clean campaign assets.",
+        "Prepare visuals, format social posts, compress files, create thumbnails, generate QR codes, and polish campaign assets.",
       icon: "Megaphone",
     },
     {
       title: "Students and office users",
       description:
-        "Work with PDFs, count words, convert files, organize documents, and prepare quick daily tasks.",
-      icon: "BriefcaseBusiness",
+        "Work with PDFs, count words, convert files, clean text, organize documents, and finish repeated daily tasks faster.",
+      icon: "Briefcase",
     },
     {
       title: "Website and SEO teams",
       description:
-        "Generate slugs, prepare image files, clean text, create QR codes, and improve publishing workflows.",
+        "Generate slugs, optimize images, clean copy, prepare content assets, and support publishing workflows.",
       icon: "SearchCheck",
     },
   ];
 
-  const operatingPrinciples = [
+  const principles = [
     "Keep every tool focused on one clear job.",
-    "Make the first action obvious for new visitors.",
-    "Avoid clutter, unnecessary steps, and confusing labels.",
-    "Create pages that are useful for both users and search engines.",
-    "Improve tools based on real workflow problems.",
+    "Make the first action easy to understand.",
+    "Reduce clutter and unnecessary steps.",
+    "Write helpful instructions for beginners and busy users.",
+    "Improve the platform based on real workflow problems.",
+  ];
+
+  const categoryPreview = [
+    "Image Tools",
+    "PDF Tools",
+    "Text Tools",
+    "Spreadsheet Tools",
+    "SEO Tools",
+    "Social Media Tools",
   ];
 
   const faqItems = [
@@ -120,7 +132,7 @@ export default function About() {
     {
       question: "Are the tools free to use?",
       answer:
-        "Yes. The platform is focused on simple free tools that help users finish common digital jobs quickly.",
+        "Yes. The platform focuses on simple free tools that help users complete common digital jobs quickly.",
     },
     {
       question: "Do I need to install any software?",
@@ -136,11 +148,11 @@ export default function About() {
 
   const responseIcon =
     responseType === "success" ? (
-      <Icons.CheckCircle size={20} />
+      <Icons.CheckCircle size={18} />
     ) : responseType === "warning" ? (
-      <Icons.AlertTriangle size={20} />
+      <Icons.AlertTriangle size={18} />
     ) : responseType === "error" ? (
-      <Icons.XCircle size={20} />
+      <Icons.XCircle size={18} />
     ) : null;
 
   const structuredData = useMemo(() => {
@@ -242,9 +254,7 @@ export default function About() {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (formData.website) {
-      return;
-    }
+    if (formData.website) return;
 
     if (!formData.email) {
       setResponseType("warning");
@@ -295,7 +305,10 @@ export default function About() {
           name="keywords"
           content="about Next Online Tools, free online tools, browser based tools, image tools, PDF tools, text tools, SEO tools, spreadsheet tools, social media tools, productivity tools"
         />
-        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+        <meta
+          name="robots"
+          content="index, follow, max-image-preview:large, max-snippet:-1"
+        />
 
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Next Online Tools" />
@@ -321,117 +334,111 @@ export default function About() {
         </script>
       </Helmet>
 
-      <main className="about-v2-page">
-        <nav className="about-v2-breadcrumb" aria-label="Breadcrumb">
+      <main className="about-page">
+        <nav className="about-breadcrumb" aria-label="Breadcrumb">
           <SmartLink to="/">Home</SmartLink>
           <Icons.ChevronRight size={14} aria-hidden="true" />
           <span>About</span>
         </nav>
 
-        <section className="about-v2-hero">
-          <div className="about-v2-hero-content">
-            <div className="about-v2-kicker">
-              <Icons.Sparkles size={16} />
-              <span>About Next Online Tools</span>
-            </div>
+        <section className="about-hero">
+          <div className="about-hero-copy">
+            <span className="about-kicker">
+              <Icons.Sparkles size={15} />
+              About Next Online Tools
+            </span>
 
-            <h1>Clean, practical online tools for everyday digital work.</h1>
+            <h1>Practical browser-based tools for everyday digital work.</h1>
 
             <p>
-              Next Online Tools helps people complete small but important tasks
-              faster, including image editing, PDF work, text formatting, SEO
-              preparation, spreadsheet cleanup, social media content, and quick
-              file conversions.
+              Next Online Tools brings focused utilities for images, PDFs, text,
+              SEO, spreadsheets, social content, and quick conversions into one
+              clean platform.
             </p>
 
-            <div className="about-v2-hero-actions">
-              <SmartLink to="/tools" className="about-v2-primary-btn">
+            <div className="about-hero-actions">
+              <SmartLink to="/tools" className="about-primary-btn">
                 Explore Tools
-                <Icons.ArrowRight size={17} />
+                <Icons.ArrowRight size={16} />
               </SmartLink>
 
-              <SmartLink to="/contact" className="about-v2-secondary-btn">
+              <SmartLink to="/contact" className="about-secondary-btn">
                 Request a Tool
               </SmartLink>
             </div>
           </div>
 
-          <div className="about-v2-hero-panel" aria-label="Website highlights">
-            <div className="about-v2-stat-card about-v2-stat-main">
+          <aside className="about-snapshot" aria-label="Website snapshot">
+            <div>
               <strong>{totalTools}+</strong>
-              <span>Free browser-based tools available now</span>
+              <span>Free tools available</span>
             </div>
 
-            <div className="about-v2-stat-card">
+            <div>
               <strong>{totalCategories}+</strong>
-              <span>Organized tool categories</span>
+              <span>Organized categories</span>
             </div>
 
-            <div className="about-v2-stat-card">
+            <div>
               <strong>24/7</strong>
-              <span>Access from any modern browser</span>
+              <span>Browser access</span>
             </div>
-          </div>
+          </aside>
         </section>
 
-        <section className="about-v2-section about-v2-story">
-          <div className="about-v2-story-main">
-            <div className="about-v2-section-head">
+        <section className="about-section about-intro-grid">
+          <div>
+            <div className="about-section-head">
               <span>Who we are</span>
               <h2>A focused utility platform built around real user tasks.</h2>
               <p>
                 Many digital jobs are small, but they slow people down when the
-                right tool is hard to find. Next Online Tools brings those
-                everyday utilities into one clean place.
+                right tool is hard to find. Next Online Tools makes those tasks
+                easier to complete from one clean place.
               </p>
             </div>
 
-            <div className="about-v2-copy">
+            <div className="about-copy-block">
               <p>
-                The goal of Next Online Tools is simple: help users open a tool,
-                understand the next step, complete the task, and continue their
-                work without confusion. That is why the platform focuses on
-                clean pages, direct actions, helpful instructions, and outputs
-                that are easy to copy, download, or reuse.
+                Our goal is to help users open a tool, understand the next step,
+                complete the task, and continue their work without confusion.
+                That is why the platform focuses on clean pages, direct actions,
+                helpful instructions, and outputs that are easy to reuse.
               </p>
 
               <p>
-                The website is designed for practical workflows. A creator may
-                need to resize and compress an image before publishing. A student
-                may need to count words or prepare a PDF. A marketer may need to
-                format a LinkedIn post, clean a list, or generate a quick QR
-                code. Each tool is built to solve these moments with less effort.
+                Whether someone needs to resize an image, compress a PDF, count
+                words, format a LinkedIn post, generate a slug, extract links
+                from a spreadsheet, or convert a file, the experience should be
+                fast and simple.
               </p>
             </div>
           </div>
 
-          <aside className="about-v2-mission-card">
+          <aside className="about-mission-card">
             <IconBox icon="Target" />
-
             <span>Our mission</span>
-
             <h3>Make useful online tools simple, fast, and accessible.</h3>
-
             <p>
-              We are building a growing library of free tools that support
-              everyday online work without complicated software, unnecessary
-              clutter, or a steep learning curve.
+              We are building a growing library of free browser tools that solve
+              common digital tasks without clutter, heavy software, or a steep
+              learning curve.
             </p>
           </aside>
         </section>
 
-        <section className="about-v2-section">
-          <div className="about-v2-section-head">
+        <section className="about-section">
+          <div className="about-section-head">
             <span>What we focus on</span>
             <h2>Clear tools, clean design, and faster workflows.</h2>
           </div>
 
-          <div className="about-v2-focus-grid">
+          <div className="about-card-grid">
             {focusCards.map((card) => (
-              <article key={card.title} className="about-v2-focus-card">
-                <div className="about-v2-card-top">
+              <article key={card.title} className="about-card">
+                <div className="about-card-top">
                   <IconBox icon={card.icon} />
-                  <span>{card.label}</span>
+                  <small>{card.label}</small>
                 </div>
 
                 <h3>{card.title}</h3>
@@ -441,9 +448,9 @@ export default function About() {
           </div>
         </section>
 
-        <section className="about-v2-section">
-          <div className="about-v2-section-head-row">
-            <div className="about-v2-section-head">
+        <section className="about-section about-audience-section">
+          <div className="about-section-row">
+            <div className="about-section-head">
               <span>Built for</span>
               <h2>Different users, one simple tool library.</h2>
               <p>
@@ -452,14 +459,14 @@ export default function About() {
               </p>
             </div>
 
-            <SmartLink to="/tools" className="about-v2-view-all">
+            <SmartLink to="/tools" className="about-tertiary-btn">
               Browse all tools
             </SmartLink>
           </div>
 
-          <div className="about-v2-user-grid">
-            {userGroups.map((group) => (
-              <article key={group.title} className="about-v2-user-card">
+          <div className="about-audience-grid">
+            {audiences.map((group) => (
+              <article key={group.title} className="about-audience-card">
                 <IconBox icon={group.icon} />
                 <h3>{group.title}</h3>
                 <p>{group.description}</p>
@@ -468,25 +475,25 @@ export default function About() {
           </div>
         </section>
 
-        <section className="about-v2-section about-v2-principles">
+        <section className="about-section about-principles">
           <div>
-            <div className="about-v2-section-head">
+            <div className="about-section-head">
               <span>How we build</span>
-              <h2>Our product principles</h2>
+              <h2>Product principles that keep the site useful.</h2>
               <p>
                 Every update should make the website easier to understand,
                 faster to use, and more helpful for real work.
               </p>
             </div>
 
-            <SmartLink to="/contact" className="about-v2-secondary-btn">
+            <SmartLink to="/contact" className="about-secondary-btn">
               Suggest an improvement
             </SmartLink>
           </div>
 
-          <div className="about-v2-principle-list">
-            {operatingPrinciples.map((principle) => (
-              <div key={principle} className="about-v2-principle-item">
+          <div className="about-principle-list">
+            {principles.map((principle) => (
+              <div key={principle} className="about-principle-item">
                 <Icons.CheckCircle2 size={18} aria-hidden="true" />
                 <span>{principle}</span>
               </div>
@@ -494,8 +501,36 @@ export default function About() {
           </div>
         </section>
 
-        <section className="about-v2-newsletter" aria-label="Newsletter subscription">
-          <div className="about-v2-newsletter-content">
+        <section className="about-section">
+          <div className="about-section-row">
+            <div className="about-section-head">
+              <span>Tool categories</span>
+              <h2>Useful categories for common digital tasks.</h2>
+            </div>
+
+            <SmartLink to="/tools" className="about-tertiary-btn">
+              View all categories
+            </SmartLink>
+          </div>
+
+          <div className="about-category-strip">
+            {categoryPreview.map((category) => (
+              <SmartLink
+                key={category}
+                to={`/tools?category=${encodeURIComponent(category)}`}
+              >
+                {category}
+                <Icons.ArrowUpRight size={14} />
+              </SmartLink>
+            ))}
+          </div>
+        </section>
+
+        <section
+          className="about-newsletter"
+          aria-label="Newsletter subscription"
+        >
+          <div className="about-newsletter-copy">
             <IconBox icon="Send" />
             <span>Tool updates</span>
             <h2>Get updates when new tools are released.</h2>
@@ -505,13 +540,13 @@ export default function About() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="about-v2-newsletter-form">
+          <form onSubmit={handleSubmit} className="about-newsletter-form">
             <input
               type="text"
               name="website"
               value={formData.website}
               onChange={handleChange}
-              className="about-v2-honeypot"
+              className="about-honeypot"
               tabIndex="-1"
               autoComplete="off"
               aria-hidden="true"
@@ -534,7 +569,7 @@ export default function About() {
             <button type="submit" disabled={isLoading}>
               {isLoading ? (
                 <>
-                  <Icons.Loader className="about-v2-spin" size={18} />
+                  <Icons.Loader className="about-spin" size={18} />
                   Subscribing
                 </>
               ) : (
@@ -547,7 +582,7 @@ export default function About() {
 
             {responseMsg && (
               <div
-                className={`about-v2-response about-v2-response-${responseType || "info"}`}
+                className={`about-response about-response-${responseType || "info"}`}
                 role="status"
                 aria-live="polite"
               >
@@ -556,19 +591,19 @@ export default function About() {
               </div>
             )}
 
-            <p className="about-v2-form-note">
+            <p className="about-form-note">
               We use your email only for tool updates and website news.
             </p>
           </form>
         </section>
 
-        <section className="about-v2-section">
-          <div className="about-v2-section-head">
+        <section className="about-section">
+          <div className="about-section-head">
             <span>FAQ</span>
             <h2>Common questions about Next Online Tools</h2>
           </div>
 
-          <div className="about-v2-faq-grid">
+          <div className="about-faq-grid">
             {faqItems.map((item) => (
               <article key={item.question}>
                 <h3>{item.question}</h3>
