@@ -30,6 +30,10 @@ export default function Header() {
               All Tools
             </Button>
 
+            <Button to="/converter" variant="secondary" className="hidden sm:inline-flex">
+              Converter
+            </Button>
+
             <Button to="/contact">Contact</Button>
           </div>
         </div>

@@ -235,6 +235,7 @@ function getToolUrl(step) {
 }
 
 function getCategoryUrl(category) {
+  if (category === "Converter Tools") return "/converter";
   return `/tools?category=${encodeURIComponent(category)}`;
 }
 

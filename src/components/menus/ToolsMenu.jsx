@@ -20,6 +20,14 @@ export default function ToolsMenu() {
           <Icons.ArrowRight size={16} className="text-[var(--primary)]" />
         </SmartLink>
 
+        <SmartLink
+          to="/converter"
+          className="flex items-center justify-between p-3 rounded-xl hover:bg-[#f7f1ff] text-sm font-medium"
+        >
+          <span>Converter</span>
+          <Icons.RefreshCw size={16} className="text-[var(--primary)]" />
+        </SmartLink>
+
         {categories.map((category) => (
           <SmartLink
             key={category}

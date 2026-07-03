@@ -7,7 +7,7 @@ export const blogData = {
   date: "2026-04-26",
   category: "Image Tools",
   excerpt: "Learn how online image tools like resizers, compressors, and converters can help you optimize images for speed, quality, and better SEO performance.",
-  image: "/images/image-tools-guide.jpg"
+  image: "/images/image-tools-guide.png"
 };
 
 export default function ImageToolsGuide() {

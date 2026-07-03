@@ -12,6 +12,7 @@ import Contact from "./pages/Contact";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import ToolPage from "./pages/ToolPage";
+import Converter from "./pages/Converter";
 
 export default function App() {
   return (
@@ -21,6 +22,9 @@ export default function App() {
 
         <Route path="/tools" element={<Tools />} />
         <Route path="/tools/" element={<Tools />} />
+
+        <Route path="/converter" element={<Converter />} />
+        <Route path="/converter/" element={<Converter />} />
 
         <Route path="/search" element={<SearchResults />} />
         <Route path="/search/" element={<SearchResults />} />
