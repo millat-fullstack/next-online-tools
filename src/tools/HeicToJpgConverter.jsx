@@ -231,7 +231,7 @@ export default function HeicToJpgConverter() {
         <h1 className="text-3xl font-bold mb-3">HEIC to JPG Converter</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Upload an iPhone HEIC/HEIF image, convert it to JPG, preview the converted image, and download it instantly.
+          Upload an iPhone HEIC/HEIF image, convert it to JPG with stronger browser decoders, preview the converted image, and download it instantly.
         </p>
       </section>
 
@@ -424,14 +424,40 @@ async function convertHeicToJpg(file, quality) {
   }
 
   const errors = [];
-  const converter = await getHeic2AnyConverter();
+  const attempts = await createConversionAttempts(file);
 
-  if (converter) {
-    const attempts = await createConversionAttempts(file);
+  const heicToConverter = await getHeicToConverter();
 
+  if (heicToConverter) {
     for (const attempt of attempts) {
       try {
-        const result = await converter({
+        const result = await heicToConverter({
+          blob: attempt.blob,
+          type: "image/jpeg",
+          quality: quality / 100,
+        });
+
+        const jpgBlob = Array.isArray(result) ? result[0] : result;
+
+        if (jpgBlob instanceof Blob && jpgBlob.size > 0) {
+          return jpgBlob;
+        }
+
+        errors.push(`heic-to ${attempt.label}: empty result`);
+      } catch (error) {
+        errors.push(`heic-to ${attempt.label}: ${error?.message || "failed"}`);
+      }
+    }
+  } else {
+    errors.push("heic-to package is not installed or could not be loaded");
+  }
+
+  const heic2AnyConverter = await getHeic2AnyConverter();
+
+  if (heic2AnyConverter) {
+    for (const attempt of attempts) {
+      try {
+        const result = await heic2AnyConverter({
           blob: attempt.blob,
           toType: "image/jpeg",
           quality: quality / 100,
@@ -443,9 +469,9 @@ async function convertHeicToJpg(file, quality) {
           return jpgBlob;
         }
 
-        errors.push(`${attempt.label}: empty result`);
+        errors.push(`heic2any ${attempt.label}: empty result`);
       } catch (error) {
-        errors.push(`${attempt.label}: ${error?.message || "failed"}`);
+        errors.push(`heic2any ${attempt.label}: ${error?.message || "failed"}`);
       }
     }
   } else {
@@ -458,9 +484,32 @@ async function convertHeicToJpg(file, quality) {
     errors.push(`native browser decoder: ${nativeError?.message || "failed"}`);
   }
 
+  console.warn("HEIC conversion attempts failed:", errors);
+
   throw new Error(
-    "Conversion failed. Install heic2any, then try a valid HEIC/HEIF image. If this file still fails, export the iPhone photo as Most Compatible/JPG and try again."
+    "Conversion failed. This HEIC/HEIF file was not supported by the available browser decoders. Install both heic-to and heic2any, then try again. If it still fails, the file may be an unsupported iPhone HEIC variant."
   );
+}
+
+let heicToConverterPromise = null;
+
+async function getHeicToConverter() {
+  if (!heicToConverterPromise) {
+    heicToConverterPromise = import("heic-to")
+      .catch(() => import("heic-to/csp"))
+      .then((module) => {
+        if (typeof module?.heicTo === "function") return module.heicTo;
+        if (typeof module?.default?.heicTo === "function") return module.default.heicTo;
+        if (typeof module?.default === "function") return module.default;
+        if (typeof module === "function") return module;
+        return null;
+      })
+      .catch(() => null);
+  }
+
+  const converter = await heicToConverterPromise;
+
+  return typeof converter === "function" ? converter : null;
 }
 
 let heic2anyConverterPromise = null;
