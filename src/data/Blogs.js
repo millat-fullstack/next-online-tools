@@ -1,5 +1,32 @@
 export const blogs = [
   {
+    "title": "Best Free PDF Tools for Students and Office Work",
+    "slug": "best-free-pdf-tools-for-students-and-office-work",
+    "date": "2026-06-08",
+    "category": "PDF Tools",
+    "excerpt": "Explore the best free PDF tools for students and office work, including tools to merge, split, compress, convert, organize, and add page numbers to PDF files.",
+    "image": "/images/best-free-pdf-tools-students-office-work.png",
+    "pageFile": "best-free-pdf-tools-for-students-and-office-work"
+  },
+  {
+    "title": "How to Add Page Numbers to PDF Online",
+    "slug": "how-to-add-page-numbers-to-pdf-online",
+    "date": "2026-06-08",
+    "category": "PDF Tools",
+    "excerpt": "Learn how to add page numbers to PDF files online without installing software. Number PDF pages for assignments, reports, office documents, and printable files.",
+    "image": "/images/add-page-numbers-to-pdf-online.png",
+    "pageFile": "how-to-add-page-numbers-to-pdf-online"
+  },
+  {
+    "title": "Image Compressor vs Image Resizer: What Is the Difference?",
+    "slug": "image-compressor-vs-image-resizer-what-is-the-difference",
+    "date": "2026-06-08",
+    "category": "Image Tools",
+    "excerpt": "Learn the difference between an image compressor and an image resizer, when to use each tool, and how they help reduce image size for websites, social media, and documents.",
+    "image": "/images/image-compressor-vs-image-resizer.png",
+    "pageFile": "image-compressor-vs-image-resizer-what-is-the-difference"
+  },
+  {
     "title": "Best LinkedIn Post Formatting Tips",
     "slug": "best-linkedin-post-formatting-tips",
     "date": "2026-06-07",
@@ -194,7 +221,7 @@ export const blogs = [
     "date": "2026-04-26",
     "category": "Image Tools",
     "excerpt": "Learn how online image tools like resizers, compressors, and converters can help you optimize images for speed, quality, and better SEO performance.",
-    "image": "/images/image-tools-guide.jpg",
+    "image": "/images/image-tools-guide.png",
     "pageFile": "image-tools-guide"
   },
   {
