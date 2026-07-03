@@ -24,7 +24,7 @@ export const toolData = {
     "Convert up to 10 HEIC and HEIF images to 100% quality JPG online with clean preview and instant download.",
   metaTitle: "HEIC to JPG Converter | Convert HEIC Images to JPG Online Free",
   metaDescription:
-    "Convert HEIC and HEIF images to JPG online for free. Batch convert up to 10 images with 100% JPG quality, preview, and download.",
+    "Convert HEIC images to JPG online for free. Batch convert up to 10 images with 100% JPG quality, preview, and download.",
 };
 
 const MAX_FILES = 10;
