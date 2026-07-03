@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import heic2anyImport from "heic2any";
 import {
   Upload,
   Download,
   RotateCcw,
-  Image,
+  Image as ImageIcon,
   AlertCircle,
   CheckCircle,
   FileImage,
@@ -198,18 +197,17 @@ export default function HeicToJpgConverter() {
     }
   }
 
-  function handleDownload() {
+  async function handleDownload() {
     if (!convertedBlob || !convertedUrl) {
       setError("Please convert the HEIC image first.");
       return;
     }
 
-    const link = document.createElement("a");
-    link.href = convertedUrl;
-    link.download = convertedName || "converted-image.jpg";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      await saveBlob(convertedBlob, convertedName || "converted-image.jpg");
+    } catch {
+      setError("Could not start JPG download. Please try again.");
+    }
   }
 
   function handleReset() {
@@ -227,7 +225,7 @@ export default function HeicToJpgConverter() {
     <div className="flex flex-col gap-6">
       <section className="card p-6 sm:p-8">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
-          <Image size={28} className="text-[var(--primary)]" />
+          <ImageIcon size={28} className="text-[var(--primary)]" />
         </div>
 
         <h1 className="text-3xl font-bold mb-3">HEIC to JPG Converter</h1>
@@ -421,33 +419,37 @@ export default function HeicToJpgConverter() {
 
 
 async function convertHeicToJpg(file, quality) {
-  const converter = getHeic2AnyConverter();
-
-  if (!converter) {
-    throw new Error("Conversion failed. heic2any is installed incorrectly or unavailable in this browser build.");
+  if (typeof window === "undefined") {
+    throw new Error("HEIC conversion must run in the browser.");
   }
 
-  const attempts = await createConversionAttempts(file);
   const errors = [];
+  const converter = await getHeic2AnyConverter();
 
-  for (const attempt of attempts) {
-    try {
-      const result = await converter({
-        blob: attempt.blob,
-        toType: "image/jpeg",
-        quality: quality / 100,
-      });
+  if (converter) {
+    const attempts = await createConversionAttempts(file);
 
-      const jpgBlob = Array.isArray(result) ? result[0] : result;
+    for (const attempt of attempts) {
+      try {
+        const result = await converter({
+          blob: attempt.blob,
+          toType: "image/jpeg",
+          quality: quality / 100,
+        });
 
-      if (jpgBlob instanceof Blob && jpgBlob.size > 0) {
-        return jpgBlob;
+        const jpgBlob = Array.isArray(result) ? result[0] : result;
+
+        if (jpgBlob instanceof Blob && jpgBlob.size > 0) {
+          return jpgBlob;
+        }
+
+        errors.push(`${attempt.label}: empty result`);
+      } catch (error) {
+        errors.push(`${attempt.label}: ${error?.message || "failed"}`);
       }
-
-      errors.push(`${attempt.label}: empty result`);
-    } catch (error) {
-      errors.push(`${attempt.label}: ${error?.message || "failed"}`);
     }
+  } else {
+    errors.push("heic2any package is not installed or could not be loaded");
   }
 
   try {
@@ -457,14 +459,22 @@ async function convertHeicToJpg(file, quality) {
   }
 
   throw new Error(
-    "Conversion failed. This HEIC variant may not be supported by the browser converter. Try another HEIC file, or export the photo again from iPhone as Most Compatible/JPG."
+    "Conversion failed. Install heic2any, then try a valid HEIC/HEIF image. If this file still fails, export the iPhone photo as Most Compatible/JPG and try again."
   );
 }
 
-function getHeic2AnyConverter() {
-  if (typeof heic2anyImport === "function") return heic2anyImport;
-  if (typeof heic2anyImport?.default === "function") return heic2anyImport.default;
-  return null;
+let heic2anyConverterPromise = null;
+
+async function getHeic2AnyConverter() {
+  if (!heic2anyConverterPromise) {
+    heic2anyConverterPromise = import("heic2any")
+      .then((module) => module.default || module)
+      .catch(() => null);
+  }
+
+  const converter = await heic2anyConverterPromise;
+
+  return typeof converter === "function" ? converter : null;
 }
 
 async function createConversionAttempts(file) {
@@ -566,6 +576,65 @@ function canvasToBlob(canvas, mimeType, quality) {
       quality
     );
   });
+}
+
+async function saveBlob(blob, filename) {
+  const safeBlob = blob instanceof Blob
+    ? blob
+    : new Blob([blob], { type: "application/octet-stream" });
+  const safeName = sanitizeDownloadFileName(filename || "converted-image.jpg");
+  const file = new File([safeBlob], safeName, { type: safeBlob.type || "image/jpeg" });
+
+  const canShareFile =
+    isIosLikeDevice() &&
+    typeof navigator !== "undefined" &&
+    typeof navigator.canShare === "function" &&
+    typeof navigator.share === "function" &&
+    navigator.canShare({ files: [file] });
+
+  if (canShareFile) {
+    await navigator.share({
+      files: [file],
+      title: safeName,
+    });
+    return;
+  }
+
+  const url = URL.createObjectURL(safeBlob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = safeName;
+  link.rel = "noopener";
+  link.style.display = "none";
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function isIosLikeDevice() {
+  if (typeof navigator === "undefined") return false;
+
+  const userAgent = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+
+  return (
+    /iPad|iPhone|iPod/i.test(userAgent) ||
+    (platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1)
+  );
+}
+
+function sanitizeDownloadFileName(fileName) {
+  const cleanName = String(fileName || "converted-image.jpg")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim();
+
+  return cleanName || "converted-image.jpg";
 }
 
 function MessageBox({ type, message }) {
