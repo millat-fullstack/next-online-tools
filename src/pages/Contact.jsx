@@ -1,41 +1,84 @@
 import { useMemo, useState } from "react";
-import {
-  Mail,
-  MessageCircle,
-  Send,
-  HelpCircle,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Loader,
-  Sparkles,
-} from "lucide-react";
 import { Helmet } from "react-helmet-async";
+import * as Icons from "lucide-react";
+
+import SmartLink from "../components/ui/SmartLink";
 import "../styles/contact.css";
 
 const SITE_URL = "https://nextonlinetools.com";
 const CONTACT_URL = `${SITE_URL}/contact`;
+const TOOLS_URL = `${SITE_URL}/tools`;
+const BLOG_URL = `${SITE_URL}/blog`;
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
+
+const CONTACT_ENDPOINT =
+  "https://script.google.com/macros/s/AKfycbxhMabtrxX_b_m4mAaro95wZC8u64HklkGVkqo3Zcew9oAx-tLk7e78lcFhRIrs-QpOWg/exec";
+
+const CONTACT_REASONS = [
+  "General question",
+  "Tool feedback",
+  "Bug report",
+  "Content feedback",
+  "Partnership or business",
+];
+
+const FAQ_ITEMS = [
+  {
+    question: "What should I include in my message?",
+    answer:
+      "Share the page or tool name, what you were trying to do, what happened, and the device or browser you used if it is related to a technical issue.",
+  },
+  {
+    question: "Can I report a bug?",
+    answer:
+      "Yes. If a tool is not working as expected, send a clear description so we can review the issue and improve the experience.",
+  },
+  {
+    question: "Can I send website feedback?",
+    answer:
+      "Yes. Feedback about usability, content, guides, or tool experience helps us make Next Online Tools cleaner and more useful.",
+  },
+];
+
+function ContactIcon({ icon }) {
+  const IconComponent = Icons[icon] || Icons.MessageCircle;
+
+  return (
+    <span className="contact-icon" aria-hidden="true">
+      <IconComponent size={22} strokeWidth={2.1} />
+    </span>
+  );
+}
 
 export default function Contact() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    topic: CONTACT_REASONS[0],
     message: "",
+    website: "",
   });
 
   const [responseMsg, setResponseMsg] = useState("");
-  const [responseIcon, setResponseIcon] = useState(null);
+  const [responseType, setResponseType] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const seoTitle =
-    "Contact Next Online Tools | Support, Feedback & Free Tool Requests";
+  const seoTitle = "Contact Next Online Tools | Support & Feedback";
 
   const seoDescription =
-    "Contact Next Online Tools for support, website feedback, bug reports, partnership questions, or suggestions for new free online tools. Send your message easily online.";
+    "Contact Next Online Tools for support, website feedback, bug reports, content questions, partnership messages, or help with free browser-based online tools.";
 
   const seoKeywords =
-    "contact Next Online Tools, Next Online Tools support, online tools support, free tools feedback, tool request, suggest online tool, website feedback, report tool issue, free web tools contact, browser based tools support";
+    "contact Next Online Tools, Next Online Tools support, online tools feedback, report tool issue, browser based tools support, website feedback, free online tools contact";
+
+  const responseIcon =
+    responseType === "success" ? (
+      <Icons.CheckCircle size={18} />
+    ) : responseType === "warning" ? (
+      <Icons.AlertTriangle size={18} />
+    ) : responseType === "error" ? (
+      <Icons.XCircle size={18} />
+    ) : null;
 
   const structuredData = useMemo(() => {
     return {
@@ -50,7 +93,7 @@ export default function Contact() {
             "Free browser-based online tools for images, text, PDF, SEO, conversions, colors, productivity, and daily digital tasks.",
           potentialAction: {
             "@type": "SearchAction",
-            target: `${SITE_URL}/tools?search={search_term_string}`,
+            target: `${TOOLS_URL}?search={search_term_string}`,
             "query-input": "required name=search_term_string",
           },
         },
@@ -59,12 +102,16 @@ export default function Contact() {
           "@id": `${SITE_URL}/#organization`,
           name: "Next Online Tools",
           url: SITE_URL,
-          logo: DEFAULT_OG_IMAGE,
+          logo: {
+            "@type": "ImageObject",
+            url: DEFAULT_OG_IMAGE,
+          },
           contactPoint: {
             "@type": "ContactPoint",
             contactType: "customer support",
             areaServed: "Worldwide",
             availableLanguage: ["English"],
+            url: CONTACT_URL,
           },
         },
         {
@@ -81,9 +128,7 @@ export default function Contact() {
           },
           inLanguage: "en",
           mainEntity: {
-            "@type": "Organization",
-            name: "Next Online Tools",
-            url: SITE_URL,
+            "@id": `${SITE_URL}/#organization`,
           },
         },
         {
@@ -104,82 +149,91 @@ export default function Contact() {
             },
           ],
         },
+        {
+          "@type": "FAQPage",
+          "@id": `${CONTACT_URL}#faq`,
+          mainEntity: FAQ_ITEMS.map((item) => ({
+            "@type": "Question",
+            name: item.question,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: item.answer,
+            },
+          })),
+        },
       ],
     };
   }, [seoDescription, seoTitle]);
 
-  function handleChange(e) {
-    const { name, value } = e.target;
+  function handleChange(event) {
+    const { name, value } = event.target;
 
-    setFormData((prev) => ({
-      ...prev,
+    setFormData((previousData) => ({
+      ...previousData,
       [name]: value,
     }));
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
 
-    if (!formData.name || !formData.email || !formData.message) {
-      setResponseIcon(<AlertTriangle size={20} />);
-      setResponseMsg("Please fill in all fields before sending your message.");
+    if (formData.website) return;
+
+    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
+      setResponseType("warning");
+      setResponseMsg("Please fill in your name, email, and message before sending.");
       return;
     }
 
     setIsLoading(true);
     setResponseMsg("");
-    setResponseIcon(null);
+    setResponseType(null);
 
     const formPayload = new FormData();
-    formPayload.append("name", formData.name);
-    formPayload.append("email", formData.email);
-    formPayload.append("message", formData.message);
+    formPayload.append("name", formData.name.trim());
+    formPayload.append("email", formData.email.trim());
+    formPayload.append("topic", formData.topic);
+    formPayload.append("message", formData.message.trim());
+    formPayload.append("source", "Contact page");
 
     try {
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbxhMabtrxX_b_m4mAaro95wZC8u64HklkGVkqo3Zcew9oAx-tLk7e78lcFhRIrs-QpOWg/exec",
-        {
-          method: "POST",
-          body: formPayload,
-        }
-      );
+      const response = await fetch(CONTACT_ENDPOINT, {
+        method: "POST",
+        body: formPayload,
+      });
 
       if (response.ok) {
-        setResponseIcon(<CheckCircle size={20} />);
-        setResponseMsg("Your message has been sent successfully!");
+        setResponseType("success");
+        setResponseMsg("Your message has been sent successfully.");
         setFormData({
           name: "",
           email: "",
+          topic: CONTACT_REASONS[0],
           message: "",
+          website: "",
         });
       } else {
-        setResponseIcon(<XCircle size={20} />);
+        setResponseType("error");
         setResponseMsg("Something went wrong. Please try again.");
       }
-    } catch (err) {
-      setResponseIcon(<AlertTriangle size={20} />);
-      setResponseMsg("Network error, please try again.");
+    } catch (error) {
+      setResponseType("error");
+      setResponseMsg("Network error. Please try again.");
     } finally {
       setIsLoading(false);
     }
   }
 
-  const responseColor = responseMsg.includes("success")
-    ? "green"
-    : responseMsg
-    ? "red"
-    : "inherit";
-
   return (
     <>
       <Helmet>
         <title>{seoTitle}</title>
-
         <meta name="description" content={seoDescription} />
+        <link rel="canonical" href={CONTACT_URL} />
         <meta name="keywords" content={seoKeywords} />
-        <meta name="robots" content="index, follow, max-image-preview:large" />
-        <meta name="googlebot" content="index, follow, max-image-preview:large" />
-        <meta name="bingbot" content="index, follow, max-image-preview:large" />
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+        <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1" />
+        <meta name="bingbot" content="index, follow, max-image-preview:large, max-snippet:-1" />
 
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Next Online Tools" />
@@ -205,185 +259,192 @@ export default function Contact() {
         </script>
       </Helmet>
 
-      <main className="tools-page">
-        {/* HERO */}
-        <section className="tools-hero">
-          <div className="tools-hero-badge">
-            <Sparkles size={16} />
-            <span>Contact Us</span>
+      <main className="contact-page">
+        <nav className="contact-breadcrumb" aria-label="Breadcrumb">
+          <SmartLink to="/">Home</SmartLink>
+          <Icons.ChevronRight size={14} aria-hidden="true" />
+          <span>Contact</span>
+        </nav>
+
+        <section className="contact-hero">
+          <div className="contact-hero-copy">
+            <span className="contact-kicker">
+              <Icons.Sparkles size={15} aria-hidden="true" />
+              Contact Next Online Tools
+            </span>
+
+            <h1>Need help or want to share feedback?</h1>
+
+            <p>
+              Send us a clear message about support questions, website feedback,
+              content suggestions, or tool issues. We use every useful note to
+              improve the Next Online Tools experience.
+            </p>
           </div>
 
-          <h1>Get in Touch with Next Online Tools</h1>
-
-          <p>
-            Have a question, suggestion, bug report, or new tool request? Send
-            us a message. We are always working to improve our free online
-            tools for everyone.
-          </p>
+          <aside className="contact-hero-note" aria-label="Contact guidance">
+            <ContactIcon icon="MessageCircle" />
+            <strong>Clear details help us respond better.</strong>
+            <span>
+              Mention the page, tool name, issue, and browser/device details if
+              your message is about a technical problem.
+            </span>
+          </aside>
         </section>
 
-        {/* CONTACT */}
-        <section className="tools-list-section">
-          <div className="tools-section-head">
-            <div>
-              <span>Support & Feedback</span>
-              <h2>Send a Message</h2>
+        <section className="contact-layout" aria-label="Contact form and support information">
+          <div className="contact-form-card">
+            <div className="contact-section-head">
+              <span>Send a message</span>
+              <h2>Tell us how we can help</h2>
+              <p>
+                Use this form for support, feedback, bug reports, content notes,
+                or business questions related to Next Online Tools.
+              </p>
             </div>
 
-            <p>We usually review tool requests and feedback carefully</p>
-          </div>
+            {responseMsg && (
+              <div
+                className={`contact-response contact-response-${responseType || "info"}`}
+                role="status"
+                aria-live="polite"
+              >
+                {responseIcon}
+                <span>{responseMsg}</span>
+              </div>
+            )}
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 card p-6 sm:p-8">
-              <h2 className="text-2xl font-bold mb-5">Send a Message</h2>
+            <form onSubmit={handleSubmit} className="contact-form">
+              <input
+                type="text"
+                name="website"
+                value={formData.website}
+                onChange={handleChange}
+                className="contact-honeypot"
+                tabIndex="-1"
+                autoComplete="off"
+                aria-hidden="true"
+              />
 
-              {responseMsg && (
-                <div
-                  className="mb-5 rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4 text-sm font-medium"
-                  style={{ color: responseColor }}
-                >
-                  <div className="flex items-center gap-2">
-                    {responseIcon}
-                    <span>{responseMsg}</span>
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Your Name
-                  </label>
+              <div className="contact-field-grid">
+                <label>
+                  <span>Your name</span>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="Enter your name"
-                    className="input"
                     disabled={isLoading}
                     autoComplete="name"
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Email Address
-                  </label>
+                <label>
+                  <span>Email address</span>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="Enter your email"
-                    className="input"
                     disabled={isLoading}
                     autoComplete="email"
                   />
-                </div>
+                </label>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Message
-                  </label>
-                  <textarea
-                    name="message"
-                    value={formData.message}
-                    onChange={handleChange}
-                    placeholder="Write your message or tool request"
-                    rows="6"
-                    className="input resize-none"
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn-primary w-fit"
+              <label>
+                <span>Topic</span>
+                <select
+                  name="topic"
+                  value={formData.topic}
+                  onChange={handleChange}
                   disabled={isLoading}
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader className="animate-spin" size={18} />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={18} />
-                      Send Message
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
+                  {CONTACT_REASONS.map((reason) => (
+                    <option key={reason} value={reason}>
+                      {reason}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <aside className="flex flex-col gap-5">
-              <div className="tool-card">
-                <div className="tool-card-top">
-                  <div className="tools-icon">
-                    <Mail size={26} strokeWidth={2.1} />
-                  </div>
-                </div>
+              <label>
+                <span>Message</span>
+                <textarea
+                  name="message"
+                  value={formData.message}
+                  onChange={handleChange}
+                  placeholder="Write your message with as much helpful detail as possible"
+                  rows="7"
+                  disabled={isLoading}
+                />
+              </label>
 
-                <h3>Email Support</h3>
+              <button type="submit" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Icons.Loader className="contact-spin" size={18} />
+                    Sending
+                  </>
+                ) : (
+                  <>
+                    <Icons.Send size={18} />
+                    Send message
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
 
-                <p>
-                  Contact us for general questions, online tool support,
-                  technical issues, or website feedback.
-                </p>
+          <aside className="contact-info-panel">
+            <article className="contact-info-card contact-info-card-primary">
+              <ContactIcon icon="Mail" />
+              <h3>Support and feedback</h3>
+              <p>
+                Share questions, issue reports, usability feedback, or content
+                notes related to the website and its tools.
+              </p>
+            </article>
 
-                <div className="tool-card-bottom">
-                  <span>Support</span>
-                  <div>
-                    <Mail size={17} />
-                  </div>
-                </div>
+            <article className="contact-info-card">
+              <ContactIcon icon="Bug" />
+              <h3>Report an issue</h3>
+              <p>
+                Include the tool name, what you entered, what happened, and what
+                result you expected.
+              </p>
+            </article>
+
+            <article className="contact-info-card">
+              <ContactIcon icon="FileText" />
+              <h3>Explore first</h3>
+              <p>
+                You may find a direct solution in the tools library or one of
+                our practical guides.
+              </p>
+              <div className="contact-card-links">
+                <SmartLink to="/tools">Browse tools</SmartLink>
+                <SmartLink to={BLOG_URL.replace(SITE_URL, "")}>Read guides</SmartLink>
               </div>
+            </article>
+          </aside>
+        </section>
 
-              <div className="tool-card">
-                <div className="tool-card-top">
-                  <div className="tools-icon">
-                    <MessageCircle size={26} strokeWidth={2.1} />
-                  </div>
-                </div>
+        <section className="contact-faq-section">
+          <div className="contact-section-head">
+            <span>Quick answers</span>
+            <h2>Before you send a message</h2>
+          </div>
 
-                <h3>Tool Suggestions</h3>
-
-                <p>
-                  Suggest new free online tools that can help users complete
-                  image, PDF, SEO, text, and conversion tasks faster.
-                </p>
-
-                <div className="tool-card-bottom">
-                  <span>Suggestions</span>
-                  <div>
-                    <MessageCircle size={17} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="tool-card">
-                <div className="tool-card-top">
-                  <div className="tools-icon">
-                    <HelpCircle size={26} strokeWidth={2.1} />
-                  </div>
-                </div>
-
-                <h3>Need Help?</h3>
-
-                <p>
-                  Tell us what is not working properly and we will try to
-                  improve the tool experience for future users.
-                </p>
-
-                <div className="tool-card-bottom">
-                  <span>Help</span>
-                  <div>
-                    <HelpCircle size={17} />
-                  </div>
-                </div>
-              </div>
-            </aside>
+          <div className="contact-faq-grid">
+            {FAQ_ITEMS.map((item) => (
+              <article key={item.question}>
+                <h3>{item.question}</h3>
+                <p>{item.answer}</p>
+              </article>
+            ))}
           </div>
         </section>
       </main>

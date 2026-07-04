@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import * as Icons from "lucide-react";
 
-import tools from "../data/tools.json";
 import SmartLink from "../components/ui/SmartLink";
 import "../styles/about.css";
 
@@ -15,9 +14,78 @@ const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 const NEWSLETTER_ENDPOINT =
   "https://script.google.com/macros/s/AKfycbxhMabtrxX_b_m4mAaro95wZC8u64HklkGVkqo3Zcew9oAx-tLk7e78lcFhRIrs-QpOWg/exec";
 
-function normalizeText(value) {
-  return String(value || "").trim();
-}
+const FOCUS_CARDS = [
+  {
+    title: "One task, one clear tool",
+    description:
+      "Every tool is designed around a specific job, so users can understand the page quickly and complete the task without extra steps.",
+    icon: "MousePointerClick",
+  },
+  {
+    title: "Faster everyday work",
+    description:
+      "The platform helps users finish small digital tasks faster, from preparing files to cleaning content and organizing work assets.",
+    icon: "Zap",
+  },
+  {
+    title: "Browser-based access",
+    description:
+      "Users can work directly from a modern browser without installing heavy software for simple daily tasks.",
+    icon: "Globe2",
+  },
+];
+
+const AUDIENCE_CARDS = [
+  {
+    title: "Students and office users",
+    description:
+      "Useful for quick document, text, file, and productivity tasks that come up during study, reporting, and daily office work.",
+    icon: "BriefcaseBusiness",
+  },
+  {
+    title: "Creators and marketers",
+    description:
+      "Helpful for preparing content assets, social posts, visuals, thumbnails, captions, and simple campaign materials.",
+    icon: "Megaphone",
+  },
+  {
+    title: "Website and SEO teams",
+    description:
+      "Made to support publishing workflows, content preparation, image optimization, URL cleanup, and small website tasks.",
+    icon: "SearchCheck",
+  },
+];
+
+const PRINCIPLES = [
+  "Keep the interface clean and easy to understand.",
+  "Make the main action visible from the first screen.",
+  "Reduce unnecessary clicks, clutter, and confusing labels.",
+  "Write guidance that helps beginners and busy users.",
+  "Organize tools so users can find relevant solutions faster.",
+];
+
+const FAQ_ITEMS = [
+  {
+    question: "What is Next Online Tools?",
+    answer:
+      "Next Online Tools is a free browser-based tools platform for everyday digital tasks such as image work, PDF tasks, text formatting, SEO preparation, spreadsheet cleanup, conversions, colors, and productivity work.",
+  },
+  {
+    question: "What is the mission of the website?",
+    answer:
+      "The mission is to make common online tasks simple, fast, and accessible through focused tools that work directly in the browser.",
+  },
+  {
+    question: "Do users need to install software?",
+    answer:
+      "No. The tools are designed to work from a browser, so users can complete quick tasks without installing heavy software.",
+  },
+  {
+    question: "Who is this website useful for?",
+    answer:
+      "It is useful for students, creators, marketers, office users, developers, website owners, small businesses, and anyone who needs practical online utility tools.",
+  },
+];
 
 function IconBox({ icon, size = 22 }) {
   const IconComponent = Icons[icon] || Icons.Sparkles;
@@ -39,112 +107,11 @@ export default function About() {
   const [responseType, setResponseType] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const categories = useMemo(() => {
-    return [
-      ...new Set(tools.map((tool) => normalizeText(tool.category)).filter(Boolean)),
-    ];
-  }, []);
-
-  const totalTools = tools.length;
-  const totalCategories = categories.length;
-
   const seoTitle =
     "About Next Online Tools | Free Browser-Based Tools for Daily Work";
 
   const seoDescription =
-    "Learn about Next Online Tools, a clean free online tools platform for images, PDFs, text, SEO, spreadsheets, conversions, social media, and everyday digital work.";
-
-  const focusCards = [
-    {
-      title: "Simple by design",
-      label: "Clarity",
-      description:
-        "Every tool page is planned around one clear task, obvious actions, useful guidance, and a result that is easy to copy or download.",
-      icon: "MousePointerClick",
-    },
-    {
-      title: "Fast everyday workflow",
-      label: "Speed",
-      description:
-        "Users can open a tool, complete the job, and continue their work without installing heavy software or creating complicated setups.",
-      icon: "Zap",
-    },
-    {
-      title: "Practical tool library",
-      label: "Utility",
-      description:
-        "The platform focuses on useful categories such as image tools, PDF tools, text tools, SEO tools, spreadsheet tools, and converters.",
-      icon: "Layers",
-    },
-    {
-      title: "Built for real use cases",
-      label: "People",
-      description:
-        "The site is shaped for students, creators, marketers, office users, developers, website owners, and small business teams.",
-      icon: "Users",
-    },
-  ];
-
-  const audiences = [
-    {
-      title: "Creators and marketers",
-      description:
-        "Prepare visuals, format social posts, compress files, create thumbnails, generate QR codes, and polish campaign assets.",
-      icon: "Megaphone",
-    },
-    {
-      title: "Students and office users",
-      description:
-        "Work with PDFs, count words, convert files, clean text, organize documents, and finish repeated daily tasks faster.",
-      icon: "Briefcase",
-    },
-    {
-      title: "Website and SEO teams",
-      description:
-        "Generate slugs, optimize images, clean copy, prepare content assets, and support publishing workflows.",
-      icon: "SearchCheck",
-    },
-  ];
-
-  const principles = [
-    "Keep every tool focused on one clear job.",
-    "Make the first action easy to understand.",
-    "Reduce clutter and unnecessary steps.",
-    "Write helpful instructions for beginners and busy users.",
-    "Improve the platform based on real workflow problems.",
-  ];
-
-  const categoryPreview = [
-    "Image Tools",
-    "PDF Tools",
-    "Text Tools",
-    "Spreadsheet Tools",
-    "SEO Tools",
-    "Social Media Tools",
-  ];
-
-  const faqItems = [
-    {
-      question: "What is Next Online Tools?",
-      answer:
-        "Next Online Tools is a free browser-based tools platform for everyday digital tasks such as image editing, PDF work, text formatting, SEO preparation, spreadsheet cleanup, conversions, colors, and productivity tasks.",
-    },
-    {
-      question: "Are the tools free to use?",
-      answer:
-        "Yes. The platform focuses on simple free tools that help users complete common digital jobs quickly.",
-    },
-    {
-      question: "Do I need to install any software?",
-      answer:
-        "No. The tools are designed to work directly in the browser, so users can open a page, complete a task, and download or copy the result.",
-    },
-    {
-      question: "Who is this website made for?",
-      answer:
-        "It is made for creators, students, marketers, office users, developers, website owners, small businesses, and anyone who needs quick online utility tools.",
-    },
-  ];
+    "Learn about Next Online Tools, a clean free online tools platform built to make images, PDFs, text, SEO, spreadsheets, conversions, social media, and everyday digital work easier.";
 
   const responseIcon =
     responseType === "success" ? (
@@ -229,7 +196,7 @@ export default function About() {
         {
           "@type": "FAQPage",
           "@id": `${ABOUT_URL}#faq`,
-          mainEntity: faqItems.map((item) => ({
+          mainEntity: FAQ_ITEMS.map((item) => ({
             "@type": "Question",
             name: item.question,
             acceptedAnswer: {
@@ -240,7 +207,7 @@ export default function About() {
         },
       ],
     };
-  }, [faqItems, seoDescription, seoTitle]);
+  }, [seoDescription, seoTitle]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -341,19 +308,19 @@ export default function About() {
           <span>About</span>
         </nav>
 
-        <section className="about-hero">
+        <section className="about-hero about-hero-clean">
           <div className="about-hero-copy">
             <span className="about-kicker">
               <Icons.Sparkles size={15} />
               About Next Online Tools
             </span>
 
-            <h1>Practical browser-based tools for everyday digital work.</h1>
+            <h1>Simple online tools for faster everyday digital work.</h1>
 
             <p>
-              Next Online Tools brings focused utilities for images, PDFs, text,
-              SEO, spreadsheets, social content, and quick conversions into one
-              clean platform.
+              Next Online Tools is a free browser-based utility platform that
+              helps people complete common digital tasks with less friction,
+              cleaner workflows, and no unnecessary software setup.
             </p>
 
             <div className="about-hero-actions">
@@ -361,86 +328,72 @@ export default function About() {
                 Explore Tools
                 <Icons.ArrowRight size={16} />
               </SmartLink>
-
-              <SmartLink to="/contact" className="about-secondary-btn">
-                Request a Tool
-              </SmartLink>
             </div>
           </div>
-
-          <aside className="about-snapshot" aria-label="Website snapshot">
-            <div>
-              <strong>{totalTools}+</strong>
-              <span>Free tools available</span>
-            </div>
-
-            <div>
-              <strong>{totalCategories}+</strong>
-              <span>Organized categories</span>
-            </div>
-
-            <div>
-              <strong>24/7</strong>
-              <span>Browser access</span>
-            </div>
-          </aside>
         </section>
 
-        <section className="about-section about-intro-grid">
-          <div>
-            <div className="about-section-head">
-              <span>Who we are</span>
-              <h2>A focused utility platform built around real user tasks.</h2>
-              <p>
-                Many digital jobs are small, but they slow people down when the
-                right tool is hard to find. Next Online Tools makes those tasks
-                easier to complete from one clean place.
-              </p>
-            </div>
-
-            <div className="about-copy-block">
-              <p>
-                Our goal is to help users open a tool, understand the next step,
-                complete the task, and continue their work without confusion.
-                That is why the platform focuses on clean pages, direct actions,
-                helpful instructions, and outputs that are easy to reuse.
-              </p>
-
-              <p>
-                Whether someone needs to resize an image, compress a PDF, count
-                words, format a LinkedIn post, generate a slug, extract links
-                from a spreadsheet, or convert a file, the experience should be
-                fast and simple.
-              </p>
-            </div>
+        <section className="about-section about-overview">
+          <div className="about-section-head">
+            <span>What the website is about</span>
+            <h2>A clean place to finish small but important online tasks.</h2>
+            <p>
+              Many digital jobs are simple, but they still take time when users
+              need to search for the right feature, install software, or move
+              between many websites. Next Online Tools brings practical tools
+              into one focused platform.
+            </p>
           </div>
 
-          <aside className="about-mission-card">
-            <IconBox icon="Target" />
-            <span>Our mission</span>
-            <h3>Make useful online tools simple, fast, and accessible.</h3>
+          <div className="about-copy-block about-copy-large">
             <p>
-              We are building a growing library of free browser tools that solve
-              common digital tasks without clutter, heavy software, or a steep
-              learning curve.
+              The website is built for everyday actions such as preparing files,
+              editing text, organizing documents, cleaning data, improving web
+              content, and creating quick digital assets. The goal is to make
+              each task feel direct: choose the tool, follow the clear action,
+              get the result, and continue your work.
             </p>
-          </aside>
+
+            <p>
+              Tools are organized into relevant groups so visitors can find the
+              right solution faster and work more efficiently without digging
+              through unrelated pages.
+            </p>
+          </div>
+        </section>
+
+        <section className="about-section about-mission-vision">
+          <article className="about-statement-card">
+            <IconBox icon="Target" />
+            <span>Mission</span>
+            <h2>Make useful online tools simple, fast, and accessible.</h2>
+            <p>
+              We want users to complete common digital tasks from the browser
+              without clutter, complicated steps, or heavy software.
+            </p>
+          </article>
+
+          <article className="about-statement-card">
+            <IconBox icon="Eye" />
+            <span>Vision</span>
+            <h2>Build a trusted utility hub for daily digital work.</h2>
+            <p>
+              Our vision is to make Next Online Tools a reliable place where
+              people can quickly solve everyday file, content, website, and
+              productivity problems.
+            </p>
+          </article>
         </section>
 
         <section className="about-section">
           <div className="about-section-head">
-            <span>What we focus on</span>
-            <h2>Clear tools, clean design, and faster workflows.</h2>
+            <span>How we help</span>
+            <h2>Focused tools, clear actions, and practical results.</h2>
           </div>
 
           <div className="about-card-grid">
-            {focusCards.map((card) => (
+            {FOCUS_CARDS.map((card) => (
               <article key={card.title} className="about-card">
-                <div className="about-card-top">
-                  <IconBox icon={card.icon} />
-                  <small>{card.label}</small>
-                </div>
-
+                <IconBox icon={card.icon} />
                 <h3>{card.title}</h3>
                 <p>{card.description}</p>
               </article>
@@ -449,23 +402,18 @@ export default function About() {
         </section>
 
         <section className="about-section about-audience-section">
-          <div className="about-section-row">
-            <div className="about-section-head">
-              <span>Built for</span>
-              <h2>Different users, one simple tool library.</h2>
-              <p>
-                The platform is useful for anyone who works with digital files,
-                content, documents, websites, or everyday online tasks.
-              </p>
-            </div>
-
-            <SmartLink to="/tools" className="about-tertiary-btn">
-              Browse all tools
-            </SmartLink>
+          <div className="about-section-head">
+            <span>Built for real work</span>
+            <h2>Useful for different people and everyday workflows.</h2>
+            <p>
+              The platform is designed for anyone who works with digital files,
+              content, documents, websites, spreadsheets, or repeated online
+              tasks.
+            </p>
           </div>
 
           <div className="about-audience-grid">
-            {audiences.map((group) => (
+            {AUDIENCE_CARDS.map((group) => (
               <article key={group.title} className="about-audience-card">
                 <IconBox icon={group.icon} />
                 <h3>{group.title}</h3>
@@ -475,24 +423,18 @@ export default function About() {
           </div>
         </section>
 
-        <section className="about-section about-principles">
-          <div>
-            <div className="about-section-head">
-              <span>How we build</span>
-              <h2>Product principles that keep the site useful.</h2>
-              <p>
-                Every update should make the website easier to understand,
-                faster to use, and more helpful for real work.
-              </p>
-            </div>
-
-            <SmartLink to="/contact" className="about-secondary-btn">
-              Suggest an improvement
-            </SmartLink>
+        <section className="about-section about-principles-clean">
+          <div className="about-section-head">
+            <span>Product principles</span>
+            <h2>What guides every page and tool we build.</h2>
+            <p>
+              Every update should make the website easier to understand, faster
+              to use, and more helpful for real digital work.
+            </p>
           </div>
 
           <div className="about-principle-list">
-            {principles.map((principle) => (
+            {PRINCIPLES.map((principle) => (
               <div key={principle} className="about-principle-item">
                 <Icons.CheckCircle2 size={18} aria-hidden="true" />
                 <span>{principle}</span>
@@ -501,42 +443,17 @@ export default function About() {
           </div>
         </section>
 
-        <section className="about-section">
-          <div className="about-section-row">
-            <div className="about-section-head">
-              <span>Tool categories</span>
-              <h2>Useful categories for common digital tasks.</h2>
-            </div>
-
-            <SmartLink to="/tools" className="about-tertiary-btn">
-              View all categories
-            </SmartLink>
-          </div>
-
-          <div className="about-category-strip">
-            {categoryPreview.map((category) => (
-              <SmartLink
-                key={category}
-                to={`/tools?category=${encodeURIComponent(category)}`}
-              >
-                {category}
-                <Icons.ArrowUpRight size={14} />
-              </SmartLink>
-            ))}
-          </div>
-        </section>
-
         <section
-          className="about-newsletter"
+          className="about-newsletter about-newsletter-clean"
           aria-label="Newsletter subscription"
         >
           <div className="about-newsletter-copy">
             <IconBox icon="Send" />
             <span>Tool updates</span>
-            <h2>Get updates when new tools are released.</h2>
+            <h2>Stay updated as the platform improves.</h2>
             <p>
-              Subscribe for new tool launches, improvements, and practical
-              updates from Next Online Tools.
+              Get occasional updates about new tools, useful improvements, and
+              practical guides from Next Online Tools.
             </p>
           </div>
 
@@ -604,7 +521,7 @@ export default function About() {
           </div>
 
           <div className="about-faq-grid">
-            {faqItems.map((item) => (
+            {FAQ_ITEMS.map((item) => (
               <article key={item.question}>
                 <h3>{item.question}</h3>
                 <p>{item.answer}</p>

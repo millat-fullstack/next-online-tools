@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import * as Icons from "lucide-react";
 import { Helmet } from "react-helmet-async";
 
@@ -143,14 +143,6 @@ const WORKFLOWS = [
   },
 ];
 
-const QUICK_SEARCHES = [
-  "compress image",
-  "PDF to JPG",
-  "Google Sheet links",
-  "LinkedIn formatter",
-  "passport photo",
-  "clean phone numbers",
-];
 
 const JOB_GROUPS = [
   {
@@ -310,8 +302,6 @@ function WorkflowCard({ workflow }) {
 }
 
 export default function Home() {
-  const [searchQuery, setSearchQuery] = useState("");
-
   const pageTitle =
     "Free Online Tools for Images, PDFs, Text, SEO & Daily Work | Next Online Tools";
   const pageDescription =
@@ -354,16 +344,6 @@ export default function Home() {
     });
   }, [categories]);
 
-  const handleSearchSubmit = (event) => {
-    event.preventDefault();
-
-    const query = searchQuery.trim();
-    const destination = query
-      ? `/tools?search=${encodeURIComponent(query)}`
-      : "/tools";
-
-    window.location.href = destination;
-  };
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -500,59 +480,29 @@ export default function Home() {
           <h1>Free Online Tools for Images, PDFs, Text, SEO & Daily Work</h1>
 
           <p>
-            Find the right tool by task. Compress images, convert PDFs, clean
-            spreadsheet data, format social posts, and finish everyday digital
-            work without installing software.
+            Next Online Tools helps you finish common digital tasks faster.
+            Choose a workflow, open the right tool, complete the job, and move
+            on without installing extra software.
           </p>
-
-          <form className="home-v2-search" onSubmit={handleSearchSubmit}>
-            <Icons.Search size={21} aria-hidden="true" />
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search tools: compress image, PDF to JPG, Google Sheet links..."
-              aria-label="Search online tools"
-            />
-            <button type="submit">Search</button>
-          </form>
-
-          <div className="home-v2-quick-searches" aria-label="Popular searches">
-            {QUICK_SEARCHES.map((item) => (
-              <SmartLink
-                key={item}
-                to={`/tools?search=${encodeURIComponent(item)}`}
-                className="home-v2-quick-chip"
-              >
-                {item}
-              </SmartLink>
-            ))}
-          </div>
 
           <div className="home-v2-hero-actions">
             <Button to="/tools" className="home-v2-primary-btn">
               Browse all tools
+              <Icons.ArrowRight size={16} aria-hidden="true" />
             </Button>
             <SmartLink to="#popular-workflows" className="home-v2-secondary-btn">
               Explore workflows
             </SmartLink>
           </div>
-        </div>
 
-        <aside className="home-v2-hero-panel" aria-label="Website overview">
-          <div className="home-v2-stat-card home-v2-stat-main">
-            <strong>{tools.length}+</strong>
-            <span>Free tools organized by real jobs</span>
+          <div className="home-v2-hero-note" aria-label="Homepage summary">
+            <Icons.Workflow size={18} aria-hidden="true" />
+            <span>
+              Tools are organized around real tasks, so users can find the
+              right solution faster and work more efficiently.
+            </span>
           </div>
-          <div className="home-v2-stat-card">
-            <strong>{categories.length}+</strong>
-            <span>Useful categories</span>
-          </div>
-          <div className="home-v2-stat-card">
-            <strong>0</strong>
-            <span>Installations needed</span>
-          </div>
-        </aside>
+        </div>
       </section>
 
       {/* POPULAR WORKFLOWS */}
