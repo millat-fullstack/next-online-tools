@@ -261,28 +261,6 @@ function ToolCard({ tool }) {
   );
 }
 
-function CategoryNavItem({ category, count, selectedCategory, searchTerm }) {
-  const meta = getCategoryMeta(category);
-  const IconComponent = getIcon(meta.icon, "FolderOpen");
-  const isActive = selectedCategory === category;
-
-  return (
-    <SmartLink
-      to={getCategoryPath(category, searchTerm)}
-      className={`tools-directory-category-item${isActive ? " active" : ""}`}
-      aria-current={isActive ? "page" : undefined}
-    >
-      <span className="tools-directory-category-icon" aria-hidden="true">
-        <IconComponent size={16} strokeWidth={2.2} />
-      </span>
-      <span className="tools-directory-category-name">
-        {category.replace(" Tools", "")}
-      </span>
-      <span className="tools-directory-category-count">{count}</span>
-    </SmartLink>
-  );
-}
-
 export default function Tools() {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
@@ -321,7 +299,9 @@ export default function Tools() {
     }, {});
   }, []);
 
-  const selectedCategoryMeta = selectedCategory ? getCategoryMeta(selectedCategory) : null;
+  const selectedCategoryMeta = selectedCategory
+    ? getCategoryMeta(selectedCategory)
+    : null;
 
   const filteredTools = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
@@ -524,122 +504,114 @@ export default function Tools() {
             <p>
               {selectedCategory
                 ? selectedCategoryMeta?.intro
-                : "A clean directory of practical browser-based tools for images, PDFs, text, SEO, spreadsheets, social media, converters, colors, calculators, and daily work."}
+                : "Browse practical browser-based tools for images, PDFs, text, SEO, spreadsheets, social media, converters, colors, calculators, and everyday digital work."}
             </p>
 
             <div className="tools-directory-meta" aria-label="Directory summary">
               <span>{totalTools}+ tools</span>
-              <span>{totalCategories} categories</span>
+              <span>{totalCategories} organized groups</span>
               <span>No software install</span>
             </div>
           </div>
+        </section>
 
-          <div className="tools-directory-header-actions">
-            <SmartLink to="/blog" className="tools-directory-secondary-btn">
-              Read guides
+        <section className="tools-directory-filter-panel" aria-label="Tool categories">
+          <div className="tools-directory-filter-head">
+            <div>
+              <span>Browse by category</span>
+              <h2>Choose a tool group</h2>
+            </div>
+
+            <p>Tools are grouped by practical work types so visitors can find relevant tools faster.</p>
+          </div>
+
+          <div className="tools-directory-category-list">
+            <SmartLink
+              to={searchTerm ? `/tools?search=${encodeURIComponent(searchTerm)}` : "/tools"}
+              className={`tools-directory-category-chip${!selectedCategory ? " active" : ""}`}
+              aria-current={!selectedCategory ? "page" : undefined}
+            >
+              All tools
+              <span>{totalTools}</span>
             </SmartLink>
-            <SmartLink to="/contact" className="tools-directory-primary-btn">
-              Request a tool
-            </SmartLink>
+
+            {categories.map((category) => (
+              <SmartLink
+                key={category}
+                to={getCategoryPath(category, searchTerm)}
+                className={`tools-directory-category-chip${selectedCategory === category ? " active" : ""}`}
+                aria-current={selectedCategory === category ? "page" : undefined}
+              >
+                {category.replace(" Tools", "")}
+                <span>{categoryCounts[category] || 0}</span>
+              </SmartLink>
+            ))}
           </div>
         </section>
 
-        <section className="tools-directory-layout" aria-label="Tools directory">
-          <aside className="tools-directory-sidebar" aria-label="Tool categories">
-            <div className="tools-directory-sidebar-head">
-              <span>Categories</span>
-              <strong>Browse tools</strong>
+        <section className="tools-directory-main" aria-label="Tools directory">
+          <div className="tools-directory-toolbar">
+            <div>
+              <span>Results</span>
+              <strong>
+                {filteredTools.length} {filteredTools.length === 1 ? "tool" : "tools"}
+              </strong>
             </div>
 
-            <div className="tools-directory-category-list">
-              <SmartLink
-                to={searchTerm ? `/tools?search=${encodeURIComponent(searchTerm)}` : "/tools"}
-                className={`tools-directory-category-item${!selectedCategory ? " active" : ""}`}
-                aria-current={!selectedCategory ? "page" : undefined}
+            <label className="tools-directory-sort">
+              <span>Sort by</span>
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                aria-label="Sort tools"
               >
-                <span className="tools-directory-category-icon" aria-hidden="true">
-                  <Icons.LayoutGrid size={16} strokeWidth={2.2} />
-                </span>
-                <span className="tools-directory-category-name">All tools</span>
-                <span className="tools-directory-category-count">{totalTools}</span>
-              </SmartLink>
+                <option value="recommended">Recommended</option>
+                <option value="popular">Popular first</option>
+                <option value="az">A to Z</option>
+                <option value="category">Category</option>
+              </select>
+            </label>
+          </div>
 
-              {categories.map((category) => (
-                <CategoryNavItem
-                  key={category}
-                  category={category}
-                  count={categoryCounts[category] || 0}
-                  selectedCategory={selectedCategory}
-                  searchTerm={searchTerm}
-                />
+          {(selectedCategory || searchTerm) && (
+            <div className="tools-directory-active-filter">
+              <p>
+                Showing <strong>{filteredTools.length}</strong>{" "}
+                {filteredTools.length === 1 ? "tool" : "tools"}
+                {selectedCategory && (
+                  <>
+                    {" "}
+                    in <strong>{selectedCategory}</strong>
+                  </>
+                )}
+                {searchTerm && (
+                  <>
+                    {" "}
+                    for <strong>“{searchTerm}”</strong>
+                  </>
+                )}
+              </p>
+
+              <SmartLink to="/tools">Reset filters</SmartLink>
+            </div>
+          )}
+
+          {filteredTools.length === 0 ? (
+            <div className="tools-directory-empty">
+              <Icons.SearchX size={34} aria-hidden="true" />
+              <h2>No tools found</h2>
+              <p>Try another keyword from the menu search or browse all categories.</p>
+              <SmartLink to="/tools" className="tools-directory-primary-btn">
+                Browse all tools
+              </SmartLink>
+            </div>
+          ) : (
+            <div className="tools-directory-grid">
+              {filteredTools.map((tool) => (
+                <ToolCard key={tool.id} tool={tool} />
               ))}
             </div>
-          </aside>
-
-          <div className="tools-directory-main">
-            <div className="tools-directory-toolbar">
-              <div>
-                <span>Results</span>
-                <strong>
-                  {filteredTools.length} {filteredTools.length === 1 ? "tool" : "tools"}
-                </strong>
-              </div>
-
-              <label className="tools-directory-sort">
-                <span>Sort by</span>
-                <select
-                  value={sortBy}
-                  onChange={(event) => setSortBy(event.target.value)}
-                  aria-label="Sort tools"
-                >
-                  <option value="recommended">Recommended</option>
-                  <option value="popular">Popular first</option>
-                  <option value="az">A to Z</option>
-                  <option value="category">Category</option>
-                </select>
-              </label>
-            </div>
-
-            {(selectedCategory || searchTerm) && (
-              <div className="tools-directory-active-filter">
-                <p>
-                  Showing <strong>{filteredTools.length}</strong>{" "}
-                  {filteredTools.length === 1 ? "tool" : "tools"}
-                  {selectedCategory && (
-                    <>
-                      {" "}
-                      in <strong>{selectedCategory}</strong>
-                    </>
-                  )}
-                  {searchTerm && (
-                    <>
-                      {" "}
-                      for <strong>“{searchTerm}”</strong>
-                    </>
-                  )}
-                </p>
-
-                <SmartLink to="/tools">Reset filters</SmartLink>
-              </div>
-            )}
-
-            {filteredTools.length === 0 ? (
-              <div className="tools-directory-empty">
-                <Icons.SearchX size={34} aria-hidden="true" />
-                <h2>No tools found</h2>
-                <p>Try another keyword from the menu search or browse all categories.</p>
-                <SmartLink to="/tools" className="tools-directory-primary-btn">
-                  Browse all tools
-                </SmartLink>
-              </div>
-            ) : (
-              <div className="tools-directory-grid">
-                {filteredTools.map((tool) => (
-                  <ToolCard key={tool.id} tool={tool} />
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </section>
 
         {selectedCategory && selectedCategoryMeta && (
@@ -706,20 +678,6 @@ export default function Tools() {
             </div>
           </section>
         )}
-
-        <section className="tools-directory-cta">
-          <div>
-            <span>Need something specific?</span>
-            <h2>Request a new tool for your workflow</h2>
-            <p>
-              Tell us what task you want to finish faster, and we can consider it for the Next Online Tools roadmap.
-            </p>
-          </div>
-
-          <SmartLink to="/contact" className="tools-directory-primary-btn">
-            Request a tool
-          </SmartLink>
-        </section>
       </main>
     </>
   );
