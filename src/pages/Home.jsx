@@ -303,7 +303,7 @@ function WorkflowCard({ workflow }) {
 
 export default function Home() {
   const pageTitle =
-    "Free Online Tools for Images, PDFs, Text, SEO & Daily Work | Next Online Tools";
+    "Free Online Tools for Image, PDF, Text, SEO & Daily Work | Next Online Tools";
   const pageDescription =
     "Use free browser-based tools for images, PDFs, text, Google Sheets, SEO, social media, converters, calculators, and everyday digital work.";
 
