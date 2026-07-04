@@ -13,6 +13,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import ToolPage from "./pages/ToolPage";
 import Converter from "./pages/Converter";
+import NotFound from "./pages/NotFound";
 
 export default function App() {
   return (
@@ -49,6 +50,8 @@ export default function App() {
 
         <Route path="/tool/:slug" element={<ToolPage />} />
         <Route path="/tool/:slug/" element={<ToolPage />} />
+
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   );
