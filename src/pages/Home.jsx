@@ -302,10 +302,9 @@ function WorkflowCard({ workflow }) {
 }
 
 export default function Home() {
-  const pageTitle =
-    "Free Online Tools for Image, PDF, Text, SEO & Daily Work | Next Online Tools";
+  const pageTitle = "Next Online Tools: Free PDF, Image, Text & Web Tools";
   const pageDescription =
-    "Use free browser-based tools for images, PDFs, text, Google Sheets, SEO, social media, converters, calculators, and everyday digital work.";
+    "Use free online tools for PDF, image, text, color, converters, calculators, SEO, and everyday digital tasks. Fast, simple, and privacy-friendly tools from Next Online Tools.";
 
   const categories = useMemo(() => {
     const existingCategories = [
@@ -433,8 +432,6 @@ export default function Home() {
   return (
     <main className="home-v2-page">
       <Helmet>
-        <title>{pageTitle}</title>
-        <meta name="description" content={pageDescription} />
         <link rel="canonical" href={`${SITE_URL}/`} />
 
         <meta
@@ -447,8 +444,6 @@ export default function Home() {
         />
 
         <meta property="og:site_name" content="Next Online Tools" />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={pageDescription} />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={`${SITE_URL}/`} />
         <meta property="og:image" content={HOME_IMAGE} />
@@ -460,8 +455,6 @@ export default function Home() {
         />
 
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={pageTitle} />
-        <meta name="twitter:description" content={pageDescription} />
         <meta name="twitter:image" content={HOME_IMAGE} />
 
         <script type="application/ld+json">
