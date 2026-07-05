@@ -34,24 +34,6 @@ const CATEGORY_ICONS = {
   "Converter Tools": "RefreshCw",
 };
 
-const READING_PATHS = [
-  {
-    title: "Optimize files",
-    description: "Compress, resize, convert, and prepare images or PDFs for upload.",
-    icon: "Sparkles",
-  },
-  {
-    title: "Publish better",
-    description: "Format content, create slugs, and prepare clean assets for websites.",
-    icon: "Rocket",
-  },
-  {
-    title: "Work faster",
-    description: "Use quick tools for spreadsheets, text, social content, and daily tasks.",
-    icon: "Clock3",
-  },
-];
-
 const FAQ_ITEMS = [
   {
     question: "What is the Next Online Tools Blog about?",
@@ -515,150 +497,126 @@ export default function Blog() {
           </aside>
         </section>
 
-        <section className="blog-layout">
-          <aside className="blog-sidebar" aria-label="Blog navigation">
-            <div className="blog-sidebar-card">
-              <div className="blog-sidebar-head">
-                <span>Topics</span>
-                <strong>Guide categories</strong>
-              </div>
+        <section className="blog-category-panel" aria-label="Blog categories">
+          <div className="blog-section-head blog-category-head">
+            <div>
+              <span>Topics</span>
+              <h2>Choose a guide category</h2>
+            </div>
+            <p>{totalArticleLabel}</p>
+          </div>
 
-              <div className="blog-category-list">
+          <div className="blog-category-list">
+            <SmartLink
+              to="/blog"
+              className={!selectedCategory ? "active" : ""}
+              aria-current={!selectedCategory ? "page" : undefined}
+            >
+              <span>
+                <Icons.LayoutGrid size={15} aria-hidden="true" />
+                All guides
+              </span>
+              <small>{latestBlogs.length}</small>
+            </SmartLink>
+
+            {categories.map((category) => (
+              <SmartLink
+                key={category}
+                to={getBlogPath({ category })}
+                className={selectedCategory === category ? "active" : ""}
+                aria-current={selectedCategory === category ? "page" : undefined}
+              >
+                <span>
+                  <CategoryIcon category={category} />
+                  {category.replace(" Tools", "")}
+                </span>
+                <small>{categoryCounts[category] || 0}</small>
+              </SmartLink>
+            ))}
+          </div>
+        </section>
+
+        {spotlightBlog && (
+          <section className="blog-spotlight-section">
+            <div className="blog-section-head">
+              <div>
+                <span>{selectedCategory ? "Featured topic" : "Featured guide"}</span>
+                <h2>{selectedCategory || "Editor’s pick"}</h2>
+              </div>
+            </div>
+
+            <BlogCard blog={spotlightBlog} variant="spotlight" />
+          </section>
+        )}
+
+        <section className="blog-list-section" id="latest-guides">
+          <div className="blog-section-head blog-results-head">
+            <div>
+              <span>Latest articles</span>
+              <h2>{selectedCategory || "Helpful blog articles"}</h2>
+            </div>
+
+            <p>
+              Showing {pageStart}-{pageEnd} of {filteredBlogs.length} article
+              {filteredBlogs.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+
+          {filteredBlogs.length === 0 ? (
+            <div className="blog-empty">
+              <Icons.SearchX size={32} aria-hidden="true" />
+              <h3>No articles found</h3>
+              <p>Try another category or browse all blog guides.</p>
+              <SmartLink to="/blog" className="blog-primary-btn">
+                View all guides
+              </SmartLink>
+            </div>
+          ) : (
+            <div className="blog-grid">
+              {gridBlogs.map((blog) => (
+                <BlogCard key={blog.slug} blog={blog} />
+              ))}
+            </div>
+          )}
+
+          <div className="blog-pagination">
+            <p>
+              Page <strong>{currentPage}</strong> of <strong>{pageCount}</strong>
+            </p>
+
+            <div>
+              {currentPage > 1 && (
                 <SmartLink
-                  to="/blog"
-                  className={!selectedCategory ? "active" : ""}
-                  aria-current={!selectedCategory ? "page" : undefined}
+                  to={getBlogPath({
+                    category: selectedCategory,
+                    page: currentPage - 1,
+                  })}
+                  className="blog-secondary-btn"
                 >
-                  <span>
-                    <Icons.LayoutGrid size={15} aria-hidden="true" />
-                    All guides
-                  </span>
-                  <small>{latestBlogs.length}</small>
+                  <Icons.ChevronLeft size={16} />
+                  Previous
                 </SmartLink>
-
-                {categories.map((category) => (
-                  <SmartLink
-                    key={category}
-                    to={getBlogPath({ category })}
-                    className={selectedCategory === category ? "active" : ""}
-                    aria-current={selectedCategory === category ? "page" : undefined}
-                  >
-                    <span>
-                      <CategoryIcon category={category} />
-                      {category.replace(" Tools", "")}
-                    </span>
-                    <small>{categoryCounts[category] || 0}</small>
-                  </SmartLink>
-                ))}
-              </div>
-            </div>
-
-            <div className="blog-sidebar-card blog-reading-paths">
-              <div className="blog-sidebar-head">
-                <span>Paths</span>
-                <strong>Quick reading flows</strong>
-              </div>
-
-              {READING_PATHS.map((path) => {
-                const IconComponent = getIcon(path.icon, "Sparkles");
-
-                return (
-                  <article key={path.title}>
-                    <IconComponent size={18} aria-hidden="true" />
-                    <div>
-                      <h3>{path.title}</h3>
-                      <p>{path.description}</p>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </aside>
-
-          <div className="blog-content">
-            {spotlightBlog && (
-              <section className="blog-spotlight-section">
-                <div className="blog-section-head">
-                  <div>
-                    <span>{selectedCategory ? "Featured topic" : "Featured guide"}</span>
-                    <h2>{selectedCategory || "Editor’s pick"}</h2>
-                  </div>
-                </div>
-
-                <BlogCard blog={spotlightBlog} variant="spotlight" />
-              </section>
-            )}
-
-            <section className="blog-list-section" id="latest-guides">
-              <div className="blog-section-head blog-results-head">
-                <div>
-                  <span>Latest articles</span>
-                  <h2>{selectedCategory || "Helpful blog articles"}</h2>
-                </div>
-
-                <p>
-                  Showing {pageStart}-{pageEnd} of {filteredBlogs.length} article
-                  {filteredBlogs.length !== 1 ? "s" : ""}
-                </p>
-              </div>
-
-              {filteredBlogs.length === 0 ? (
-                <div className="blog-empty">
-                  <Icons.SearchX size={32} aria-hidden="true" />
-                  <h3>No articles found</h3>
-                  <p>Try another category or browse all blog guides.</p>
-                  <SmartLink to="/blog" className="blog-primary-btn">
-                    View all guides
-                  </SmartLink>
-                </div>
-              ) : (
-                <div className="blog-grid">
-                  {gridBlogs.map((blog) => (
-                    <BlogCard key={blog.slug} blog={blog} />
-                  ))}
-                </div>
               )}
 
-              <div className="blog-pagination">
-                <p>
-                  Page <strong>{currentPage}</strong> of <strong>{pageCount}</strong>
-                </p>
-
-                <div>
-                  {currentPage > 1 && (
-                    <SmartLink
-                      to={getBlogPath({
-                        category: selectedCategory,
-                        page: currentPage - 1,
-                      })}
-                      className="blog-secondary-btn"
-                    >
-                      <Icons.ChevronLeft size={16} />
-                      Previous
-                    </SmartLink>
-                  )}
-
-                  {currentPage < pageCount && (
-                    <SmartLink
-                      to={getBlogPath({
-                        category: selectedCategory,
-                        page: currentPage + 1,
-                      })}
-                      className="blog-primary-btn"
-                    >
-                      Next
-                      <Icons.ChevronRight size={16} />
-                    </SmartLink>
-                  )}
-                </div>
-              </div>
-            </section>
+              {currentPage < pageCount && (
+                <SmartLink
+                  to={getBlogPath({
+                    category: selectedCategory,
+                    page: currentPage + 1,
+                  })}
+                  className="blog-primary-btn"
+                >
+                  Next
+                  <Icons.ChevronRight size={16} />
+                </SmartLink>
+              )}
+            </div>
           </div>
         </section>
 
         <section className="blog-cta-section">
           <div>
-            <span>Need a tool?</span>
+            <span>Learning and tools</span>
             <h2>Read the guide, then use the tool.</h2>
             <p>
               Next Online Tools connects practical articles with free browser-based
