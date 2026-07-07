@@ -31,7 +31,7 @@ export const toolData = {
   path: "/pdf-page-remover",
   category: "PDF Tools",
   description:
-    "Remove or delete unwanted pages from a PDF online. Upload a PDF, view all pages, select pages to remove, and download a clean PDF.",
+    "Remove or delete unwanted pdf pages from a PDF online. Upload a PDF, view all pages, select pages to remove, and download a clean PDF.",
   metaTitle: "PDF Page Remover Online Free | Delete Pages from PDF",
   metaDescription:
     "Remove pages from PDF online for free. Upload a PDF, preview all pages, select pages to delete, and download a clean PDF instantly.",
