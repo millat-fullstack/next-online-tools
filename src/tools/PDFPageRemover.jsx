@@ -1,432 +1,433 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import {
-  Upload,
-  FileText,
-  Trash2,
-  Download,
-  RotateCcw,
-  CheckCircle,
   AlertCircle,
-  ShieldCheck,
+  CheckCircle,
+  Download,
   Eye,
-  X,
-  Info,
-  BookOpen,
-  ListChecks,
-  Layers,
-  MousePointerClick,
+  FileText,
+  Loader2,
+  RotateCcw,
   Scissors,
-  Sparkles,
+  ShieldCheck,
+  Trash2,
+  Upload,
+  X,
 } from "lucide-react";
 import { PDFDocument } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
-import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+try {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url
+  ).toString();
+} catch {
+  // The app bundler may already configure the PDF.js worker.
+}
 
 export const toolData = {
   title: "PDF Page Remover",
   path: "/pdf-page-remover",
   category: "PDF Tools",
   description:
-    "Remove unwanted pages from PDF files online. Upload a PDF, select pages to delete, and download a clean PDF directly from your browser.",
-  metaTitle: "PDF Page Remover | Delete Pages from PDF Online Free",
+    "Remove unwanted pages from a PDF online. Upload a PDF, view all pages, select pages to remove, and download a clean PDF.",
+  metaTitle: "PDF Page Remover Online Free | Delete Pages from PDF",
   metaDescription:
-    "Remove unwanted pages from a PDF online for free. Upload your PDF, select pages to delete, preview pages, and download a clean PDF instantly.",
+    "Remove pages from PDF online for free. Upload a PDF, preview all pages, select pages to delete, and download a clean PDF instantly.",
 };
 
-const SITE_URL = "https://nextonlinetools.com";
-const canonicalUrl = `${SITE_URL}${
-  toolData.path.startsWith("/tool") ? toolData.path : `/tool${toolData.path}`
-}`;
-
 const MAX_FILE_SIZE_MB = 50;
-const MAX_THUMBNAIL_PAGES = 120;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const ACCEPTED_TYPE = "application/pdf";
 
 export default function PDFPageRemover() {
   const fileInputRef = useRef(null);
 
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfBytes, setPdfBytes] = useState(null);
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState(0);
-  const [pdfBytes, setPdfBytes] = useState(null);
   const [totalPages, setTotalPages] = useState(0);
-  const [thumbnails, setThumbnails] = useState([]);
+  const [pages, setPages] = useState([]);
   const [selectedPages, setSelectedPages] = useState(new Set());
-  const [pageRange, setPageRange] = useState("");
   const [outputName, setOutputName] = useState("cleaned-pdf.pdf");
-  const [previewPage, setPreviewPage] = useState(null);
+
+  const [processedBlob, setProcessedBlob] = useState(null);
   const [processedUrl, setProcessedUrl] = useState("");
   const [resultSize, setResultSize] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
 
+  const [fullPreview, setFullPreview] = useState(null);
+  const [isDraggingUpload, setIsDraggingUpload] = useState(false);
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingPhase, setProcessingPhase] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [processingTimeMs, setProcessingTimeMs] = useState(0);
+  const [downloadTimeMs, setDownloadTimeMs] = useState(0);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const hasPdf = Boolean(pdfBytes && totalPages);
   const selectedCount = selectedPages.size;
   const finalPageCount = Math.max(0, totalPages - selectedCount);
-  const hasPdf = Boolean(pdfBytes && totalPages);
+  const readyToDownload = Boolean(processedBlob && processedUrl);
 
   const selectedPagesText = useMemo(() => {
     return selectedCount ? formatPagesAsRange(selectedPages) : "None";
   }, [selectedPages, selectedCount]);
 
-  const fileSizeText = useMemo(() => formatBytes(fileSize), [fileSize]);
-  const resultSizeText = useMemo(() => formatBytes(resultSize), [resultSize]);
-
-  const seoJsonLd = useMemo(() => {
-    return {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      name: toolData.title,
-      applicationCategory: "UtilitiesApplication",
-      operatingSystem: "Any",
-      "@id": canonicalUrl,
-      url: canonicalUrl,
-      description:
-        "Remove unwanted PDF pages directly in your browser and download a clean PDF file.",
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-      },
-      featureList: [
-        "Remove pages from PDF",
-        "Delete PDF page ranges",
-        "PDF page preview thumbnails",
-        "Browser-based PDF processing",
-        "Download clean PDF file",
-      ],
-    };
-  }, []);
-
-  const faqJsonLd = useMemo(() => {
-    return {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: [
-        {
-          "@type": "Question",
-          name: "Can I remove pages from a PDF online?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Yes. Upload your PDF, select the pages you want to remove, and download a new PDF without those pages.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "Are my PDF files uploaded to a server?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "No. This PDF page remover is designed to process PDF files directly in your browser.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "Can I remove multiple PDF pages at once?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Yes. You can click page thumbnails or enter page numbers and ranges such as 1,3,5-8.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "Can I remove every page from a PDF?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "No. A valid PDF must keep at least one page, so the tool will stop you from deleting all pages.",
-          },
-        },
-      ],
-    };
-  }, []);
-
   useEffect(() => {
     return () => {
       if (processedUrl) URL.revokeObjectURL(processedUrl);
     };
-  }, [processedUrl]);
+  }, []);
 
   function clearFeedback() {
     setError("");
     setSuccess("");
   }
 
-  function resetResult() {
-    if (processedUrl) URL.revokeObjectURL(processedUrl);
-    setProcessedUrl("");
-    setResultSize(0);
+  function resetFileInput() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }
 
-  async function handleFile(file) {
-    clearFeedback();
-    resetResult();
-    setPreviewPage(null);
+  function clearOutput() {
+    if (processedUrl) {
+      URL.revokeObjectURL(processedUrl);
+    }
 
-    if (!file) return;
+    setProcessedBlob(null);
+    setProcessedUrl("");
+    setResultSize(0);
+    setProcessingTimeMs(0);
+    setDownloadTimeMs(0);
+  }
+
+  function validatePdf(file) {
+    if (!file) return "Please choose a PDF file.";
 
     const isPdf = file.type === ACCEPTED_TYPE || file.name.toLowerCase().endsWith(".pdf");
 
     if (!isPdf) {
-      setError("Please upload a valid PDF file.");
+      return "Please upload a valid PDF file.";
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return `PDF must be under ${MAX_FILE_SIZE_MB} MB.`;
+    }
+
+    return "";
+  }
+
+  async function handlePdfFile(file) {
+    if (isProcessing || isLoadingPdf) return;
+
+    clearFeedback();
+    clearOutput();
+    setFullPreview(null);
+    setSelectedPages(new Set());
+    setPages([]);
+
+    const validationError = validatePdf(file);
+
+    if (validationError) {
+      setError(validationError);
+      resetFileInput();
       return;
     }
 
-    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-      setError(`Please upload a PDF smaller than ${MAX_FILE_SIZE_MB} MB for smooth browser processing.`);
-      return;
-    }
+    setIsLoadingPdf(true);
+    setProcessingPhase("Uploading PDF...");
+    setProgress(5);
+
+    const startTime = performance.now();
 
     try {
-      setIsLoading(true);
+      const bytes = new Uint8Array(await file.arrayBuffer());
 
-      const arrayBuffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
+      setProcessingPhase("Reading PDF pages...");
+      setProgress(18);
+
       const loadingTask = pdfjsLib.getDocument({ data: bytes.slice() });
       const pdf = await loadingTask.promise;
-      const pages = pdf.numPages;
+      const pageCount = pdf.numPages;
+      const renderedPages = [];
 
+      setPdfFile(file);
+      setPdfBytes(bytes);
       setFileName(file.name);
       setFileSize(file.size);
-      setPdfBytes(bytes);
-      setTotalPages(pages);
-      setSelectedPages(new Set());
-      setPageRange("");
+      setTotalPages(pageCount);
       setOutputName(createDefaultOutputName(file.name));
 
-      const thumbnailLimit = Math.min(pages, MAX_THUMBNAIL_PAGES);
-      const renderedThumbnails = [];
+      for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+        setProcessingPhase(`Rendering page ${pageNumber} of ${pageCount}...`);
+        setProgress(20 + Math.round((pageNumber / Math.max(1, pageCount)) * 72));
 
-      for (let pageNumber = 1; pageNumber <= thumbnailLimit; pageNumber += 1) {
-        const page = await pdf.getPage(pageNumber);
-        const viewport = page.getViewport({ scale: 0.32 });
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d", { alpha: false });
+        const pageImage = await renderPdfPageToImage(pdf, pageNumber, 0.34, "image/jpeg", 0.82);
 
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-
-        await page.render({ canvasContext: context, viewport }).promise;
-
-        renderedThumbnails.push({
+        renderedPages.push({
           pageNumber,
-          image: canvas.toDataURL("image/jpeg", 0.82),
+          image: pageImage.dataUrl,
+          width: pageImage.width,
+          height: pageImage.height,
         });
+
+        if (pageNumber === 1 || pageNumber % 8 === 0 || pageNumber === pageCount) {
+          setPages([...renderedPages]);
+        }
+
+        await wait(8);
       }
 
-      setThumbnails(renderedThumbnails);
-      setSuccess(
-        pages > MAX_THUMBNAIL_PAGES
-          ? `PDF loaded. Showing first ${MAX_THUMBNAIL_PAGES} page previews. You can still remove later pages using the range box.`
-          : "PDF loaded. Select the pages you want to remove."
-      );
-    } catch (err) {
-      console.error(err);
+      setPages(renderedPages);
+      setProgress(100);
+
+      const actualTime = Math.max(1, Math.round(performance.now() - startTime));
+      setProcessingTimeMs(actualTime);
+      setSuccess(`PDF uploaded and ${pageCount} page${pageCount === 1 ? "" : "s"} loaded in ${(actualTime / 1000).toFixed(1)}s.`);
+    } catch (loadError) {
+      console.error("PDF Page Remover load error:", loadError);
       resetTool(false);
-      setError(
-        "Could not read this PDF. It may be encrypted, password-protected, damaged, or too complex for browser preview."
-      );
+      setError("Could not upload this PDF properly. It may be encrypted, password-protected, damaged, or too complex for browser preview.");
     } finally {
-      setIsLoading(false);
+      setIsLoadingPdf(false);
+      resetFileInput();
+      window.setTimeout(() => setProgress(0), 700);
     }
   }
 
   function handleInputChange(event) {
-    const file = event.target.files?.[0];
-    handleFile(file);
-    event.target.value = "";
+    handlePdfFile(event.target.files?.[0]);
   }
 
   function handleDrop(event) {
     event.preventDefault();
-    setIsDragging(false);
-    const file = event.dataTransfer.files?.[0];
-    handleFile(file);
+    setIsDraggingUpload(false);
+    handlePdfFile(event.dataTransfer.files?.[0]);
   }
 
-  function togglePage(pageNumber) {
+  function handleDragOver(event) {
+    event.preventDefault();
+
+    if (!isProcessing && !isLoadingPdf) {
+      setIsDraggingUpload(true);
+    }
+  }
+
+  function handleDragLeave() {
+    setIsDraggingUpload(false);
+  }
+
+  function togglePageSelection(pageNumber) {
+    if (!hasPdf || isProcessing || isLoadingPdf) return;
+
     clearFeedback();
-    resetResult();
+    clearOutput();
 
     setSelectedPages((current) => {
       const next = new Set(current);
+
       if (next.has(pageNumber)) {
         next.delete(pageNumber);
       } else {
+        if (next.size + 1 >= totalPages) {
+          setError("You must keep at least one page in the PDF.");
+          return current;
+        }
+
         next.add(pageNumber);
       }
-      setPageRange(formatPagesAsRange(next));
+
       return next;
     });
   }
 
-  function applyRangeSelection() {
+  function clearSelection() {
     clearFeedback();
-    resetResult();
-
-    if (!hasPdf) {
-      setError("Please upload a PDF first.");
-      return;
-    }
-
-    if (!pageRange.trim()) {
-      setSelectedPages(new Set());
-      setSuccess("Page selection cleared.");
-      return;
-    }
-
-    const result = parsePageRange(pageRange, totalPages);
-
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-
-    if (result.pages.size >= totalPages) {
-      setError("You must keep at least one page in the PDF.");
-      return;
-    }
-
-    setSelectedPages(result.pages);
-    setPageRange(formatPagesAsRange(result.pages));
-    setSuccess(`${result.pages.size} page${result.pages.size === 1 ? "" : "s"} selected for removal.`);
+    clearOutput();
+    setSelectedPages(new Set());
+    setSuccess("Selection cleared.");
   }
 
-  function selectPages(type) {
-    clearFeedback();
-    resetResult();
+  async function openFullPage(pageNumber) {
+    if (!pdfBytes) return;
 
-    if (!hasPdf) {
-      setError("Please upload a PDF first.");
-      return;
+    setFullPreview({
+      pageNumber,
+      image: "",
+      loading: true,
+    });
+
+    try {
+      const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice() });
+      const pdf = await loadingTask.promise;
+      const pageImage = await renderPdfPageToImage(pdf, pageNumber, 1.25, "image/jpeg", 0.9);
+
+      setFullPreview({
+        pageNumber,
+        image: pageImage.dataUrl,
+        loading: false,
+      });
+    } catch {
+      setFullPreview(null);
+      setError("Could not open full page preview.");
     }
-
-    const next = new Set();
-
-    if (type === "clear") {
-      setSelectedPages(next);
-      setPageRange("");
-      setSuccess("Selection cleared.");
-      return;
-    }
-
-    if (type === "odd") {
-      for (let page = 1; page <= totalPages; page += 2) next.add(page);
-    }
-
-    if (type === "even") {
-      for (let page = 2; page <= totalPages; page += 2) next.add(page);
-    }
-
-    if (type === "first") next.add(1);
-    if (type === "last") next.add(totalPages);
-
-    if (next.size >= totalPages) {
-      setError("This selection would remove all pages. Please keep at least one page.");
-      return;
-    }
-
-    setSelectedPages(next);
-    setPageRange(formatPagesAsRange(next));
-    setSuccess(`${next.size} page${next.size === 1 ? "" : "s"} selected for removal.`);
   }
 
-  async function removeSelectedPages() {
-    clearFeedback();
-    resetResult();
-
+  async function createCleanPdfBlob() {
     if (!pdfBytes || !totalPages) {
-      setError("Please upload a PDF first.");
-      return;
+      throw new Error("Please upload a PDF first.");
     }
 
     if (!selectedCount) {
-      setError("Please select at least one page to remove.");
-      return;
+      throw new Error("Please select at least one page to remove.");
     }
 
     if (selectedCount >= totalPages) {
-      setError("You must keep at least one page in the PDF.");
-      return;
+      throw new Error("You must keep at least one page in the PDF.");
     }
 
-    try {
-      setIsProcessing(true);
+    setIsProcessing(true);
+    setProcessingPhase("Removing selected pages...");
+    setProgress(8);
 
+    const startTime = performance.now();
+
+    try {
       const sourcePdf = await PDFDocument.load(pdfBytes.slice());
       const newPdf = await PDFDocument.create();
-      const keepPageIndexes = [];
+      const keepIndexes = [];
 
-      for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
-        const pageNumber = pageIndex + 1;
-        if (!selectedPages.has(pageNumber)) keepPageIndexes.push(pageIndex);
+      for (let index = 0; index < totalPages; index += 1) {
+        const pageNumber = index + 1;
+
+        if (!selectedPages.has(pageNumber)) {
+          keepIndexes.push(index);
+        }
       }
 
-      const copiedPages = await newPdf.copyPages(sourcePdf, keepPageIndexes);
-      copiedPages.forEach((page) => newPdf.addPage(page));
+      setProcessingPhase("Copying remaining pages...");
+      setProgress(35);
+
+      const copiedPages = await newPdf.copyPages(sourcePdf, keepIndexes);
+
+      copiedPages.forEach((page, index) => {
+        newPdf.addPage(page);
+        setProgress(35 + Math.round(((index + 1) / Math.max(1, copiedPages.length)) * 42));
+      });
 
       newPdf.setProducer("NextOnlineTools PDF Page Remover");
       newPdf.setCreator("NextOnlineTools.com");
 
-      const newBytes = await newPdf.save({ useObjectStreams: true });
-      const blob = new Blob([newBytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
+      setProcessingPhase("Creating clean PDF...");
+      setProgress(88);
 
-      setProcessedUrl(url);
-      setResultSize(blob.size);
-      setSuccess("Pages removed successfully. Your clean PDF is ready to download.");
-    } catch (err) {
-      console.error(err);
-      setError("Could not create the new PDF. Please try a different file or fewer pages.");
+      const cleanPdfBytes = await newPdf.save({ useObjectStreams: true });
+      const blob = new Blob([cleanPdfBytes], { type: "application/pdf" });
+
+      setProgress(100);
+
+      const actualTime = Math.max(1, Math.round(performance.now() - startTime));
+
+      return {
+        blob,
+        timeMs: actualTime,
+      };
     } finally {
       setIsProcessing(false);
+      window.setTimeout(() => setProgress(0), 700);
+    }
+  }
+
+  async function removeSelectedPages() {
+    clearFeedback();
+    clearOutput();
+
+    try {
+      const result = await createCleanPdfBlob();
+      const url = URL.createObjectURL(result.blob);
+
+      setProcessedBlob(result.blob);
+      setProcessedUrl(url);
+      setResultSize(result.blob.size);
+      setProcessingTimeMs(result.timeMs);
+      setSuccess(`${selectedCount} page${selectedCount === 1 ? "" : "s"} removed in ${(result.timeMs / 1000).toFixed(1)}s. The clean PDF is ready to download.`);
+    } catch (removeError) {
+      setError(removeError?.message || "Could not remove the selected pages. Please try again.");
+    }
+  }
+
+  async function downloadCleanPdf() {
+    clearFeedback();
+
+    try {
+      let blob = processedBlob;
+
+      if (!blob) {
+        const result = await createCleanPdfBlob();
+        blob = result.blob;
+
+        const url = URL.createObjectURL(blob);
+        setProcessedBlob(blob);
+        setProcessedUrl(url);
+        setResultSize(blob.size);
+        setProcessingTimeMs(result.timeMs);
+      }
+
+      setIsProcessing(true);
+      setProcessingPhase("Preparing download...");
+      setProgress(35);
+
+      const startTime = performance.now();
+
+      await wait(160);
+      setProgress(75);
+
+      await saveBlob(blob, normalizePdfFileName(outputName));
+
+      setProgress(100);
+
+      const actualTime = Math.max(1, Math.round(performance.now() - startTime));
+      setDownloadTimeMs(actualTime);
+      setSuccess(`Download started in ${(actualTime / 1000).toFixed(1)}s. Check your file manager/downloads folder.`);
+    } catch (downloadError) {
+      setError(downloadError?.message || "Could not start the download.");
+    } finally {
+      setIsProcessing(false);
+      window.setTimeout(() => setProgress(0), 700);
     }
   }
 
   function resetTool(showMessage = true) {
-    resetResult();
+    clearOutput();
+    setPdfFile(null);
+    setPdfBytes(null);
     setFileName("");
     setFileSize(0);
-    setPdfBytes(null);
     setTotalPages(0);
-    setThumbnails([]);
+    setPages([]);
     setSelectedPages(new Set());
-    setPageRange("");
     setOutputName("cleaned-pdf.pdf");
-    setPreviewPage(null);
-    setIsDragging(false);
-    setIsLoading(false);
+    setFullPreview(null);
+    setIsDraggingUpload(false);
+    setIsLoadingPdf(false);
     setIsProcessing(false);
-
-    if (showMessage) {
-      setError("");
-      setSuccess("Tool reset successfully.");
-    }
+    setProcessingPhase("");
+    setProgress(0);
+    setProcessingTimeMs(0);
+    setDownloadTimeMs(0);
+    setError("");
+    setSuccess(showMessage ? "Tool reset successfully." : "");
+    resetFileInput();
   }
 
   return (
     <div className="flex flex-col gap-8">
-      <Helmet>
-        <title>{toolData.metaTitle}</title>
-        <meta name="description" content={toolData.metaDescription} />
-
-        <meta property="og:type" content="website" />
-        <meta property="og:title" content={toolData.metaTitle} />
-        <meta property="og:description" content={toolData.metaDescription} />
-        <meta property="og:url" content={canonicalUrl} />
-
-        <meta name="twitter:card" content="summary" />
-        <meta name="twitter:title" content={toolData.metaTitle} />
-        <meta name="twitter:description" content={toolData.metaDescription} />
-
-        <script type="application/ld+json">{JSON.stringify(seoJsonLd)}</script>
-        <script type="application/ld+json">{JSON.stringify(faqJsonLd)}</script>
-      </Helmet>
-
-      {/* HEADER */}
       <section className="card p-6 sm:p-8">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
           <Scissors size={28} className="text-[var(--primary)]" />
@@ -435,35 +436,23 @@ export default function PDFPageRemover() {
         <h1 className="text-3xl font-bold mb-3">PDF Page Remover</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Remove unwanted pages from your PDF in seconds. Upload a PDF, select
-          the pages you want to delete, and download a clean PDF file directly
-          from your browser.
+          Upload a PDF, view all pages below, select pages to remove, and download
+          a clean PDF without the removed pages.
         </p>
       </section>
 
-      {/* TOOL */}
-      <section className="card p-6 sm:p-8">
-        <div className="grid lg:grid-cols-[390px_1fr] gap-6">
-          {/* LEFT PANEL */}
-          <div className="flex flex-col gap-5">
-            <div
-              role="button"
-              tabIndex="0"
-              onClick={() => fileInputRef.current?.click()}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") fileInputRef.current?.click();
-              }}
-              onDragOver={(event) => {
-                event.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
+      <section className="card p-4 sm:p-6">
+        <div className="flex flex-col gap-5">
+          {!hasPdf && (
+            <label
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition ${
-                isDragging
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className={`min-h-[300px] border-2 border-dashed rounded-3xl p-8 text-center transition cursor-pointer flex flex-col items-center justify-center ${
+                isDraggingUpload
                   ? "border-[var(--primary)] bg-[#f8f4ff]"
-                  : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
-              }`}
+                  : "border-[var(--border)] bg-gray-50 hover:bg-[#f8f4ff]"
+              } ${isLoadingPdf || isProcessing ? "opacity-60 cursor-not-allowed" : ""}`}
             >
               <input
                 ref={fileInputRef}
@@ -471,436 +460,323 @@ export default function PDFPageRemover() {
                 accept="application/pdf,.pdf"
                 onChange={handleInputChange}
                 className="hidden"
+                disabled={isLoadingPdf || isProcessing}
               />
 
-              <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mx-auto mb-4">
-                <Upload size={26} className="text-[var(--primary)]" />
-              </div>
+              <Upload size={44} className="text-[var(--primary)] mb-4" />
 
-              <h2 className="text-xl font-semibold mb-2">
-                {hasPdf ? "Change PDF" : "Upload PDF"}
-              </h2>
-              <p className="text-sm text-[var(--text-secondary)]">
-                Drag and drop a PDF here, or click to choose a file.
+              <h2 className="text-xl font-bold mb-2">Upload PDF</h2>
+
+              <p className="text-sm text-[var(--text-secondary)] max-w-sm mb-5">
+                Choose or drop a PDF file. Max {MAX_FILE_SIZE_MB} MB.
               </p>
-              <p className="text-xs text-[var(--text-secondary)] mt-3">
-                Max file size: {MAX_FILE_SIZE_MB} MB
-              </p>
-            </div>
 
-            {hasPdf && (
-              <div className="border border-[var(--border)] rounded-2xl p-5 bg-white">
-                <div className="flex items-start gap-3">
-                  <FileText size={22} className="text-[var(--primary)] shrink-0 mt-1" />
-                  <div className="min-w-0">
-                    <h3 className="font-semibold break-words">{fileName}</h3>
-                    <p className="text-sm text-[var(--text-secondary)] mt-1">
-                      {fileSizeText} • {totalPages} page{totalPages === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+              <span className="btn-primary inline-flex items-center gap-2">
+                <Upload size={17} />
+                Choose PDF
+              </span>
+            </label>
+          )}
 
-            <div className="border border-[var(--border)] rounded-2xl p-5 bg-[#f8f4ff]">
-              <div className="flex items-center gap-2 mb-4">
-                <Layers size={20} className="text-[var(--primary)]" />
-                <h2 className="font-semibold">Pages to Remove</h2>
-              </div>
-
-              <label className="block text-sm font-medium mb-2">
-                Enter page numbers or ranges
-              </label>
-              <input
-                type="text"
-                value={pageRange}
-                onChange={(event) => {
-                  setPageRange(event.target.value);
-                  clearFeedback();
-                }}
-                placeholder="Example: 1, 3, 5-8"
-                disabled={!hasPdf}
-                className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)] disabled:opacity-60"
-              />
-
-              <button
-                type="button"
-                onClick={applyRangeSelection}
-                disabled={!hasPdf}
-                className={`btn-primary w-full mt-3 inline-flex items-center justify-center gap-2 ${
-                  !hasPdf ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                <MousePointerClick size={18} />
-                Apply Page Range
-              </button>
-
-              <p className="text-xs text-[var(--text-secondary)] mt-3">
-                Use formats like 2, 4, 7-10. The selected pages will be deleted
-                from the final PDF.
-              </p>
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-5 bg-white">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles size={20} className="text-[var(--primary)]" />
-                <h2 className="font-semibold">Quick Select</h2>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <ActionButton label="Odd Pages" disabled={!hasPdf} onClick={() => selectPages("odd")} />
-                <ActionButton label="Even Pages" disabled={!hasPdf} onClick={() => selectPages("even")} />
-                <ActionButton label="First Page" disabled={!hasPdf} onClick={() => selectPages("first")} />
-                <ActionButton label="Last Page" disabled={!hasPdf} onClick={() => selectPages("last")} />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => selectPages("clear")}
-                disabled={!hasPdf || !selectedCount}
-                className={`btn-secondary w-full mt-3 inline-flex items-center justify-center gap-2 ${
-                  !hasPdf || !selectedCount ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                <RotateCcw size={18} />
-                Clear Selection
-              </button>
-            </div>
-
-            <div className="border border-[var(--border)] rounded-2xl p-5 bg-white">
-              <div className="flex items-center gap-2 mb-4">
-                <Download size={20} className="text-[var(--primary)]" />
-                <h2 className="font-semibold">Output PDF</h2>
-              </div>
-
-              <label className="block text-sm font-medium mb-2">File name</label>
-              <input
-                type="text"
-                value={outputName}
-                onChange={(event) => setOutputName(event.target.value)}
-                placeholder="cleaned-pdf.pdf"
-                className="w-full border border-[var(--border)] rounded-xl px-4 py-3 bg-white outline-none focus:border-[var(--primary)]"
-              />
-
-              <div className="grid grid-cols-2 gap-3 mt-4 text-center">
-                <SummaryCard label="Remove" value={selectedCount} danger={selectedCount > 0} />
-                <SummaryCard label="Final Pages" value={finalPageCount || 0} green={finalPageCount > 0} />
-              </div>
-
-              <button
-                type="button"
-                onClick={removeSelectedPages}
-                disabled={!hasPdf || !selectedCount || isProcessing}
-                className={`btn-primary w-full mt-4 inline-flex items-center justify-center gap-2 ${
-                  !hasPdf || !selectedCount || isProcessing ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                <Trash2 size={18} />
-                {isProcessing ? "Removing Pages..." : "Remove Selected Pages"}
-              </button>
-
-              {processedUrl && (
-                <a
-                  href={processedUrl}
-                  download={normalizePdfFileName(outputName)}
-                  className="btn-secondary w-full mt-3 inline-flex items-center justify-center gap-2"
-                >
-                  <Download size={18} />
-                  Download Clean PDF
-                </a>
-              )}
-
-              <button
-                type="button"
-                onClick={() => resetTool()}
-                className="w-full mt-3 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] transition"
-              >
-                Reset tool
-              </button>
-            </div>
-
-            {processedUrl && (
-              <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
-                <p className="text-sm text-green-800">
-                  Clean PDF ready. New file size: <strong>{resultSizeText}</strong>
-                </p>
-              </div>
-            )}
-
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-              <div className="flex items-start gap-3">
-                <ShieldCheck size={20} className="text-blue-700 shrink-0 mt-0.5" />
-                <p className="text-sm text-blue-800">
-                  Privacy note: your PDF is processed in your browser. Only upload
-                  files that you own or have permission to edit.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT PANEL */}
-          <div className="flex flex-col gap-5">
-            {error && (
-              <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
-                <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{error}</p>
-              </div>
-            )}
-
-            {success && (
-              <div className="flex items-start gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
-                <CheckCircle size={18} className="shrink-0 mt-0.5" />
-                <p>{success}</p>
-              </div>
-            )}
-
-            <div className="border border-[var(--border)] rounded-2xl p-5 bg-white min-h-[560px]">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
-                <div>
+          {hasPdf && (
+            <div className="rounded-2xl border border-[var(--border)] bg-white p-4 sm:p-5">
+              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <Eye size={20} className="text-[var(--primary)]" />
-                    <h2 className="text-xl font-semibold">PDF Page Preview</h2>
+                    <FileText size={20} className="text-[var(--primary)] shrink-0" />
+                    <h2 className="text-xl font-bold truncate">Uploaded PDF</h2>
                   </div>
+
+                  <p className="text-sm text-[var(--text-secondary)] mt-1 truncate">
+                    {fileName} • {formatBytes(fileSize)} • {totalPages} page{totalPages === 1 ? "" : "s"}
+                  </p>
+
                   <p className="text-xs text-[var(--text-secondary)] mt-1">
-                    Click a page to select it for removal. Selected pages are highlighted.
+                    Selected to remove: <strong className="text-red-600">{selectedPagesText}</strong>
                   </p>
                 </div>
 
-                {hasPdf && (
-                  <div className="text-left sm:text-right">
-                    <p className="text-sm font-semibold text-red-600">
-                      Removing: {selectedPagesText}
-                    </p>
-                    <p className="text-xs text-[var(--text-secondary)] mt-1">
-                      Keep at least one page
-                    </p>
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoadingPdf || isProcessing}
+                    className="btn-secondary inline-flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Upload size={17} />
+                    Replace PDF
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    disabled={!selectedCount || isLoadingPdf || isProcessing}
+                    className="btn-secondary inline-flex items-center justify-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <RotateCcw size={17} />
+                    Clear Selection
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={removeSelectedPages}
+                    disabled={!selectedCount || selectedCount >= totalPages || isLoadingPdf || isProcessing}
+                    className="btn-primary inline-flex items-center justify-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isProcessing ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} />}
+                    Remove All Selected Pages
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadCleanPdf}
+                    disabled={!selectedCount || selectedCount >= totalPages || isLoadingPdf || isProcessing}
+                    className="btn-primary inline-flex items-center justify-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Download size={17} />
+                    {readyToDownload ? "Download Clean PDF" : "Create & Download"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => resetTool()}
+                    disabled={isLoadingPdf || isProcessing}
+                    className="btn-secondary inline-flex items-center justify-center gap-2 text-sm"
+                  >
+                    <RotateCcw size={17} />
+                    Reset
+                  </button>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={handleInputChange}
+                    className="hidden"
+                    disabled={isLoadingPdf || isProcessing}
+                  />
+                </div>
               </div>
 
-              {isLoading && (
-                <div className="min-h-[420px] flex items-center justify-center text-center">
-                  <div>
-                    <div className="w-12 h-12 border-4 border-[#eadcff] border-t-[var(--primary)] rounded-full animate-spin mx-auto mb-4" />
-                    <p className="font-semibold">Loading PDF preview...</p>
-                    <p className="text-sm text-[var(--text-secondary)] mt-1">
-                      Large files may take a few seconds.
-                    </p>
-                  </div>
+              <div className="mt-4 grid md:grid-cols-[1fr_auto] gap-3 items-end">
+                <label className="block">
+                  <span className="text-xs font-bold text-[var(--text-secondary)] mb-1 block">
+                    Output file name
+                  </span>
+                  <input
+                    value={outputName}
+                    onChange={(event) => setOutputName(event.target.value)}
+                    className="w-full h-11 rounded-xl border border-[var(--border)] bg-white px-3 outline-none focus:border-[var(--primary)]"
+                    placeholder="cleaned-pdf.pdf"
+                  />
+                </label>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <SummaryPill label="Remove" value={selectedCount} danger={selectedCount > 0} />
+                  <SummaryPill label="Keep" value={finalPageCount} />
+                  <SummaryPill label="Ready" value={readyToDownload ? "Yes" : "No"} />
                 </div>
-              )}
+              </div>
+            </div>
+          )}
 
-              {!isLoading && !hasPdf && (
-                <div className="min-h-[420px] flex items-center justify-center text-center bg-gray-50 rounded-2xl border border-dashed border-[var(--border)]">
-                  <div className="px-6">
-                    <FileText size={58} className="mx-auto mb-4 text-gray-300" />
-                    <h3 className="font-semibold mb-2">No PDF selected</h3>
-                    <p className="text-sm text-[var(--text-secondary)] max-w-md">
-                      Upload a PDF to preview its pages and choose which pages to delete.
-                    </p>
+          {(isLoadingPdf || isProcessing) && (
+            <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
+              <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
+                <span>{processingPhase || "Processing..."}</span>
+                <span>{progress}%</span>
+              </div>
+
+              <div className="w-full h-3 rounded-full bg-white border border-[var(--border)] overflow-hidden">
+                <div
+                  className="h-full bg-[var(--primary)] transition-all duration-200"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 p-4 rounded-xl">
+              <AlertCircle size={18} className="shrink-0 mt-0.5" />
+              <p>{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="flex items-start justify-between gap-3 text-sm text-green-700 bg-green-50 border border-green-100 p-4 rounded-xl">
+              <div className="flex items-start gap-3">
+                <CheckCircle size={18} className="shrink-0 mt-0.5" />
+                <p>{success}</p>
+              </div>
+
+              {(processingTimeMs > 0 || downloadTimeMs > 0) && (
+                <span className="font-bold shrink-0">
+                  {((downloadTimeMs || processingTimeMs) / 1000).toFixed(1)}s
+                </span>
+              )}
+            </div>
+          )}
+
+          {readyToDownload && (
+            <div className="rounded-2xl border border-green-100 bg-green-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-green-800">
+              <div>
+                <p className="font-bold">Clean PDF is ready</p>
+                <p className="text-sm mt-1">
+                  Final file size: {formatBytes(resultSize)} • Pages kept: {finalPageCount}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={downloadCleanPdf}
+                disabled={isProcessing || isLoadingPdf}
+                className="btn-primary inline-flex items-center justify-center gap-2"
+              >
+                <Download size={18} />
+                Download Clean PDF
+              </button>
+            </div>
+          )}
+
+          {hasPdf && (
+            <div className="rounded-2xl border border-[var(--border)] bg-white p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Eye size={20} className="text-[var(--primary)]" />
+                    <h2 className="text-xl font-bold">All PDF Pages</h2>
                   </div>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    Hover on a page and click “Select to remove”. Use the eye icon to view the full page.
+                  </p>
                 </div>
-              )}
 
-              {!isLoading && hasPdf && (
-                <>
-                  {totalPages > MAX_THUMBNAIL_PAGES && (
-                    <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                      <p className="text-sm text-yellow-800">
-                        This PDF has {totalPages} pages. For browser performance,
-                        thumbnails are shown for the first {MAX_THUMBNAIL_PAGES} pages.
-                        To remove later pages, use the page range box.
-                      </p>
-                    </div>
-                  )}
+                <div className="text-sm font-semibold text-[var(--text-secondary)]">
+                  {pages.length}/{totalPages} pages shown
+                </div>
+              </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {thumbnails.map((page) => {
-                      const isSelected = selectedPages.has(page.pageNumber);
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4">
+                {pages.map((page) => {
+                  const isSelected = selectedPages.has(page.pageNumber);
+                  const isRemovedPreview = readyToDownload && isSelected;
 
-                      return (
-                        <div
-                          key={page.pageNumber}
-                          className={`rounded-2xl border p-3 transition ${
-                            isSelected
-                              ? "border-red-400 bg-red-50"
-                              : "border-[var(--border)] bg-gray-50 hover:bg-[#f8f4ff]"
-                          }`}
+                  return (
+                    <div
+                      key={page.pageNumber}
+                      className={`group rounded-2xl border p-3 transition ${
+                        isSelected
+                          ? "border-red-300 bg-red-50"
+                          : "border-[var(--border)] bg-[#fafafa] hover:border-[var(--primary)] hover:bg-[#f8f4ff]"
+                      }`}
+                    >
+                      <div className="relative rounded-xl border border-[var(--border)] bg-white overflow-hidden min-h-[190px] flex items-center justify-center">
+                        <img
+                          src={page.image}
+                          alt={`PDF page ${page.pageNumber}`}
+                          className={`w-full h-full object-contain ${isRemovedPreview ? "opacity-45 grayscale" : ""}`}
+                          loading="lazy"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => openFullPage(page.pageNumber)}
+                          className="absolute top-2 right-2 h-9 w-9 rounded-xl border border-[var(--border)] bg-white/95 shadow-sm inline-flex items-center justify-center hover:bg-[#f4edff] hover:text-[var(--primary)] transition"
+                          title={`View page ${page.pageNumber}`}
+                          aria-label={`View page ${page.pageNumber}`}
                         >
+                          <Eye size={17} />
+                        </button>
+
+                        <div className={`absolute inset-0 flex items-center justify-center transition ${
+                          isSelected
+                            ? "bg-red-600/12 opacity-100"
+                            : "bg-black/35 opacity-0 group-hover:opacity-100"
+                        }`}>
                           <button
                             type="button"
-                            onClick={() => togglePage(page.pageNumber)}
-                            className="w-full text-left"
-                            aria-label={`Select page ${page.pageNumber} for removal`}
+                            onClick={() => togglePageSelection(page.pageNumber)}
+                            disabled={isLoadingPdf || isProcessing}
+                            className={`rounded-full px-4 py-2 text-xs font-black shadow transition ${
+                              isSelected
+                                ? "bg-red-600 text-white hover:bg-red-700"
+                                : "bg-white text-red-600 hover:bg-red-50"
+                            }`}
                           >
-                            <div className="relative bg-white rounded-xl overflow-hidden border border-[var(--border)] min-h-[170px] flex items-center justify-center">
-                              <img
-                                src={page.image}
-                                alt={`PDF page ${page.pageNumber}`}
-                                className="w-full h-full object-contain"
-                                loading="lazy"
-                              />
-
-                              {isSelected && (
-                                <div className="absolute inset-0 bg-red-500/10 flex items-center justify-center">
-                                  <span className="rounded-full bg-red-600 text-white px-3 py-1 text-xs font-semibold">
-                                    Remove
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                            {isSelected ? "Selected to remove" : "Select to remove"}
                           </button>
-
-                          <div className="flex items-center justify-between gap-2 mt-3">
-                            <button
-                              type="button"
-                              onClick={() => togglePage(page.pageNumber)}
-                              className={`text-sm font-semibold ${
-                                isSelected ? "text-red-700" : "text-[var(--text-primary)]"
-                              }`}
-                            >
-                              Page {page.pageNumber}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setPreviewPage(page)}
-                              className="text-xs text-[var(--primary)] font-semibold hover:underline"
-                            >
-                              View
-                            </button>
-                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+
+                        {isRemovedPreview && (
+                          <div className="absolute bottom-2 left-2 rounded-full bg-red-600 text-white px-3 py-1 text-[11px] font-black">
+                            Removed from output
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <p className={`text-sm font-black ${isSelected ? "text-red-700" : ""}`}>
+                          Page {page.pageNumber}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => togglePageSelection(page.pageNumber)}
+                          className={`text-xs font-bold ${
+                            isSelected ? "text-red-700" : "text-[var(--primary)]"
+                          }`}
+                        >
+                          {isSelected ? "Undo" : "Remove"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck size={20} className="text-blue-700 shrink-0 mt-0.5" />
+              <p className="text-sm text-blue-800">
+                Your PDF is processed in your browser. This tool removes full pages only and does not unlock protected PDFs.
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section className="card p-6 sm:p-8">
-        <div className="flex items-center gap-2 mb-5">
-          <ListChecks size={22} className="text-[var(--primary)]" />
-          <h2 className="text-2xl font-bold">How to Remove Pages from a PDF</h2>
-        </div>
-
-        <div className="grid md:grid-cols-4 gap-4">
-          <InfoCard
-            title="1. Upload PDF"
-            text="Choose the PDF file from your device. The file is prepared for browser preview."
-          />
-          <InfoCard
-            title="2. Select Pages"
-            text="Click page thumbnails or enter page numbers such as 1,3,5-8."
-          />
-          <InfoCard
-            title="3. Remove Pages"
-            text="The tool creates a new PDF without the selected pages."
-          />
-          <InfoCard
-            title="4. Download"
-            text="Download the clean PDF and review the final file before sharing."
-          />
-        </div>
-      </section>
-
-      {/* SEO CONTENT */}
-      <section className="card p-6 sm:p-8">
-        <div className="flex items-center gap-2 mb-4">
-          <BookOpen size={22} className="text-[var(--primary)]" />
-          <h2 className="text-2xl font-bold">Delete PDF Pages Online</h2>
-        </div>
-
-        <div className="text-[var(--text-secondary)] leading-7 space-y-4">
-          <p>
-            This PDF Page Remover helps you delete unwanted pages from a PDF file
-            online. It is useful for removing blank pages, duplicate pages,
-            wrong scanned pages, old cover pages, or extra document sections.
-          </p>
-
-          <p>
-            You can select pages visually from the preview grid or type a page
-            range manually. After removing the selected pages, the tool creates a
-            clean new PDF that you can download instantly.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-4 mt-6">
-          <InfoCard
-            title="Remove PDF Pages"
-            text="Delete one page, multiple pages, or page ranges from a PDF file."
-          />
-          <InfoCard
-            title="Preview Before Removing"
-            text="View PDF page thumbnails before choosing which pages to delete."
-          />
-          <InfoCard
-            title="Private Browser Tool"
-            text="Your file is processed on your device, with no paid API required."
-          />
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section className="card p-6 sm:p-8">
-        <div className="flex items-center gap-2 mb-5">
-          <Info size={22} className="text-[var(--primary)]" />
-          <h2 className="text-2xl font-bold">PDF Page Remover FAQ</h2>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <FaqItem
-            question="Can I remove multiple pages from a PDF?"
-            answer="Yes. Select multiple page thumbnails or enter a range like 2,4,7-10."
-          />
-          <FaqItem
-            question="Can I delete all pages from a PDF?"
-            answer="No. A PDF must keep at least one page, so the tool prevents deleting every page."
-          />
-          <FaqItem
-            question="Does this tool upload my PDF?"
-            answer="No. It is designed to process the PDF directly in your browser."
-          />
-          <FaqItem
-            question="Can I remove pages from password-protected PDFs?"
-            answer="No. This tool does not unlock or bypass protected PDF files."
-          />
-          <FaqItem
-            question="Will the PDF file size become smaller?"
-            answer="Often yes, because removed pages are no longer included. The final size depends on the PDF content."
-          />
-          <FaqItem
-            question="Is this a secure redaction tool?"
-            answer="No. It removes full pages only. For sensitive legal redaction, use a dedicated redaction workflow and review the final file carefully."
-          />
-        </div>
-      </section>
-
-      {previewPage && (
-        <div className="fixed inset-0 z-50 bg-black/60 p-4 flex items-center justify-center">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+      {fullPreview && (
+        <div className="fixed inset-0 z-50 bg-black/70 p-4 flex items-center justify-center">
+          <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden">
             <div className="flex items-center justify-between gap-3 p-4 border-b border-[var(--border)]">
-              <h3 className="font-semibold">Page {previewPage.pageNumber} Preview</h3>
+              <h3 className="font-bold">Page {fullPreview.pageNumber} Preview</h3>
+
               <button
                 type="button"
-                onClick={() => setPreviewPage(null)}
-                className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center"
+                onClick={() => setFullPreview(null)}
+                className="w-10 h-10 rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff] flex items-center justify-center"
                 aria-label="Close preview"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-4 bg-gray-50 max-h-[78vh] overflow-auto flex items-center justify-center">
-              <img
-                src={previewPage.image}
-                alt={`PDF page ${previewPage.pageNumber} large preview`}
-                className="max-w-full rounded-xl border border-[var(--border)] bg-white"
-              />
+            <div className="p-4 bg-[#f8f4ff] max-h-[82vh] overflow-auto flex items-center justify-center">
+              {fullPreview.loading ? (
+                <div className="min-h-[360px] flex flex-col items-center justify-center">
+                  <Loader2 size={32} className="animate-spin text-[var(--primary)] mb-3" />
+                  <p className="font-semibold">Opening full page...</p>
+                </div>
+              ) : (
+                <img
+                  src={fullPreview.image}
+                  alt={`PDF page ${fullPreview.pageNumber} full preview`}
+                  className="max-w-full rounded-xl border border-[var(--border)] bg-white shadow-sm"
+                />
+              )}
             </div>
           </div>
         </div>
@@ -911,117 +787,61 @@ export default function PDFPageRemover() {
   );
 }
 
-function ActionButton({ label, disabled, onClick }) {
+function SummaryPill({ label, value, danger = false }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded-xl border border-[var(--border)] bg-white p-3 text-sm font-semibold hover:bg-[#f8f4ff] transition ${
-        disabled ? "opacity-50 cursor-not-allowed" : ""
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function SummaryCard({ label, value, green = false, danger = false }) {
-  return (
-    <div className="border border-[var(--border)] rounded-xl p-3 bg-white">
-      <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
-      <p
-        className={`text-xl font-bold ${
-          danger ? "text-red-600" : green ? "text-green-600" : "text-[var(--primary)]"
-        }`}
-      >
+    <div className="min-w-[80px] rounded-xl border border-[var(--border)] bg-[#fafafa] px-3 py-2">
+      <p className="text-[11px] text-[var(--text-secondary)] font-semibold">{label}</p>
+      <p className={`text-lg font-black ${danger ? "text-red-600" : "text-[var(--primary)]"}`}>
         {value}
       </p>
     </div>
   );
 }
 
-function InfoCard({ title, text }) {
-  return (
-    <div className="border border-[var(--border)] rounded-2xl p-5 bg-white">
-      <h3 className="font-semibold mb-2">{title}</h3>
-      <p className="text-sm text-[var(--text-secondary)] leading-6">{text}</p>
-    </div>
-  );
+async function renderPdfPageToImage(pdf, pageNumber, scale, mimeType = "image/jpeg", quality = 0.85) {
+  const page = await pdf.getPage(pageNumber);
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { alpha: false });
+
+  canvas.width = Math.max(1, Math.floor(viewport.width));
+  canvas.height = Math.max(1, Math.floor(viewport.height));
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  await page.render({
+    canvasContext: context,
+    viewport,
+  }).promise;
+
+  return {
+    dataUrl: canvas.toDataURL(mimeType, quality),
+    width: canvas.width,
+    height: canvas.height,
+  };
 }
 
-function FaqItem({ question, answer }) {
-  return (
-    <div className="border border-[var(--border)] rounded-2xl p-5 bg-white">
-      <h3 className="font-semibold mb-2">{question}</h3>
-      <p className="text-sm text-[var(--text-secondary)] leading-6">{answer}</p>
-    </div>
-  );
+function createDefaultOutputName(name) {
+  const baseName = String(name || "document.pdf").replace(/\.pdf$/i, "");
+  return normalizePdfFileName(`${baseName}-cleaned.pdf`);
 }
 
-function parsePageRange(input, totalPages) {
-  const pages = new Set();
-  const cleanInput = String(input || "").trim();
+function normalizePdfFileName(name) {
+  const cleanName = String(name || "cleaned-pdf.pdf")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  if (!cleanInput) {
-    return { ok: true, pages };
-  }
+  if (!cleanName) return "cleaned-pdf.pdf";
 
-  const parts = cleanInput.split(",").map((part) => part.trim()).filter(Boolean);
-
-  if (!parts.length) {
-    return { ok: false, message: "Please enter a valid page range." };
-  }
-
-  for (const part of parts) {
-    if (/^\d+$/.test(part)) {
-      const page = Number(part);
-
-      if (page < 1 || page > totalPages) {
-        return {
-          ok: false,
-          message: `Page ${page} is outside this PDF. Use pages between 1 and ${totalPages}.`,
-        };
-      }
-
-      pages.add(page);
-      continue;
-    }
-
-    const rangeMatch = part.match(/^(\d+)\s*-\s*(\d+)$/);
-
-    if (rangeMatch) {
-      const start = Number(rangeMatch[1]);
-      const end = Number(rangeMatch[2]);
-
-      if (start > end) {
-        return { ok: false, message: `Invalid range ${part}. Start page must be smaller than end page.` };
-      }
-
-      if (start < 1 || end > totalPages) {
-        return {
-          ok: false,
-          message: `Range ${part} is outside this PDF. Use pages between 1 and ${totalPages}.`,
-        };
-      }
-
-      for (let page = start; page <= end; page += 1) pages.add(page);
-      continue;
-    }
-
-    return {
-      ok: false,
-      message: "Invalid page range. Use a format like 1,3,5-8.",
-    };
-  }
-
-  return { ok: true, pages };
+  return cleanName.toLowerCase().endsWith(".pdf") ? cleanName : `${cleanName}.pdf`;
 }
 
 function formatPagesAsRange(pagesSet) {
   const pages = Array.from(pagesSet || []).sort((a, b) => a - b);
 
-  if (!pages.length) return "";
+  if (!pages.length) return "None";
 
   const ranges = [];
   let start = pages[0];
@@ -1043,19 +863,51 @@ function formatPagesAsRange(pagesSet) {
   return ranges.join(", ");
 }
 
-function createDefaultOutputName(name) {
-  const base = String(name || "document.pdf").replace(/\.pdf$/i, "");
-  return normalizePdfFileName(`${base}-cleaned.pdf`);
+async function saveBlob(blob, filename) {
+  const safeBlob = blob instanceof Blob ? blob : new Blob([blob], { type: "application/pdf" });
+  const safeName = normalizePdfFileName(filename);
+  const file = new File([safeBlob], safeName, { type: "application/pdf" });
+
+  const canShareFile =
+    isIosLikeDevice() &&
+    typeof navigator !== "undefined" &&
+    typeof navigator.canShare === "function" &&
+    typeof navigator.share === "function" &&
+    navigator.canShare({ files: [file] });
+
+  if (canShareFile) {
+    await navigator.share({
+      files: [file],
+      title: safeName,
+    });
+    return;
+  }
+
+  const url = URL.createObjectURL(safeBlob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = safeName;
+  link.rel = "noopener";
+  link.style.display = "none";
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-function normalizePdfFileName(name) {
-  const cleanName = String(name || "cleaned-pdf.pdf")
-    .replace(/[\\/:*?"<>|]+/g, "-")
-    .replace(/\s+/g, " ")
-    .trim();
+function isIosLikeDevice() {
+  if (typeof navigator === "undefined") return false;
 
-  if (!cleanName) return "cleaned-pdf.pdf";
-  return cleanName.toLowerCase().endsWith(".pdf") ? cleanName : `${cleanName}.pdf`;
+  const userAgent = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+
+  return (
+    /iPad|iPhone|iPod/i.test(userAgent) ||
+    (platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1)
+  );
 }
 
 function formatBytes(bytes) {
@@ -1068,4 +920,10 @@ function formatBytes(bytes) {
   const size = value / 1024 ** index;
 
   return `${size.toFixed(size >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
