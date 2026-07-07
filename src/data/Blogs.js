@@ -1,5 +1,41 @@
 export const blogs = [
   {
+    "title": "How to Clean Phone Numbers in Google Sheets",
+    "slug": "how-to-clean-phone-numbers-in-google-sheets",
+    "date": "2026-06-09",
+    "category": "Spreadsheet Tools",
+    "excerpt": "Learn how to clean phone numbers in Google Sheets by removing spaces, symbols, brackets, and inconsistent formatting from contact lists.",
+    "image": "/images/clean-phone-numbers-google-sheets.png",
+    "pageFile": "how-to-clean-phone-numbers-in-google-sheets"
+  },
+  {
+    "title": "How to Extract Images from Google Docs",
+    "slug": "how-to-extract-images-from-google-docs",
+    "date": "2026-06-09",
+    "category": "Productivity Tools",
+    "excerpt": "Learn how to extract images from Google Docs using simple methods, including downloading the document as a web page and saving images separately.",
+    "image": "/images/extract-images-from-google-docs.png",
+    "pageFile": "how-to-extract-images-from-google-docs"
+  },
+  {
+    "title": "How to Remove Pages from PDF Online",
+    "slug": "how-to-remove-pages-from-pdf-online",
+    "date": "2026-06-09",
+    "category": "PDF Tools",
+    "excerpt": "Learn how to remove unwanted pages from a PDF online without installing software. Clean your PDF files for school, office, printing, and document sharing.",
+    "image": "/images/remove-pages-from-pdf-online.png",
+    "pageFile": "how-to-remove-pages-from-pdf-online"
+  },
+  {
+    "title": "How to Reorder PDF Pages Online",
+    "slug": "how-to-reorder-pdf-pages-online",
+    "date": "2026-06-09",
+    "category": "PDF Tools",
+    "excerpt": "Learn how to reorder PDF pages online and arrange your document pages in the correct order without installing software.",
+    "image": "/images/reorder-pdf-pages-online.png",
+    "pageFile": "how-to-reorder-pdf-pages-online"
+  },
+  {
     "title": "Best Free PDF Tools for Students and Office Work",
     "slug": "best-free-pdf-tools-for-students-and-office-work",
     "date": "2026-06-08",
@@ -135,15 +171,6 @@ export const blogs = [
     "pageFile": "social-media-image-size-guide"
   },
   {
-    "title": "Best Free Online Tools for Everyday Digital Tasks",
-    "slug": "best-free-online-tools-for-everyday-digital-tasks",
-    "date": "2026-06-02",
-    "category": "Productivity Tools",
-    "excerpt": "Discover the best free online tools for everyday digital tasks, including image editing, PDF conversion, text formatting, color tools, and quick productivity work.",
-    "image": "/images/best-free-online-tools-everyday-digital-tasks.png",
-    "pageFile": "best-free-online-tools-for-digital-tasks"
-  },
-  {
     "title": "How to Compress Images or Reduce Image Files Without Losing Quality",
     "slug": "how-to-compress-images-without-losing-quality",
     "date": "2026-05-29",
@@ -214,15 +241,6 @@ export const blogs = [
     "excerpt": "Discover the 10 best free online image compressor tools to reduce image file size, improve website speed, and optimize photos without losing quality.",
     "image": "/images/free-image-compressor-tools.jpg",
     "pageFile": "best-free-image-compressor-tools"
-  },
-  {
-    "title": "Essential Online Image Tools to Optimize, Resize, and Convert Images Easily",
-    "slug": "image-tools-guide",
-    "date": "2026-04-26",
-    "category": "Image Tools",
-    "excerpt": "Learn how online image tools like resizers, compressors, and converters can help you optimize images for speed, quality, and better SEO performance.",
-    "image": "/images/image-tools-guide.png",
-    "pageFile": "image-tools-guide"
   },
   {
     "title": "Best Free Online Tools for Daily Work",
