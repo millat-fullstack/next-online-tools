@@ -33,6 +33,7 @@ import {
   Send,
   Image as ImageIcon,
   X,
+  MoreHorizontal,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -57,39 +58,6 @@ const SAMPLE_POST =
 
 const SITE_URL = "https://nextonlinetools.com";
 const canonicalUrl = `${SITE_URL}${toolData.path.startsWith("/tool") ? toolData.path : `/tool${toolData.path}`}`;
-
-const POST_MODES = [
-  {
-    id: "post",
-    label: "LinkedIn Post",
-    limit: LINKEDIN_POST_LIMIT,
-    helper: "Best for normal feed posts, founder updates, tips, lessons, and storytelling.",
-  },
-  {
-    id: "comment",
-    label: "LinkedIn Comment",
-    limit: 1250,
-    helper: "Best for short opinions, thoughtful replies, and discussion comments.",
-  },
-  {
-    id: "headline",
-    label: "Profile Headline",
-    limit: 220,
-    helper: "Best for short professional positioning and profile headline ideas.",
-  },
-  {
-    id: "about",
-    label: "About Section Draft",
-    limit: 2600,
-    helper: "Best for longer profile summaries before you paste and refine on LinkedIn.",
-  },
-  {
-    id: "message",
-    label: "LinkedIn Message",
-    limit: 1000,
-    helper: "Best for clean outreach messages, follow-ups, and networking notes.",
-  },
-];
 
 const STYLE_OPTIONS = [
   {
@@ -279,18 +247,14 @@ export default function LinkedInTextFormatter() {
 
   const [postText, setPostText] = useState("");
   const [textSelection, setTextSelection] = useState({ start: 0, end: 0 });
-  const [selectedStyle, setSelectedStyle] = useState("bold");
-  const [selectedMode, setSelectedMode] = useState("post");
+  const [activeTextStyle, setActiveTextStyle] = useState("");
+  const [pendingStyle, setPendingStyle] = useState("");
   const [selectedBullet, setSelectedBullet] = useState("dot");
   const [previewImage, setPreviewImage] = useState("");
   const [copiedType, setCopiedType] = useState("");
   const [activeToolbarMenu, setActiveToolbarMenu] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
-
-  const activeMode = useMemo(() => {
-    return POST_MODES.find((mode) => mode.id === selectedMode) || POST_MODES[0];
-  }, [selectedMode]);
 
   const activeBullet = useMemo(() => {
     return BULLET_STYLES.find((bullet) => bullet.id === selectedBullet) || BULLET_STYLES[0];
@@ -300,11 +264,11 @@ export default function LinkedInTextFormatter() {
     return Array.from(postText).length;
   }, [postText]);
 
-  const remainingCharacters = activeMode.limit - characterCount;
+  const remainingCharacters = LINKEDIN_POST_LIMIT - characterCount;
 
   const limitPercent = Math.min(
     100,
-    Math.round((characterCount / activeMode.limit) * 100)
+    Math.round((characterCount / LINKEDIN_POST_LIMIT) * 100)
   );
 
 
@@ -312,7 +276,6 @@ export default function LinkedInTextFormatter() {
     return Array.from(postText).slice(0, SEE_MORE_PREVIEW_LIMIT).join("");
   }, [postText]);
 
-  const hashtags = useMemo(() => extractHashtags(postText), [postText]);
   const hookScore = useMemo(() => analyzeHook(postText), [postText]);
   const styleDensity = useMemo(() => calculateStyledDensity(postText), [postText]);
 
@@ -325,7 +288,7 @@ export default function LinkedInTextFormatter() {
       };
     }
 
-    if (characterCount > activeMode.limit) {
+    if (characterCount > LINKEDIN_POST_LIMIT) {
       return {
         label: "Too Long",
         status: "danger",
@@ -333,7 +296,7 @@ export default function LinkedInTextFormatter() {
       };
     }
 
-    if (characterCount >= activeMode.limit * 0.85) {
+    if (characterCount >= LINKEDIN_POST_LIMIT * 0.85) {
       return {
         label: "Near Limit",
         status: "warning",
@@ -346,7 +309,7 @@ export default function LinkedInTextFormatter() {
       status: "good",
       barClass: "bg-green-500",
     };
-  }, [characterCount, activeMode.limit]);
+  }, [characterCount]);
 
   const seoJsonLd = useMemo(() => {
     return {
@@ -444,8 +407,34 @@ export default function LinkedInTextFormatter() {
   }
 
   function handleTextChange(value) {
+    const previousText = postText;
+
+    if (pendingStyle) {
+      const change = getTextChange(previousText, value);
+
+      if (change.insertedText) {
+        const styledInsertion = transformText(change.insertedText, pendingStyle);
+        const nextText = `${value.slice(0, change.start)}${styledInsertion}${value.slice(change.nextEnd)}`;
+        const nextCursor = change.start + styledInsertion.length;
+
+        setPostText(nextText);
+        setActiveTextStyle(pendingStyle);
+        clearFeedback();
+
+        window.setTimeout(() => {
+          if (!textareaRef.current) return;
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(nextCursor, nextCursor);
+          setTextSelection({ start: nextCursor, end: nextCursor });
+        }, 0);
+        return;
+      }
+    }
+
     setPostText(value);
     clearFeedback();
+
+    window.setTimeout(() => updateStoredSelection(), 0);
   }
 
   function updateStoredSelection() {
@@ -453,10 +442,24 @@ export default function LinkedInTextFormatter() {
 
     if (!textarea) return;
 
-    setTextSelection({
+    const nextSelection = {
       start: textarea.selectionStart || 0,
       end: textarea.selectionEnd || 0,
-    });
+    };
+    const detectedStyle = detectStyleAtRange(
+      postText,
+      nextSelection.start,
+      nextSelection.end
+    );
+
+    setTextSelection(nextSelection);
+    setActiveTextStyle(detectedStyle);
+
+    if (nextSelection.start !== nextSelection.end) {
+      setPendingStyle("");
+    } else {
+      setPendingStyle(detectedStyle);
+    }
   }
 
   function getSelectionRange() {
@@ -491,43 +494,56 @@ export default function LinkedInTextFormatter() {
     return liveSelection;
   }
 
-  function applyStyle(styleId = selectedStyle) {
+  function applyStyle(styleId) {
     clearFeedback();
-
-    if (!postText.trim()) {
-      setError("Please type or paste your LinkedIn text first.");
-      return;
-    }
 
     const { start, end } = getSelectionRange();
     const hasSelection = start !== end;
 
+    if (!hasSelection) {
+      const shouldTurnOff = pendingStyle === styleId || activeTextStyle === styleId;
+      const nextStyle = shouldTurnOff ? "" : styleId;
+
+      setPendingStyle(nextStyle);
+      setActiveTextStyle(nextStyle);
+      setSuccess(
+        nextStyle
+          ? `${getStyleLabel(styleId)} is on. Start typing to use it.`
+          : `${getStyleLabel(styleId)} is off.`
+      );
+
+      window.setTimeout(() => textareaRef.current?.focus(), 0);
+      return;
+    }
+
     const before = postText.slice(0, start);
-    const selected = hasSelection ? postText.slice(start, end) : postText;
+    const selected = postText.slice(start, end);
     const after = postText.slice(end);
+    const alreadyStyled = detectStyleForText(selected) === styleId;
+    const nextSelected = alreadyStyled
+      ? convertStyledUnicodeToPlainText(selected)
+      : transformText(selected, styleId);
+    const nextText = `${before}${nextSelected}${after}`;
+    const nextEnd = start + nextSelected.length;
 
-    const styledText = transformText(selected, styleId);
-    const nextText = hasSelection ? `${before}${styledText}${after}` : styledText;
-
-    setSelectedStyle(styleId);
     updateText(
       nextText,
-      hasSelection
-        ? `${getStyleLabel(styleId)} applied to selected text.`
-        : `${getStyleLabel(styleId)} applied to the full text.`
+      alreadyStyled
+        ? `${getStyleLabel(styleId)} removed from selected text.`
+        : `${getStyleLabel(styleId)} applied to selected text.`
     );
+    setPendingStyle("");
+    setActiveTextStyle(alreadyStyled ? "" : styleId);
 
     window.setTimeout(() => {
       if (!textareaRef.current) return;
 
       textareaRef.current.focus();
-
-      if (hasSelection) {
-        textareaRef.current.setSelectionRange(start, start + styledText.length);
-        setTextSelection({ start, end: start + styledText.length });
-      }
+      textareaRef.current.setSelectionRange(start, nextEnd);
+      setTextSelection({ start, end: nextEnd });
     }, 0);
   }
+
 
   function replaceSelectedText(transformer, message) {
     clearFeedback();
@@ -783,6 +799,8 @@ export default function LinkedInTextFormatter() {
 
   function handleClear() {
     setPostText("");
+    setActiveTextStyle("");
+    setPendingStyle("");
     setSuccess("");
     setError("");
     setCopiedType("");
@@ -790,8 +808,8 @@ export default function LinkedInTextFormatter() {
 
   function handleReset() {
     setPostText("");
-    setSelectedStyle("bold");
-    setSelectedMode("post");
+    setActiveTextStyle("");
+    setPendingStyle("");
     setSelectedBullet("dot");
     setPreviewImage("");
     if (imageInputRef.current) {
@@ -852,76 +870,25 @@ export default function LinkedInTextFormatter() {
 
       {/* TOOL BODY */}
       <section className="card p-6 sm:p-8">
-        {/* PROFESSIONAL WORKSPACE BAR */}
-        <div className="mb-6 rounded-2xl border border-[var(--border)] bg-[#fbf9ff] px-5 py-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--primary)] font-bold">
-                Corporate writing workspace
-              </p>
-              <p className="text-sm text-[var(--text-secondary)] mt-1">
-                Formatting controls are now placed directly above the textboard as icon-only actions.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {POST_MODES.map((mode) => {
-                const ModeIcon = getPostModeIcon(mode.id);
-
-                return (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedMode(mode.id);
-                      setActiveToolbarMenu("");
-                      clearFeedback();
-                    }}
-                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                      selectedMode === mode.id
-                        ? "border-[var(--primary)] bg-white text-[var(--primary)] shadow-sm"
-                        : "border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                    }`}
-                    title={mode.helper}
-                  >
-                    <ModeIcon size={15} />
-                    {mode.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
         <div className="grid lg:grid-cols-2 gap-6">
           {/* LEFT COLUMN */}
           <div className="flex flex-col gap-5">
             {/* INPUT */}
             <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <FileText size={20} className="text-[var(--primary)]" />
-                  <h2 className="text-xl font-semibold">LinkedIn Content</h2>
-                </div>
-
-                <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)]">
-                  {(() => {
-                    const ModeIcon = getPostModeIcon(selectedMode);
-                    return <ModeIcon size={15} />;
-                  })()}
-                  {activeMode.label}
-                </div>
+              <div className="mb-4 flex items-center gap-2">
+                <FileText size={20} className="text-[var(--primary)]" />
+                <h2 className="text-xl font-semibold">LinkedIn Content</h2>
               </div>
 
               <p className="text-xs text-[var(--text-secondary)] mb-4">
-                {activeMode.helper} Select text to format only that part.
+                Select text to format it, or turn on a style and start typing—just like a document editor. Links become clickable in the preview.
               </p>
 
               <div className="relative mb-0">
                 <div className="rounded-t-2xl border border-b-0 border-[var(--border)] bg-white px-3 py-2">
                   <div
                     onMouseDown={(event) => event.preventDefault()}
-                    className="flex items-center gap-1 overflow-x-auto whitespace-nowrap"
+                    className="flex flex-wrap items-center gap-1"
                   >
                     <ToolbarIconButton
                       icon={Sparkles}
@@ -936,7 +903,9 @@ export default function LinkedInTextFormatter() {
 
                     <ToolbarDivider />
 
-                    {STYLE_OPTIONS.map((style) => {
+                    {STYLE_OPTIONS.filter((style) =>
+                      ["bold", "italic", "boldItalic", "underline", "strikethrough", "monospace"].includes(style.id)
+                    ).map((style) => {
                       const Icon = style.icon;
 
                       return (
@@ -944,7 +913,7 @@ export default function LinkedInTextFormatter() {
                           key={style.id}
                           icon={Icon}
                           label={style.label}
-                          active={selectedStyle === style.id}
+                          active={activeTextStyle === style.id}
                           onClick={() => {
                             setActiveToolbarMenu("");
                             applyStyle(style.id);
@@ -973,7 +942,7 @@ export default function LinkedInTextFormatter() {
                       }
                       className={`h-9 w-9 shrink-0 rounded-xl border text-base transition ${
                         activeToolbarMenu === "emoji"
-                          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)] shadow-sm"
                           : "border-transparent bg-white text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
                       }`}
                       title="Insert emoji"
@@ -991,7 +960,7 @@ export default function LinkedInTextFormatter() {
                       }
                       className={`h-9 shrink-0 rounded-xl border px-3 text-xs font-bold transition ${
                         activeToolbarMenu === "case"
-                          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)] shadow-sm"
                           : "border-transparent bg-white text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
                       }`}
                       title="Change case"
@@ -1000,76 +969,15 @@ export default function LinkedInTextFormatter() {
                       Aa
                     </button>
 
-                    <ToolbarDivider />
-
                     <ToolbarIconButton
-                      icon={Bold}
-                      label="Bold first line"
-                      onClick={() => {
-                        setActiveToolbarMenu("");
-                        handleQuickAction("boldFirstLine");
-                      }}
-                    />
-                    <ToolbarIconButton
-                      icon={Scissors}
-                      label="Clean spacing"
-                      onClick={() => {
-                        setActiveToolbarMenu("");
-                        handleQuickAction("cleanSpacing");
-                      }}
-                    />
-                    <ToolbarIconButton
-                      icon={Hash}
-                      label="Clean hashtags"
-                      onClick={() => {
-                        setActiveToolbarMenu("");
-                        handleQuickAction("cleanHashtags");
-                      }}
-                    />
-                    <ToolbarIconButton
-                      icon={MessageCircle}
-                      label="Add CTA"
-                      onClick={() => {
-                        setActiveToolbarMenu("");
-                        handleQuickAction("addCTA");
-                      }}
-                    />
-                    <ToolbarIconButton
-                      icon={RotateCcw}
-                      label="Remove styles"
-                      onClick={() => {
-                        setActiveToolbarMenu("");
-                        handleQuickAction("plainText");
-                      }}
-                    />
-
-                    <ToolbarDivider />
-
-                    <ToolbarIconButton
-                      icon={Save}
-                      label="Save draft"
-                      onClick={() => {
-                        setActiveToolbarMenu("");
-                        handleSaveDraft();
-                      }}
-                    />
-                    <ToolbarIconButton
-                      icon={FileText}
-                      label="Load draft"
-                      onClick={() => {
-                        setActiveToolbarMenu("");
-                        handleLoadDraft();
-                      }}
-                    />
-                    <ToolbarIconButton
-                      icon={Copy}
-                      label="Copy formatted"
-                      disabled={!postText.trim()}
-                      active={copiedType === "formatted"}
-                      onClick={() => {
-                        setActiveToolbarMenu("");
-                        handleCopyVariant("formatted");
-                      }}
+                      icon={MoreHorizontal}
+                      label="More tools"
+                      active={activeToolbarMenu === "more"}
+                      onClick={() =>
+                        setActiveToolbarMenu((current) =>
+                          current === "more" ? "" : "more"
+                        )
+                      }
                     />
                   </div>
                 </div>
@@ -1170,13 +1078,125 @@ export default function LinkedInTextFormatter() {
                     </div>
                   </div>
                 )}
+
+                {activeToolbarMenu === "more" && (
+                  <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[min(360px,calc(100vw-48px))] rounded-2xl border border-[var(--border)] bg-white p-4 shadow-2xl">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold">More formatting tools</p>
+                        <p className="text-xs text-[var(--text-secondary)]">
+                          Extra styles, cleanup actions, and draft controls.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveToolbarMenu("")}
+                        className="h-8 w-8 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[#f8f4ff]"
+                        aria-label="Close more tools"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {STYLE_OPTIONS.filter((style) =>
+                        ["fullwidth", "smallCaps"].includes(style.id)
+                      ).map((style) => {
+                        const Icon = style.icon;
+                        return (
+                          <MoreToolButton
+                            key={style.id}
+                            icon={Icon}
+                            label={style.label}
+                            active={activeTextStyle === style.id}
+                            onClick={() => {
+                              setActiveToolbarMenu("");
+                              applyStyle(style.id);
+                            }}
+                          />
+                        );
+                      })}
+
+                      <MoreToolButton
+                        icon={Bold}
+                        label="Bold first line"
+                        onClick={() => {
+                          setActiveToolbarMenu("");
+                          handleQuickAction("boldFirstLine");
+                        }}
+                      />
+                      <MoreToolButton
+                        icon={Scissors}
+                        label="Clean spacing"
+                        onClick={() => {
+                          setActiveToolbarMenu("");
+                          handleQuickAction("cleanSpacing");
+                        }}
+                      />
+                      <MoreToolButton
+                        icon={Hash}
+                        label="Clean hashtags"
+                        onClick={() => {
+                          setActiveToolbarMenu("");
+                          handleQuickAction("cleanHashtags");
+                        }}
+                      />
+                      <MoreToolButton
+                        icon={MessageCircle}
+                        label="Add CTA"
+                        onClick={() => {
+                          setActiveToolbarMenu("");
+                          handleQuickAction("addCTA");
+                        }}
+                      />
+                      <MoreToolButton
+                        icon={RotateCcw}
+                        label="Remove styles"
+                        onClick={() => {
+                          setActiveToolbarMenu("");
+                          handleQuickAction("plainText");
+                        }}
+                      />
+                      <MoreToolButton
+                        icon={Save}
+                        label="Save draft"
+                        onClick={() => {
+                          setActiveToolbarMenu("");
+                          handleSaveDraft();
+                        }}
+                      />
+                      <MoreToolButton
+                        icon={FileText}
+                        label="Load draft"
+                        onClick={() => {
+                          setActiveToolbarMenu("");
+                          handleLoadDraft();
+                        }}
+                      />
+                      <MoreToolButton
+                        icon={Copy}
+                        label={copiedType === "formatted" ? "Copied" : "Copy formatted"}
+                        active={copiedType === "formatted"}
+                        disabled={!postText.trim()}
+                        onClick={() => {
+                          setActiveToolbarMenu("");
+                          handleCopyVariant("formatted");
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <textarea
                 ref={textareaRef}
                 value={postText}
                 onChange={(event) => handleTextChange(event.target.value)}
-                placeholder="Type or paste your LinkedIn post here. Select a word, sentence, or heading, then click a formatting style..."
+                onSelect={updateStoredSelection}
+                onClick={updateStoredSelection}
+                onKeyUp={updateStoredSelection}
+                onMouseUp={updateStoredSelection}
+                placeholder="Type or paste your LinkedIn post here. Select text to format it, or choose a style before typing..."
                 rows="14"
                 className="linkedin-unicode-text w-full border border-[var(--border)] rounded-b-2xl rounded-t-none px-4 py-4 bg-white outline-none focus:border-[var(--primary)] resize-none leading-7"
               />
@@ -1345,7 +1365,7 @@ export default function LinkedInTextFormatter() {
 
               <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-2">
                 <span>
-                  {characterCount} / {activeMode.limit} characters
+                  {characterCount} / {LINKEDIN_POST_LIMIT} characters
                 </span>
                 <span>
                   {remainingCharacters >= 0
@@ -1362,49 +1382,10 @@ export default function LinkedInTextFormatter() {
               </div>
 
               <p className="text-xs text-[var(--text-secondary)] mt-3">
-                Active mode: {activeMode.label}. Keep your content focused and
-                easy to scan.
+                LinkedIn post limit. Keep your content focused and easy to scan.
               </p>
             </div>
 
-            {/* COPY OPTIONS */}
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Copy size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Copy Options</h3>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-3">
-                <CopyButton
-                  label="Copy Formatted"
-                  icon={Copy}
-                  active={copiedType === "formatted"}
-                  disabled={!postText.trim()}
-                  onClick={() => handleCopyVariant("formatted")}
-                />
-                <CopyButton
-                  label="Copy Plain Text"
-                  icon={FileText}
-                  active={copiedType === "plain"}
-                  disabled={!postText.trim()}
-                  onClick={() => handleCopyVariant("plain")}
-                />
-                <CopyButton
-                  label="Copy Hook Only"
-                  icon={Sparkles}
-                  active={copiedType === "hook"}
-                  disabled={!postText.trim()}
-                  onClick={() => handleCopyVariant("hook")}
-                />
-                <CopyButton
-                  label="Copy Hashtags"
-                  icon={Hash}
-                  active={copiedType === "hashtags"}
-                  disabled={!postText.trim() || hashtags.length === 0}
-                  onClick={() => handleCopyVariant("hashtags")}
-                />
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -1542,8 +1523,8 @@ function LinkedInPreviewCard({
         </div>
 
         {postText ? (
-          <div className="whitespace-pre-wrap leading-7 text-sm sm:text-base">
-            {hookPreview}
+          <div className="whitespace-pre-wrap break-words leading-7 text-sm sm:text-base">
+            {renderTextWithClickableLinks(hookPreview)}
             {characterCount > SEE_MORE_PREVIEW_LIMIT ? (
               <span className="text-[var(--primary)] font-semibold">
                 {" "}
@@ -1600,6 +1581,40 @@ function LinkedInPreviewCard({
   );
 }
 
+function renderTextWithClickableLinks(text) {
+  const value = String(text || "");
+  const urlPattern = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+
+  return value.split(urlPattern).map((part, index) => {
+    if (!/^(?:https?:\/\/|www\.)/i.test(part)) {
+      return <span key={`text-${index}`}>{part}</span>;
+    }
+
+    const trailingMatch = part.match(/[.,!?;:]+$/);
+    const trailingPunctuation = trailingMatch?.[0] || "";
+    const cleanUrl = trailingPunctuation
+      ? part.slice(0, -trailingPunctuation.length)
+      : part;
+    const href = cleanUrl.toLowerCase().startsWith("www.")
+      ? `https://${cleanUrl}`
+      : cleanUrl;
+
+    return (
+      <span key={`link-${index}`}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="break-all font-medium text-[var(--primary)] underline decoration-1 underline-offset-2 hover:opacity-80"
+        >
+          {cleanUrl}
+        </a>
+        {trailingPunctuation}
+      </span>
+    );
+  });
+}
+
 function PreviewAction({ icon: Icon, label }) {
   return (
     <div className="flex items-center justify-center gap-1">
@@ -1622,11 +1637,12 @@ function ToolbarIconButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`group relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${
+      aria-pressed={active}
+      className={`group relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-all duration-150 ${
         active
-          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
-          : "border-transparent bg-white text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
-      } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)] shadow-sm"
+          : "border-transparent bg-white text-[var(--text-secondary)] hover:-translate-y-px hover:border-[var(--border)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
+      } ${disabled ? "opacity-40 cursor-not-allowed hover:translate-y-0" : ""}`}
       title={label}
       aria-label={label}
     >
@@ -1643,16 +1659,24 @@ function ToolbarDivider() {
   return <span className="mx-1 h-7 w-px shrink-0 bg-[var(--border)]" />;
 }
 
-function getPostModeIcon(modeId) {
-  const icons = {
-    post: Linkedin,
-    comment: MessageCircle,
-    headline: Type,
-    about: FileText,
-    message: Send,
-  };
 
-  return icons[modeId] || FileText;
+function MoreToolButton({ icon: Icon, label, active = false, disabled = false, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-all duration-150 ${
+        active
+          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)] shadow-sm"
+          : "border-[var(--border)] bg-white text-[var(--text-secondary)] hover:border-[var(--primary)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
+      } ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
+    >
+      <Icon size={15} className="shrink-0" />
+      <span>{label}</span>
+    </button>
+  );
 }
 
 
@@ -1693,21 +1717,6 @@ function StatusPill({ status, label }) {
 }
 
 
-function CopyButton({ label, icon: Icon, active, disabled, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`btn-secondary inline-flex items-center justify-center gap-2 ${
-        disabled ? "opacity-50 cursor-not-allowed" : ""
-      }`}
-    >
-      {active ? <Check size={18} /> : <Icon size={18} />}
-      {active ? "Copied" : label}
-    </button>
-  );
-}
 
 function InfoCard({ title, text }) {
   return (
@@ -1754,6 +1763,73 @@ const LINKEDIN_STYLE_MAPS = {
     digits: "𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿",
   }),
 };
+
+function getTextChange(previousText, nextText) {
+  let start = 0;
+
+  while (
+    start < previousText.length &&
+    start < nextText.length &&
+    previousText[start] === nextText[start]
+  ) {
+    start += 1;
+  }
+
+  let previousEnd = previousText.length;
+  let nextEnd = nextText.length;
+
+  while (
+    previousEnd > start &&
+    nextEnd > start &&
+    previousText[previousEnd - 1] === nextText[nextEnd - 1]
+  ) {
+    previousEnd -= 1;
+    nextEnd -= 1;
+  }
+
+  return {
+    start,
+    previousEnd,
+    nextEnd,
+    insertedText: nextText.slice(start, nextEnd),
+  };
+}
+
+function detectStyleForText(text) {
+  const value = String(text || "");
+
+  if (!value || !value.trim()) return "";
+
+  return (
+    STYLE_OPTIONS.find((style) => {
+      const plainText = convertStyledUnicodeToPlainText(value);
+      return transformText(plainText, style.id) === value;
+    })?.id || ""
+  );
+}
+
+function getCursorStyleProbe(text, position) {
+  const before = Array.from(String(text || "").slice(0, position));
+  const after = Array.from(String(text || "").slice(position));
+  let probe = before.pop() || after.shift() || "";
+
+  if (/^[\u0332\u0336]$/.test(probe)) {
+    probe = `${before.pop() || ""}${probe}`;
+  } else if (/^[\u0332\u0336]$/.test(after[0] || "")) {
+    probe = `${probe}${after[0]}`;
+  }
+
+  return probe;
+}
+
+function detectStyleAtRange(text, start, end) {
+  if (start !== end) {
+    return detectStyleForText(String(text || "").slice(start, end));
+  }
+
+  return detectStyleForText(getCursorStyleProbe(text, start));
+}
+
 
 function transformText(text, styleId) {
   const cleanText = convertStyledUnicodeToPlainText(text);

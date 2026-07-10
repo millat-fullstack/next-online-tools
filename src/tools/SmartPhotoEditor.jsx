@@ -48,6 +48,7 @@ import {
   Lock,
   Unlock,
   Eraser,
+  X,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -56,10 +57,10 @@ export const toolData = {
   path: "/smart-photo-editor",
   category: "Image Tools",
   description:
-    "Edit photos online with text, image layers, draw, blur, patch, clone, shapes, resize, and quick export.",
+    "Edit photos online with transparent artboards, drag-and-drop image layers, quality-preserving resize, text, drawing, blur, patch, clone, shapes, and export.",
   metaTitle: "Smart Photo Editor Online | Edit, Retouch, Blur, Draw & Add Text",
   metaDescription:
-    "Edit photos online for free. Upload a photo, choose canvas size, drag image on artboard, add text, blur, patch, clone, resize, and download as PNG, JPG, or WEBP.",
+    "Edit photos online for free with transparent artboards, drag-and-drop layers, quality-preserving resize, text, blur, patch, clone, and PNG, JPG, or WEBP export.",
 };
 
 const MAX_FILE_SIZE_MB = 20;
@@ -106,7 +107,7 @@ const PRINT_SIZE_PRESETS = [
   { id: "business-card", label: "Business Card", width: 1050, height: 600 },
 ];
 
-const SHAPE_SHAPE_INCH_DPI = 300;
+const SHAPE_INCH_DPI = 300;
 
 const OUTPUT_FORMATS = [
   { value: "image/png", label: "PNG", extension: "png" },
@@ -250,12 +251,14 @@ export default function SmartPhotoEditor() {
   const addImageInputRef = useRef(null);
   const textEditorRef = useRef(null);
   const toolbarRef = useRef(null);
+  const quickBarRef = useRef(null);
   const optionsPanelRef = useRef(null);
   const editorClipboardRef = useRef(null);
   const spacePressedRef = useRef(false);
   const colorPreviewThrottleRef = useRef(0);
   const guideThrottleRef = useRef(0);
   const renderFrameRef = useRef(null);
+  const dragDepthRef = useRef(0);
 
   const visibleCanvasRef = useRef(null);
   const workingCanvasRef = useRef(document.createElement("canvas"));
@@ -279,6 +282,8 @@ export default function SmartPhotoEditor() {
   const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 630 });
   const [draftSize, setDraftSize] = useState({ width: 1200, height: 630 });
   const [canvasBackgroundColor, setCanvasBackgroundColor] = useState("#ffffff");
+  const [transparentArtboard, setTransparentArtboard] = useState(false);
+  const [keepQuality, setKeepQuality] = useState(true);
   const [pickedColor, setPickedColor] = useState("#9b6ce3");
   const [gradientStartColor, setGradientStartColor] = useState("#7c3aed");
   const [gradientEndColor, setGradientEndColor] = useState("#22c55e");
@@ -404,6 +409,22 @@ export default function SmartPhotoEditor() {
 
     return activeIds.some((id) => lockedObjectIds.includes(id));
   }, [lockedObjectIds, selectedObjectId, selectedObjectIds]);
+
+  const selectedKeepQuality = useMemo(() => {
+    const editableItems = selectedObjects.filter((item) => item.type !== "background");
+
+    if (!editableItems.length) return keepQuality;
+
+    return editableItems.every((item) => item.keepQuality !== false);
+  }, [selectedObjects, keepQuality]);
+
+  const allLayersKeepQuality = useMemo(() => {
+    const editableItems = objects.filter((item) => item.type !== "background");
+
+    if (!editableItems.length) return keepQuality;
+
+    return editableItems.every((item) => item.keepQuality !== false);
+  }, [objects, keepQuality]);
 
   const selectedObjectBox = useMemo(() => {
     return selectedObject ? getObjectBox(selectedObject) : null;
@@ -625,17 +646,22 @@ export default function SmartPhotoEditor() {
         canvasHeight: uploadCanvasSize.height,
       });
 
+      const shouldUseTransparentArtboard =
+        transparentArtboard ||
+        (selectedSizePreset === "original" && supportsTransparentFormat(file.type));
+
       setupBlankCanvas({
         width: uploadCanvasSize.width,
         height: uploadCanvasSize.height,
-        transparent: selectedSizePreset === "original" && supportsTransparentFormat(file.type),
+        transparent: shouldUseTransparentArtboard,
         backgroundColor: canvasBackgroundColor,
       });
 
       const backgroundLayer = createBackgroundLayer(
         uploadCanvasSize.width,
         uploadCanvasSize.height,
-        canvasBackgroundColor
+        canvasBackgroundColor,
+        shouldUseTransparentArtboard
       );
 
       const baseImageObject = {
@@ -650,6 +676,7 @@ export default function SmartPhotoEditor() {
         w: baseBox.w,
         h: baseBox.h,
         opacity: 1,
+        keepQuality,
       };
 
       setImageInfo({
@@ -664,13 +691,13 @@ export default function SmartPhotoEditor() {
 
       setCanvasSize(uploadCanvasSize);
       setDraftSize(uploadCanvasSize);
+      setTransparentArtboard(shouldUseTransparentArtboard);
       setObjects([backgroundLayer, baseImageObject]);
       setLockedObjectIds([backgroundLayer.id]);
       setDraftObject(null);
     setSelectionRect(null);
       setSelectedObjectId(baseImageObject.id);
       setSelectedObjectIds([baseImageObject.id]);
-      setLockedObjectIds([]);
       setActiveSelection(null);
       setFreeSelectionDraft(null);
       setHistoryPast([]);
@@ -708,7 +735,7 @@ export default function SmartPhotoEditor() {
       setIsLoadingImage(false);
       resetMainFileInput();
     }
-  }, [draftSize, selectedSizePreset, canvasBackgroundColor]);
+  }, [draftSize, selectedSizePreset, canvasBackgroundColor, transparentArtboard, keepQuality]);
 
   useEffect(() => {
     if (renderFrameRef.current) {
@@ -899,9 +926,15 @@ export default function SmartPhotoEditor() {
     }
 
     function handleDocumentPointerDown(event) {
+      const target = event.target;
+      const quickBar = quickBarRef.current;
+
+      if (topBarDropdown && !quickBar?.contains(target)) {
+        setTopBarDropdown("");
+      }
+
       if (!toolPopupOpen) return;
 
-      const target = event.target;
       const panel = optionsPanelRef.current;
       const toolbar = toolbarRef.current;
 
@@ -919,7 +952,7 @@ export default function SmartPhotoEditor() {
       window.removeEventListener("keyup", handleKeyUp);
       document.removeEventListener("pointerdown", handleDocumentPointerDown);
     };
-  }, [hasImage, showOriginal, selectedObjectId, selectedObjectIds, objects, canvasSize, historyPast, historyFuture, activeSelection, toolPopupOpen]);
+  }, [hasImage, showOriginal, selectedObjectId, selectedObjectIds, objects, canvasSize, historyPast, historyFuture, activeSelection, toolPopupOpen, topBarDropdown]);
 
   useEffect(() => {
     return () => {
@@ -933,7 +966,12 @@ export default function SmartPhotoEditor() {
     };
   }, []);
 
-  function createBackgroundLayer(width = canvasSize.width, height = canvasSize.height, color = canvasBackgroundColor) {
+  function createBackgroundLayer(
+    width = canvasSize.width,
+    height = canvasSize.height,
+    color = canvasBackgroundColor,
+    transparent = transparentArtboard
+  ) {
     return {
       id: createId(),
       type: "background",
@@ -944,12 +982,125 @@ export default function SmartPhotoEditor() {
       h: height,
       color: normalizeColor(color),
       opacity: 1,
+      transparent: Boolean(transparent),
       isBackground: true,
     };
   }
 
   function getBackgroundLayer() {
     return objects.find((item) => item.type === "background") || null;
+  }
+
+  function toggleTransparentArtboard(nextValue = !transparentArtboard) {
+    const nextTransparent = Boolean(nextValue);
+
+    if (hasImage) {
+      pushHistory();
+    }
+
+    setTransparentArtboard(nextTransparent);
+    setObjects((current) => {
+      const hasBackground = current.some((item) => item.type === "background");
+
+      if (!hasBackground && hasImage) {
+        return [
+          createBackgroundLayer(
+            canvasSize.width,
+            canvasSize.height,
+            canvasBackgroundColor,
+            nextTransparent
+          ),
+          ...current,
+        ];
+      }
+
+      return current.map((item) =>
+        item.type === "background"
+          ? { ...item, transparent: nextTransparent }
+          : item
+      );
+    });
+
+    if (nextTransparent && outputFormat === "image/jpeg") {
+      setOutputFormat("image/png");
+    }
+
+    setSuccessMessage(
+      nextTransparent
+        ? "Transparent artboard enabled. Export as PNG or WEBP to keep transparency."
+        : "Solid artboard background enabled."
+    );
+    clearOutput();
+  }
+
+  function setKeepQualityForAll(nextValue = !keepQuality) {
+    const nextKeepQuality = Boolean(nextValue);
+
+    if (hasImage) {
+      pushHistory();
+    }
+
+    setKeepQuality(nextKeepQuality);
+    setObjects((current) =>
+      current.map((item) =>
+        item.type === "background"
+          ? item
+          : { ...item, keepQuality: nextKeepQuality }
+      )
+    );
+    setSuccessMessage(
+      nextKeepQuality
+        ? "Keep Quality enabled for all layers. High-quality resampling will be used while resizing."
+        : "Keep Quality disabled for all layers."
+    );
+    clearOutput();
+  }
+
+  function toggleLayerKeepQuality(id, nextValue = null) {
+    const item = objects.find((layer) => layer.id === id);
+
+    if (!item || item.type === "background") return;
+
+    const nextKeepQuality =
+      typeof nextValue === "boolean" ? nextValue : item.keepQuality === false;
+
+    pushHistory();
+    setObjects((current) =>
+      current.map((layer) =>
+        layer.id === id
+          ? { ...layer, keepQuality: nextKeepQuality }
+          : layer
+      )
+    );
+    clearOutput();
+  }
+
+  function toggleSelectedKeepQuality() {
+    const activeIds = getActiveSelectedIds();
+    const editableIds = activeIds.filter((id) =>
+      objects.some((item) => item.id === id && item.type !== "background")
+    );
+
+    if (!editableIds.length) {
+      setKeepQualityForAll(!keepQuality);
+      return;
+    }
+
+    const nextKeepQuality = !selectedKeepQuality;
+    pushHistory();
+    setObjects((current) =>
+      current.map((item) =>
+        editableIds.includes(item.id)
+          ? { ...item, keepQuality: nextKeepQuality }
+          : item
+      )
+    );
+    setSuccessMessage(
+      nextKeepQuality
+        ? "Keep Quality enabled for the selected layer(s)."
+        : "Keep Quality disabled for the selected layer(s)."
+    );
+    clearOutput();
   }
 
   function updateLiveGuideInfo(info) {
@@ -1015,6 +1166,7 @@ export default function SmartPhotoEditor() {
     }
 
     setCanvasBackgroundColor(color);
+    setTransparentArtboard(false);
 
     setObjects((current) =>
       current.map((item) =>
@@ -1022,6 +1174,7 @@ export default function SmartPhotoEditor() {
           ? {
               ...item,
               color,
+              transparent: false,
             }
           : item
       )
@@ -1135,13 +1288,14 @@ export default function SmartPhotoEditor() {
     const backgroundLayer = createBackgroundLayer(
       nextSize.width,
       nextSize.height,
-      canvasBackgroundColor
+      canvasBackgroundColor,
+      transparentArtboard
     );
 
     setImageInfo({
-      name: "Solid color page",
+      name: transparentArtboard ? "Transparent artboard" : "Solid color page",
       size: 0,
-      type: "solid-color",
+      type: transparentArtboard ? "transparent-artboard" : "solid-color",
       width: nextSize.width,
       height: nextSize.height,
       naturalWidth: nextSize.width,
@@ -1276,6 +1430,7 @@ export default function SmartPhotoEditor() {
         w: layerWidth,
         h: layerHeight,
         opacity: 1,
+        keepQuality,
       };
 
       pushHistory();
@@ -1298,19 +1453,30 @@ export default function SmartPhotoEditor() {
   }
 
 
-  async function addImageFileAsLayer(file, message = "Image added as a new layer.") {
+  async function addImageFileAsLayer(
+    file,
+    message = "Image added as a new layer.",
+    centerPoint = null
+  ) {
     const validationError = validateImageFile(file);
 
     if (validationError) {
       setErrorMessage(validationError);
-      return;
+      return false;
     }
 
     try {
       const src = await readFileAsDataUrl(file);
-      await addImageLayerFromSource({ src, name: file.name || "pasted-image", message });
+      await addImageLayerFromSource({
+        src,
+        name: file.name || "dropped-image",
+        message,
+        centerPoint,
+      });
+      return true;
     } catch {
       setErrorMessage("Could not add this image. Please try another file.");
+      return false;
     }
   }
 
@@ -1322,6 +1488,7 @@ export default function SmartPhotoEditor() {
     y = null,
     w = null,
     h = null,
+    centerPoint = null,
   }) {
     const imageElement = await loadImage(src);
 
@@ -1334,6 +1501,12 @@ export default function SmartPhotoEditor() {
 
     const layerWidth = shouldUseExactBox ? Math.max(20, Number(w)) : Math.max(20, imageWidth * scale);
     const layerHeight = shouldUseExactBox ? Math.max(20, Number(h)) : Math.max(20, imageHeight * scale);
+    const targetCenterX = Number.isFinite(Number(centerPoint?.x))
+      ? clampNumber(Number(centerPoint.x), 0, canvasSize.width)
+      : canvasSize.width / 2;
+    const targetCenterY = Number.isFinite(Number(centerPoint?.y))
+      ? clampNumber(Number(centerPoint.y), 0, canvasSize.height)
+      : canvasSize.height / 2;
 
     const imageObject = {
       id: createId(),
@@ -1341,11 +1514,12 @@ export default function SmartPhotoEditor() {
       src,
       element: imageElement,
       name,
-      x: shouldUseExactBox ? Number(x) : canvasSize.width / 2 - layerWidth / 2,
-      y: shouldUseExactBox ? Number(y) : canvasSize.height / 2 - layerHeight / 2,
+      x: shouldUseExactBox ? Number(x) : targetCenterX - layerWidth / 2,
+      y: shouldUseExactBox ? Number(y) : targetCenterY - layerHeight / 2,
       w: layerWidth,
       h: layerHeight,
       opacity: 1,
+      keepQuality,
     };
 
     pushHistory();
@@ -1360,24 +1534,77 @@ export default function SmartPhotoEditor() {
     clearOutput();
     setSuccessMessage(message);
   }
-  function handleDrop(event) {
+
+  async function handleDrop(event) {
     event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = 0;
     setIsDraggingFile(false);
 
-    const file = event.dataTransfer.files?.[0];
+    const files = Array.from(event.dataTransfer?.files || []).filter((file) =>
+      file.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|bmp|avif)$/i.test(file.name || "")
+    );
 
-    if (file) {
-      handleMainImageFile(file);
+    if (!files.length) {
+      setErrorMessage("Drop a valid image file such as PNG, JPG, WEBP, GIF, or BMP.");
+      return;
     }
+
+    if (!hasImage) {
+      await handleMainImageFile(files[0]);
+      return;
+    }
+
+    const dropPoint = getCanvasPoint(event);
+    let addedCount = 0;
+
+    for (let index = 0; index < files.length; index += 1) {
+      const offsetPoint = dropPoint
+        ? {
+            x: dropPoint.x + index * 24,
+            y: dropPoint.y + index * 24,
+          }
+        : null;
+      const added = await addImageFileAsLayer(
+        files[index],
+        files.length > 1
+          ? `Dropped image ${index + 1} of ${files.length} as a new layer.`
+          : "Dropped image added as a new layer.",
+        offsetPoint
+      );
+
+      if (added) addedCount += 1;
+    }
+
+    if (addedCount > 1) {
+      setSuccessMessage(`${addedCount} dropped images were added as separate layers.`);
+    }
+  }
+
+  function handleDragEnter(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current += 1;
+    setIsDraggingFile(true);
   }
 
   function handleDragOver(event) {
     event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "copy";
+    }
     setIsDraggingFile(true);
   }
 
-  function handleDragLeave() {
-    setIsDraggingFile(false);
+  function handleDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+
+    if (dragDepthRef.current === 0) {
+      setIsDraggingFile(false);
+    }
   }
 
   function handleArtboardPointerDown(event) {
@@ -1536,6 +1763,8 @@ export default function SmartPhotoEditor() {
       canvasSize: { ...canvasSize },
       draftSize: { ...draftSize },
       selectedSizePreset,
+      transparentArtboard,
+      keepQuality,
       lockedObjectIds: [...lockedObjectIds],
       activeSelection: activeSelection ? cloneFreeSelection(activeSelection) : null,
       patchTargetBox: patchTargetBox ? { ...patchTargetBox } : null,
@@ -1567,6 +1796,8 @@ export default function SmartPhotoEditor() {
     setCanvasSize(snapshot.canvasSize);
     setDraftSize(snapshot.draftSize || snapshot.canvasSize);
     setSelectedSizePreset(snapshot.selectedSizePreset || "custom");
+    setTransparentArtboard(Boolean(snapshot.transparentArtboard));
+    setKeepQuality(snapshot.keepQuality !== false);
     setObjects(hydratedObjects);
     setLockedObjectIds(snapshot.lockedObjectIds || []);
     setActiveSelection(snapshot.activeSelection || null);
@@ -3326,6 +3557,7 @@ export default function SmartPhotoEditor() {
       shadow: textShadow,
       rotation: 0,
       opacity: 1,
+      keepQuality,
     };
   }
 
@@ -3343,6 +3575,7 @@ export default function SmartPhotoEditor() {
         strokeEnabled: true,
         rotation: 0,
         opacity: brushOpacity,
+        keepQuality,
       };
     }
 
@@ -3361,6 +3594,7 @@ export default function SmartPhotoEditor() {
       strokeEnabled: shapeStrokeEnabled,
       rotation: 0,
       opacity: brushOpacity,
+      keepQuality,
     };
   }
 
@@ -4140,8 +4374,18 @@ export default function SmartPhotoEditor() {
     const scaleX = nextWidth / canvasSize.width;
     const scaleY = nextHeight / canvasSize.height;
 
-    workingCanvasRef.current = resizeCanvas(workingCanvasRef.current, nextWidth, nextHeight);
-    originalCanvasRef.current = resizeCanvas(originalCanvasRef.current, nextWidth, nextHeight);
+    workingCanvasRef.current = resizeCanvas(
+      workingCanvasRef.current,
+      nextWidth,
+      nextHeight,
+      keepQuality
+    );
+    originalCanvasRef.current = resizeCanvas(
+      originalCanvasRef.current,
+      nextWidth,
+      nextHeight,
+      keepQuality
+    );
 
     setObjects((current) =>
       current.map((object) =>
@@ -4278,7 +4522,7 @@ export default function SmartPhotoEditor() {
     try {
       if (activeSelection?.path?.length) {
         const selectionCanvas = renderFinalCanvas();
-        const selectionImage = createSelectionImageFromCanvas(selectionCanvas, activeSelection);
+        const selectionImage = await createSelectionImageFromCanvas(selectionCanvas, activeSelection);
 
         editorClipboardRef.current = {
           type: "image",
@@ -4532,6 +4776,8 @@ export default function SmartPhotoEditor() {
     setCanvasSize({ width: 1200, height: 630 });
     setDraftSize({ width: 1200, height: 630 });
     setCanvasBackgroundColor("#ffffff");
+    setTransparentArtboard(false);
+    setKeepQuality(true);
     setPickedColor("#9b6ce3");
     setGradientStartColor("#7c3aed");
     setGradientEndColor("#22c55e");
@@ -4807,6 +5053,7 @@ export default function SmartPhotoEditor() {
           strokeEnabled: true,
           rotation: 0,
           opacity: brushOpacity,
+          keepQuality,
         }
       : {
           id: createId(),
@@ -4823,6 +5070,7 @@ export default function SmartPhotoEditor() {
           strokeEnabled: shapeStrokeEnabled,
           rotation: 0,
           opacity: brushOpacity,
+          keepQuality,
         };
 
     const finalObject = normalizeObject(baseObject);
@@ -4914,6 +5162,31 @@ export default function SmartPhotoEditor() {
           border: 2px solid #f1e9ff;
           border-radius: 999px;
         }
+        .smart-photo-editor-popover {
+          transform-origin: top center;
+          animation: smartPhotoPopoverIn 150ms ease-out;
+        }
+        .smart-photo-editor-transparent-canvas {
+          background-color: #ffffff;
+          background-image:
+            linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+            linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+            linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+          background-size: 24px 24px;
+          background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+        }
+        .smart-photo-editor-drop-overlay {
+          animation: smartPhotoDropPulse 900ms ease-in-out infinite alternate;
+        }
+        @keyframes smartPhotoPopoverIn {
+          from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes smartPhotoDropPulse {
+          from { opacity: 0.88; }
+          to { opacity: 1; }
+        }
       `}</style>
 
       <section className="card p-6 sm:p-8">
@@ -4924,7 +5197,7 @@ export default function SmartPhotoEditor() {
         <h1 className="text-3xl font-bold mb-3">Smart Photo Editor</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Choose a canvas size, upload a photo or start with a colored page,
+          Choose a canvas size, upload a photo, or start with a colored or transparent artboard,
           then edit with text, image layers, blur, patch, clone, shapes, and export.
         </p>
       </section>
@@ -5028,36 +5301,81 @@ export default function SmartPhotoEditor() {
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
-                  <h3 className="font-bold mb-2">No photo? Start with a colored page</h3>
+                  <h3 className="font-bold mb-2">Start with a blank artboard</h3>
                   <p className="text-xs text-[var(--text-secondary)] mb-3">
-                    Choose a solid artboard color, then add text, shapes, logos, or images later.
+                    Use a solid color or a transparent checkerboard, then add text, shapes, logos, and image layers.
                   </p>
 
-                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                    <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold">
-                      Page color
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className={`flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-3 text-sm font-semibold transition ${
+                      transparentArtboard
+                        ? "border-[var(--primary)] text-[var(--primary)]"
+                        : "border-[var(--border)]"
+                    }`}>
+                      <span className="inline-flex items-center gap-2">
+                        <span className="h-8 w-8 rounded-lg border border-[var(--border)] smart-photo-editor-transparent-canvas" />
+                        Transparent
+                      </span>
                       <input
-                        type="color"
-                        value={normalizeHexForInput(canvasBackgroundColor)}
-                        onChange={(event) => setCanvasBackgroundColor(event.target.value)}
-                        className="w-9 h-9 rounded-lg border border-[var(--border)] bg-white"
+                        type="checkbox"
+                        checked={transparentArtboard}
+                        onChange={(event) => setTransparentArtboard(event.target.checked)}
+                        className="h-4 w-4 accent-[var(--primary)]"
                       />
                     </label>
 
-                    <button
-                      type="button"
-                      onClick={startSolidColorPage}
-                      className="btn-primary inline-flex items-center justify-center gap-2"
-                    >
-                      <Sparkles size={18} />
-                      Start Colored Page
-                    </button>
+                    <label className={`flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-3 text-sm font-semibold ${
+                      transparentArtboard ? "opacity-55" : "border-[var(--border)]"
+                    }`}>
+                      <span>Artboard color</span>
+                      <input
+                        type="color"
+                        value={normalizeHexForInput(canvasBackgroundColor)}
+                        onChange={(event) => {
+                          setCanvasBackgroundColor(event.target.value);
+                          setTransparentArtboard(false);
+                        }}
+                        disabled={transparentArtboard}
+                        className="h-9 w-10 rounded-lg border border-[var(--border)] bg-white disabled:cursor-not-allowed"
+                      />
+                    </label>
                   </div>
+
+                  <label className={`mt-3 flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-3 text-sm font-semibold transition ${
+                    keepQuality
+                      ? "border-[var(--primary)] text-[var(--primary)]"
+                      : "border-[var(--border)]"
+                  }`}>
+                    <span className="inline-flex items-center gap-2">
+                      <CheckCircle size={17} />
+                      Keep quality for new layers
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={keepQuality}
+                      onChange={(event) => setKeepQuality(event.target.checked)}
+                      className="h-4 w-4 accent-[var(--primary)]"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={startSolidColorPage}
+                    className="btn-primary mt-3 w-full inline-flex items-center justify-center gap-2"
+                  >
+                    {transparentArtboard ? (
+                      <span className="h-5 w-5 rounded border border-white/70 smart-photo-editor-transparent-canvas" />
+                    ) : (
+                      <Sparkles size={18} />
+                    )}
+                    {transparentArtboard ? "Start Transparent Artboard" : "Start Colored Artboard"}
+                  </button>
                 </div>
               </div>
 
               <div
                 onDrop={handleDrop}
+                onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onClick={openMainFilePicker}
@@ -5290,7 +5608,7 @@ export default function SmartPhotoEditor() {
               {shouldShowSettings && (
                 <div
                   ref={optionsPanelRef}
-                  className="smart-photo-editor-options-scroll fixed w-[min(440px,calc(100vw-24px))] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
+                  className="smart-photo-editor-options-scroll smart-photo-editor-popover fixed w-[min(440px,calc(100vw-24px))] overflow-auto rounded-2xl border border-[var(--border)] bg-white shadow-2xl p-4"
                   style={{
                     top: `${popupTop}px`,
                     left: `${popupLeft}px`,
@@ -5298,16 +5616,31 @@ export default function SmartPhotoEditor() {
                     zIndex: 10000,
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-4">
-                    <PanelLeft size={18} className="text-[var(--primary)]" />
-                    <div>
-                      <p className="font-bold capitalize">
-                        {settingsMode === "shape" ? "Shape" : settingsMode === "freeSelect" ? "Lasso" : settingsMode === "marqueeModes" ? "Marquee" : settingsMode === "color" ? "Eyedropper" : settingsMode} Options
-                      </p>
-                      <p className="text-xs text-[var(--text-secondary)]">
-                        Click the same tool again or click outside the artboard to hide this panel.
-                      </p>
+                  <div className="mb-4 flex items-start justify-between gap-3 border-b border-[var(--border)] pb-3">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <PanelLeft size={18} className="mt-0.5 shrink-0 text-[var(--primary)]" />
+                      <div className="min-w-0">
+                        <p className="font-bold capitalize">
+                          {settingsMode === "shape" ? "Shape" : settingsMode === "freeSelect" ? "Lasso" : settingsMode === "marqueeModes" ? "Marquee" : settingsMode === "color" ? "Eyedropper" : settingsMode} Options
+                        </p>
+                        <p className="text-xs text-[var(--text-secondary)]">
+                          Adjust the active tool, then continue editing on the artboard.
+                        </p>
+                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setToolPopupOpen(false);
+                        setActivePanel("");
+                      }}
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-white text-[var(--text-secondary)] transition hover:border-[var(--primary)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
+                      title="Close options"
+                      aria-label="Close options"
+                    >
+                      <X size={17} />
+                    </button>
                   </div>
 
                   {settingsMode === "marqueeModes" && (
@@ -5349,6 +5682,25 @@ export default function SmartPhotoEditor() {
                         label="Selected"
                         value={selectedObjects.length > 1 ? `${selectedObjects.length} items${selectedLocked ? " • Locked" : ""}` : selectedObject ? `${selectedObject.type}${selectedLocked ? " • Locked" : ""}` : "None"}
                       />
+
+                      {(selectedObjectId || selectedObjectIds.length > 0) && (
+                        <label className={`flex items-center justify-between gap-3 rounded-xl border bg-white p-3 text-sm font-semibold transition ${
+                          selectedKeepQuality
+                            ? "border-[var(--primary)] text-[var(--primary)]"
+                            : "border-[var(--border)]"
+                        }`}>
+                          <span className="inline-flex items-center gap-2">
+                            <CheckCircle size={17} />
+                            Keep quality
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={selectedKeepQuality}
+                            onChange={toggleSelectedKeepQuality}
+                            className="h-4 w-4 accent-[var(--primary)]"
+                          />
+                        </label>
+                      )}
 
                       {(selectedObject && selectedObjectBox) || (selectedObjects.length > 1 && selectedGroupBox) ? (
                         <div className="rounded-2xl border border-[var(--border)] bg-white p-4">
@@ -5522,6 +5874,25 @@ export default function SmartPhotoEditor() {
                             : "None"
                         }
                       />
+
+                      {selectedObject?.type === "image" && (
+                        <label className={`flex items-center justify-between gap-3 rounded-xl border bg-white p-3 text-sm font-semibold transition ${
+                          selectedObject.keepQuality !== false
+                            ? "border-[var(--primary)] text-[var(--primary)]"
+                            : "border-[var(--border)]"
+                        }`}>
+                          <span className="inline-flex items-center gap-2">
+                            <CheckCircle size={17} />
+                            Keep quality while resizing
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={selectedObject.keepQuality !== false}
+                            onChange={(event) => toggleLayerKeepQuality(selectedObject.id, event.target.checked)}
+                            className="h-4 w-4 accent-[var(--primary)]"
+                          />
+                        </label>
+                      )}
 
                       {selectedObject?.type === "image" && (
                         <>
@@ -6107,10 +6478,32 @@ export default function SmartPhotoEditor() {
                   {settingsMode === "layers" && (
                     <div className="space-y-4">
                       <div className="rounded-2xl border border-[var(--border)] bg-[#f8f4ff] p-4">
-                        <p className="font-bold">Layers</p>
-                        <p className="text-xs text-[var(--text-secondary)] mt-1">
-                          Select, lock, duplicate, reorder, and control layers directly. Background starts locked; unlock it to change color.
-                        </p>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold">Layers</p>
+                            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                              Select a layer, then use the compact icon controls below it.
+                            </p>
+                          </div>
+
+                          <label
+                            className={`inline-flex shrink-0 items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-bold transition ${
+                              allLayersKeepQuality
+                                ? "border-[var(--primary)] text-[var(--primary)]"
+                                : "border-[var(--border)] text-[var(--text-secondary)]"
+                            }`}
+                            title="Use high-quality resampling for every editable layer"
+                          >
+                            <CheckCircle size={15} />
+                            All quality
+                            <input
+                              type="checkbox"
+                              checked={allLayersKeepQuality}
+                              onChange={(event) => setKeepQualityForAll(event.target.checked)}
+                              className="h-4 w-4 accent-[var(--primary)]"
+                            />
+                          </label>
+                        </div>
                       </div>
 
                       <div className="space-y-2 max-h-[500px] overflow-auto pr-1">
@@ -6189,7 +6582,7 @@ export default function SmartPhotoEditor() {
                                   </div>
                                 </div>
 
-                                <div className="mt-3 grid grid-cols-5 gap-1.5">
+                                <div className="mt-3 grid grid-cols-6 gap-1.5">
                                   <button
                                     type="button"
                                     onClick={(event) => {
@@ -6198,10 +6591,33 @@ export default function SmartPhotoEditor() {
                                       setSelectedObjectIds([item.id]);
                                       window.setTimeout(toggleLockSelected, 0);
                                     }}
-                                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold hover:bg-[#f8f4ff]"
+                                    className={`inline-flex h-9 items-center justify-center rounded-lg border bg-white transition hover:bg-[#f8f4ff] ${
+                                      isLocked
+                                        ? "border-[var(--primary)] text-[var(--primary)]"
+                                        : "border-[var(--border)]"
+                                    }`}
                                     title={isLocked ? "Unlock layer" : "Lock layer"}
+                                    aria-label={isLocked ? "Unlock layer" : "Lock layer"}
                                   >
-                                    {isLocked ? "Unlock" : "Lock"}
+                                    {isLocked ? <Unlock size={15} /> : <Lock size={15} />}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      toggleLayerKeepQuality(item.id);
+                                    }}
+                                    disabled={isBackgroundLayer}
+                                    className={`inline-flex h-9 items-center justify-center rounded-lg border bg-white transition hover:bg-[#f8f4ff] disabled:opacity-35 ${
+                                      item.keepQuality !== false && !isBackgroundLayer
+                                        ? "border-[var(--primary)] text-[var(--primary)]"
+                                        : "border-[var(--border)]"
+                                    }`}
+                                    title={item.keepQuality === false ? "Enable keep quality" : "Keep quality enabled"}
+                                    aria-label={item.keepQuality === false ? "Enable keep quality" : "Disable keep quality"}
+                                  >
+                                    <CheckCircle size={15} />
                                   </button>
 
                                   <button
@@ -6211,10 +6627,11 @@ export default function SmartPhotoEditor() {
                                       duplicateLayerById(item.id);
                                     }}
                                     disabled={isLocked || isBackgroundLayer}
-                                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold hover:bg-[#f8f4ff] disabled:opacity-40"
+                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white transition hover:bg-[#f8f4ff] disabled:opacity-35"
                                     title="Duplicate layer"
+                                    aria-label="Duplicate layer"
                                   >
-                                    Duplicate
+                                    <Copy size={15} />
                                   </button>
 
                                   <button
@@ -6226,10 +6643,11 @@ export default function SmartPhotoEditor() {
                                       window.setTimeout(() => reorderSelectedObjects("up"), 0);
                                     }}
                                     disabled={isLocked || isBackgroundLayer}
-                                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold hover:bg-[#f8f4ff] disabled:opacity-40"
+                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white transition hover:bg-[#f8f4ff] disabled:opacity-35"
                                     title="Bring layer up"
+                                    aria-label="Bring layer up"
                                   >
-                                    Up
+                                    <ChevronUp size={16} />
                                   </button>
 
                                   <button
@@ -6241,10 +6659,11 @@ export default function SmartPhotoEditor() {
                                       window.setTimeout(() => reorderSelectedObjects("down"), 0);
                                     }}
                                     disabled={isLocked || isBackgroundLayer}
-                                    className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-xs font-semibold hover:bg-[#f8f4ff] disabled:opacity-40"
-                                    title="Bring layer down"
+                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--border)] bg-white transition hover:bg-[#f8f4ff] disabled:opacity-35"
+                                    title="Send layer down"
+                                    aria-label="Send layer down"
                                   >
-                                    Down
+                                    <ChevronDown size={16} />
                                   </button>
 
                                   <button
@@ -6256,16 +6675,31 @@ export default function SmartPhotoEditor() {
                                       window.setTimeout(deleteSelectedObject, 0);
                                     }}
                                     disabled={isLocked || isBackgroundLayer}
-                                    className="rounded-lg border border-red-200 bg-red-50 px-2 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-40"
+                                    className="inline-flex h-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 disabled:opacity-35"
                                     title="Delete layer"
+                                    aria-label="Delete layer"
                                   >
-                                    Delete
+                                    <Trash2 size={15} />
                                   </button>
                                 </div>
 
                                 {isBackgroundLayer && isSelected && (
-                                  <div className="mt-3 rounded-xl border border-[var(--border)] bg-white p-3">
-                                    <div className="flex items-center justify-between gap-3">
+                                  <div className="mt-3 space-y-2 rounded-xl border border-[var(--border)] bg-white p-3">
+                                    <label className="flex items-center justify-between gap-3 text-xs font-bold text-[var(--text-secondary)]">
+                                      <span className="inline-flex items-center gap-2">
+                                        <span className="h-7 w-7 rounded-md border border-[var(--border)] smart-photo-editor-transparent-canvas" />
+                                        Transparent artboard
+                                      </span>
+                                      <input
+                                        type="checkbox"
+                                        checked={transparentArtboard}
+                                        onClick={(event) => event.stopPropagation()}
+                                        onChange={(event) => toggleTransparentArtboard(event.target.checked)}
+                                        className="h-4 w-4 accent-[var(--primary)]"
+                                      />
+                                    </label>
+
+                                    <div className={`flex items-center justify-between gap-3 ${transparentArtboard ? "opacity-45" : ""}`}>
                                       <span className="text-xs font-bold text-[var(--text-secondary)]">
                                         Background color
                                       </span>
@@ -6277,13 +6711,13 @@ export default function SmartPhotoEditor() {
                                           event.stopPropagation();
                                           changeArtboardBackgroundColor(event.target.value);
                                         }}
-                                        disabled={isLocked}
+                                        disabled={isLocked || transparentArtboard}
                                         className="h-9 w-12 rounded-lg border border-[var(--border)] bg-white disabled:opacity-40"
                                       />
                                     </div>
-                                    {isLocked && (
-                                      <p className="mt-2 text-xs text-[var(--text-secondary)]">
-                                        Unlock this layer first, then change the artboard background color instantly.
+                                    {isLocked && !transparentArtboard && (
+                                      <p className="text-xs text-[var(--text-secondary)]">
+                                        Unlock the background layer before changing its color.
                                       </p>
                                     )}
                                   </div>
@@ -6298,15 +6732,6 @@ export default function SmartPhotoEditor() {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <button type="button" onClick={() => reorderSelectedObjects("up")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">Bring Up</button>
-                        <button type="button" onClick={() => reorderSelectedObjects("down")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">Bring Down</button>
-                        <button type="button" onClick={() => reorderSelectedObjects("front")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">To Front</button>
-                        <button type="button" onClick={() => reorderSelectedObjects("back")} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">To Back</button>
-                        <button type="button" onClick={toggleLockSelected} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">{selectedLocked ? "Unlock" : "Lock"}</button>
-                        <button type="button" onClick={duplicateSelectedObjects} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm disabled:opacity-40">Duplicate</button>
-                        <button type="button" onClick={deleteSelectedObject} disabled={!selectedObjectId && !selectedObjectIds.length} className="btn-secondary text-sm text-red-600 disabled:opacity-40">Delete</button>
-                      </div>
                     </div>
                   )}
 
@@ -6393,6 +6818,42 @@ export default function SmartPhotoEditor() {
                         </div>
                       </div>
 
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className={`flex items-center justify-between gap-2 rounded-xl border bg-white p-3 text-sm font-semibold transition ${
+                          transparentArtboard
+                            ? "border-[var(--primary)] text-[var(--primary)]"
+                            : "border-[var(--border)]"
+                        }`}>
+                          <span className="inline-flex items-center gap-2">
+                            <span className="h-6 w-6 rounded-md border border-[var(--border)] smart-photo-editor-transparent-canvas" />
+                            Transparent
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={transparentArtboard}
+                            onChange={(event) => toggleTransparentArtboard(event.target.checked)}
+                            className="h-4 w-4 accent-[var(--primary)]"
+                          />
+                        </label>
+
+                        <label className={`flex items-center justify-between gap-2 rounded-xl border bg-white p-3 text-sm font-semibold transition ${
+                          keepQuality
+                            ? "border-[var(--primary)] text-[var(--primary)]"
+                            : "border-[var(--border)]"
+                        }`}>
+                          <span className="inline-flex items-center gap-2">
+                            <CheckCircle size={16} />
+                            Keep quality
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={keepQuality}
+                            onChange={(event) => setKeepQualityForAll(event.target.checked)}
+                            className="h-4 w-4 accent-[var(--primary)]"
+                          />
+                        </label>
+                      </div>
+
                       <button
                         type="button"
                         onClick={applyCanvasResize}
@@ -6437,6 +6898,12 @@ export default function SmartPhotoEditor() {
                         />
                       )}
 
+                      {transparentArtboard && outputFormat === "image/jpeg" && (
+                        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs leading-5 text-yellow-800">
+                          JPG cannot keep transparency. The transparent area will export as white.
+                        </div>
+                      )}
+
                       <InfoCard label="Processing" value={processText} green={Boolean(processingTimeMs)} />
 
                       <InfoCard
@@ -6461,16 +6928,34 @@ export default function SmartPhotoEditor() {
 
                 <div className="h-8 w-px bg-[var(--border)]" />
 
-                <div className="h-11 shrink-0 rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)] inline-flex items-center">
-                  Zoom from the bottom-right controls for precise editing
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${
+                      transparentArtboard
+                        ? "border-[var(--primary)] bg-[#f4edff]"
+                        : "border-[var(--border)] bg-white"
+                    }`}
+                    title={transparentArtboard ? "Transparent artboard" : "Solid artboard"}
+                  >
+                    {transparentArtboard ? (
+                      <span className="h-5 w-5 rounded border border-[var(--border)] smart-photo-editor-transparent-canvas" />
+                    ) : (
+                      <Square size={17} className="text-[var(--primary)]" />
+                    )}
+                  </span>
+                  <span
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border ${
+                      allLayersKeepQuality
+                        ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                        : "border-[var(--border)] bg-white text-[var(--text-secondary)]"
+                    }`}
+                    title={allLayersKeepQuality ? "Keep quality enabled" : "Some layers have keep quality disabled"}
+                  >
+                    <CheckCircle size={17} />
+                  </span>
                 </div>
 
                 <div className="flex-1" />
-
-                <div className="hidden md:flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                  <Move size={15} />
-                  <span>Arrow keys nudge items • Alt + corner scales from center • Delete removes</span>
-                </div>
 
                 <button
                   type="button"
@@ -6489,10 +6974,18 @@ export default function SmartPhotoEditor() {
                 </button>
               </div>
 
-              <div className={`sticky top-0 z-50 border-b border-[var(--border)] bg-white/95 backdrop-blur px-4 transition-none ${topBarOpen ? (topBarDropdown ? "h-[250px]" : "h-[132px]") : "h-[44px]"}`}>
+              <div
+                ref={quickBarRef}
+                className={`sticky top-0 z-[70] overflow-visible border-b border-[var(--border)] bg-white/95 px-4 backdrop-blur transition-all duration-200 ${
+                  topBarOpen ? "pb-2" : ""
+                }`}
+              >
                 <button
                   type="button"
-                  onClick={() => setTopBarOpen((current) => !current)}
+                  onClick={() => {
+                    setTopBarOpen((current) => !current);
+                    setTopBarDropdown("");
+                  }}
                   className="w-full py-2 flex items-center justify-between gap-3 text-left"
                 >
                   <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">
@@ -6506,7 +6999,7 @@ export default function SmartPhotoEditor() {
                 </button>
 
                 {topBarOpen && (
-                  <div className="pb-3 flex min-h-[88px] flex-nowrap items-center gap-3 overflow-x-auto overflow-y-visible whitespace-nowrap">
+                  <div className="relative flex min-h-[64px] flex-wrap items-center gap-2 overflow-visible pb-2 whitespace-normal">
                     <div className="h-11 shrink-0 rounded-xl border border-[var(--border)] bg-[#f8f4ff] px-3 py-2 text-xs font-semibold text-[var(--primary)] inline-flex items-center">
                       {selectedObjects.length > 1
                         ? `${selectedObjects.length} items selected`
@@ -6515,19 +7008,51 @@ export default function SmartPhotoEditor() {
                           : "Select an item to edit quickly"}
                     </div>
 
+                    <button
+                      type="button"
+                      onClick={() => toggleTransparentArtboard(!transparentArtboard)}
+                      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition ${
+                        transparentArtboard
+                          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                      }`}
+                      title={transparentArtboard ? "Disable transparent artboard" : "Use transparent artboard"}
+                      aria-label={transparentArtboard ? "Disable transparent artboard" : "Use transparent artboard"}
+                    >
+                      <span className="h-6 w-6 rounded-md border border-current smart-photo-editor-transparent-canvas" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleSelectedKeepQuality}
+                      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition ${
+                        selectedKeepQuality
+                          ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                          : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                      }`}
+                      title={
+                        selectedObjectId || selectedObjectIds.length
+                          ? "Keep quality for selected layer(s)"
+                          : "Keep quality for all layers"
+                      }
+                      aria-label="Toggle keep quality"
+                    >
+                      <CheckCircle size={18} />
+                    </button>
+
                     {(selectedObjectId || selectedObjectIds.length > 0) && (
                       <button
                         type="button"
                         onClick={toggleLockSelected}
-                        className={`h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
+                        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition ${
                           selectedLocked
                             ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
                             : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
                         }`}
                         title={selectedLocked ? "Unlock selected layer" : "Lock selected layer"}
+                        aria-label={selectedLocked ? "Unlock selected layer" : "Lock selected layer"}
                       >
-                        {selectedLocked ? <Unlock size={16} /> : <Lock size={16} />}
-                        {selectedLocked ? "Unlock" : "Lock"}
+                        {selectedLocked ? <Unlock size={17} /> : <Lock size={17} />}
                       </button>
                     )}
 
@@ -6610,13 +7135,16 @@ export default function SmartPhotoEditor() {
                       </div>
                     )}
 
-                    <label className="h-11 shrink-0 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-semibold">
-                      Color
+                    <label
+                      className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-[var(--border)] bg-white transition hover:bg-[#f8f4ff]"
+                      title="Active color"
+                    >
                       <input
                         type="color"
                         value={quickSelectedColor}
                         onChange={(event) => updateQuickColor(event.target.value)}
-                        className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white"
+                        className="h-7 w-7 cursor-pointer rounded-lg border border-[var(--border)] bg-white"
+                        aria-label="Active color"
                       />
                     </label>
 
@@ -6624,16 +7152,35 @@ export default function SmartPhotoEditor() {
                       <button
                         type="button"
                         onClick={() => setTopBarDropdown((current) => current === "gradient" ? "" : "gradient")}
-                        className="h-11 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold inline-flex items-center gap-2 hover:bg-[#f8f4ff]"
+                        className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition ${
+                          topBarDropdown === "gradient"
+                            ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                            : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                        }`}
                         title="Gradient options"
+                        aria-label="Gradient options"
                       >
                         <PalettePreview start={gradientStartColor} end={gradientEndColor} angle={gradientAngle} />
-                        Gradient
-                        <ChevronDown size={15} />
                       </button>
 
                       {topBarDropdown === "gradient" && (
-                        <div className="absolute left-0 top-12 z-[120] w-[320px] rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl">
+                        <div className="smart-photo-editor-popover absolute left-0 top-12 z-[220] w-[320px] rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl">
+                          <div className="mb-3 flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-bold">Gradient</p>
+                              <p className="text-xs text-[var(--text-secondary)]">Apply a smooth two-color fill.</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setTopBarDropdown("")}
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff]"
+                              title="Close gradient"
+                              aria-label="Close gradient"
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+
                           <div className="grid grid-cols-2 gap-3">
                             <label className="text-xs font-bold">
                               Start
@@ -6758,22 +7305,65 @@ export default function SmartPhotoEditor() {
                         <button
                           type="button"
                           onClick={() => setTopBarDropdown((current) => current === "align" ? "" : "align")}
-                          className="h-11 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold inline-flex items-center gap-2 hover:bg-[#f8f4ff]"
+                          className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition ${
+                            topBarDropdown === "align"
+                              ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                              : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                          }`}
                           title="Alignment options"
+                          aria-label="Alignment options"
                         >
-                          <AlignCenter size={17} />
-                          Align
-                          <ChevronDown size={15} />
+                          <AlignCenter size={18} />
                         </button>
 
                         {topBarDropdown === "align" && (
-                          <div className="absolute left-0 top-12 z-[80] rounded-2xl border border-[var(--border)] bg-white p-2 shadow-2xl grid grid-cols-3 gap-1">
-                            <button type="button" onClick={() => { alignSelectedObjects("left"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align left"><AlignLeft size={18} /></button>
-                            <button type="button" onClick={() => { alignSelectedObjects("center"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align horizontal center"><AlignCenter size={18} /></button>
-                            <button type="button" onClick={() => { alignSelectedObjects("right"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align right"><AlignRight size={18} /></button>
-                            <button type="button" onClick={() => { alignSelectedObjects("top"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align top"><AlignLeft size={18} className="rotate-90" /></button>
-                            <button type="button" onClick={() => { alignSelectedObjects("middle"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align vertical middle"><AlignCenter size={18} className="rotate-90" /></button>
-                            <button type="button" onClick={() => { alignSelectedObjects("bottom"); setTopBarDropdown(""); }} className="h-10 w-10 rounded-xl hover:bg-[#f8f4ff] inline-flex items-center justify-center" title="Align bottom"><AlignRight size={18} className="rotate-90" /></button>
+                          <div className="smart-photo-editor-popover absolute right-0 top-12 z-[240] w-[270px] rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl">
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-bold">Align layers</p>
+                                <p className="text-xs text-[var(--text-secondary)]">
+                                  Align one item to the artboard or multiple items to their group.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setTopBarDropdown("")}
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff]"
+                                title="Close alignment"
+                                aria-label="Close alignment"
+                              >
+                                <X size={15} />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2">
+                              {[
+                                { id: "left", label: "Align left", icon: AlignLeft, rotate: false },
+                                { id: "center", label: "Center horizontally", icon: AlignCenter, rotate: false },
+                                { id: "right", label: "Align right", icon: AlignRight, rotate: false },
+                                { id: "top", label: "Align top", icon: AlignLeft, rotate: true },
+                                { id: "middle", label: "Center vertically", icon: AlignCenter, rotate: true },
+                                { id: "bottom", label: "Align bottom", icon: AlignRight, rotate: true },
+                              ].map((option) => {
+                                const AlignIcon = option.icon;
+
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={() => {
+                                      alignSelectedObjects(option.id);
+                                      setTopBarDropdown("");
+                                    }}
+                                    className="group inline-flex h-12 items-center justify-center rounded-xl border border-[var(--border)] bg-white transition hover:border-[var(--primary)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
+                                    title={option.label}
+                                    aria-label={option.label}
+                                  >
+                                    <AlignIcon size={19} className={option.rotate ? "rotate-90" : ""} />
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -6789,20 +7379,41 @@ export default function SmartPhotoEditor() {
                           <button
                             type="button"
                             onClick={() => setTopBarDropdown((current) => current === "arrange" ? "" : "arrange")}
-                            className="h-11 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-xs font-bold inline-flex items-center gap-2 hover:bg-[#f8f4ff]"
-                            title="Layer arrange options"
+                            className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition ${
+                              topBarDropdown === "arrange"
+                                ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                                : "border-[var(--border)] bg-white hover:bg-[#f8f4ff]"
+                            }`}
+                            title="Layer order"
+                            aria-label="Layer order"
                           >
-                            <Layers size={17} />
-                            Arrange
-                            <ChevronDown size={15} />
+                            <Layers size={18} />
                           </button>
 
                           {topBarDropdown === "arrange" && (
-                            <div className="absolute left-0 top-12 z-[120] w-[210px] rounded-2xl border border-[var(--border)] bg-white p-2 shadow-2xl">
-                              <button type="button" onClick={() => { reorderSelectedObjects("up"); setTopBarDropdown(""); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold hover:bg-[#f8f4ff]">Bring Up</button>
-                              <button type="button" onClick={() => { reorderSelectedObjects("down"); setTopBarDropdown(""); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold hover:bg-[#f8f4ff]">Bring Down</button>
-                              <button type="button" onClick={() => { reorderSelectedObjects("front"); setTopBarDropdown(""); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold hover:bg-[#f8f4ff]">Bring To Front</button>
-                              <button type="button" onClick={() => { reorderSelectedObjects("back"); setTopBarDropdown(""); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold hover:bg-[#f8f4ff]">Send To Back</button>
+                            <div className="smart-photo-editor-popover absolute right-0 top-12 z-[240] w-[250px] rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl">
+                              <div className="mb-3 flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-bold">Layer order</p>
+                                  <p className="text-xs text-[var(--text-secondary)]">Move selected layers through the stack.</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setTopBarDropdown("")}
+                                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] hover:bg-[#f8f4ff]"
+                                  title="Close layer order"
+                                  aria-label="Close layer order"
+                                >
+                                  <X size={15} />
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <button type="button" onClick={() => { reorderSelectedObjects("up"); setTopBarDropdown(""); }} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-3 text-xs font-bold transition hover:border-[var(--primary)] hover:bg-[#f8f4ff]"><ChevronUp size={16} />Bring up</button>
+                                <button type="button" onClick={() => { reorderSelectedObjects("down"); setTopBarDropdown(""); }} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-3 text-xs font-bold transition hover:border-[var(--primary)] hover:bg-[#f8f4ff]"><ChevronDown size={16} />Send down</button>
+                                <button type="button" onClick={() => { reorderSelectedObjects("front"); setTopBarDropdown(""); }} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-3 text-xs font-bold transition hover:border-[var(--primary)] hover:bg-[#f8f4ff]"><Layers size={16} />To front</button>
+                                <button type="button" onClick={() => { reorderSelectedObjects("back"); setTopBarDropdown(""); }} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-3 text-xs font-bold transition hover:border-[var(--primary)] hover:bg-[#f8f4ff]"><Layers size={16} className="rotate-180" />To back</button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -6852,6 +7463,7 @@ export default function SmartPhotoEditor() {
                 <div
                   onPointerDown={handleArtboardPointerDown}
                   onDrop={handleDrop}
+                  onDragEnter={handleDragEnter}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onWheel={handleWorkspaceWheel}
@@ -6860,6 +7472,16 @@ export default function SmartPhotoEditor() {
                     isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
                   }`}
                 >
+                  {isDraggingFile && (
+                    <div className="smart-photo-editor-drop-overlay pointer-events-none sticky left-1/2 top-6 z-[90] flex w-[min(440px,calc(100%-2rem))] -translate-x-1/2 items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--primary)] bg-white/95 px-5 py-4 text-center shadow-2xl backdrop-blur">
+                      <Upload size={22} className="shrink-0 text-[var(--primary)]" />
+                      <div>
+                        <p className="font-bold text-[var(--primary)]">Drop image to add a new layer</p>
+                        <p className="text-xs text-[var(--text-secondary)]">Multiple files are supported.</p>
+                      </div>
+                    </div>
+                  )}
+
                   <div
                     className="flex items-center justify-center"
                     style={{
@@ -6882,7 +7504,9 @@ export default function SmartPhotoEditor() {
                     onPointerCancel={handlePointerUp}
                     onPointerLeave={() => setBrushPreviewPoint(null)}
                     onContextMenu={(event) => event.preventDefault()}
-                    className="touch-none border border-[var(--border)] shadow-xl"
+                    className={`touch-none border border-[var(--border)] shadow-xl ${
+                      transparentArtboard ? "smart-photo-editor-transparent-canvas" : "bg-white"
+                    }`}
                     style={{
                       width: `${previewWidth}px`,
                       maxWidth: "none",
@@ -7313,6 +7937,10 @@ function createSelectionPathFromBox(box, mode = "rectSelect") {
 function drawBackgroundLayer(ctx, objects, width, height, fallbackColor = "#ffffff") {
   const background = objects.find((object) => object.type === "background");
 
+  if (background?.transparent) {
+    return;
+  }
+
   fillCanvasBackground(ctx, width, height, fallbackColor || "#ffffff");
 
   if (!background) return;
@@ -7367,7 +7995,7 @@ function drawImageObject(ctx, object) {
   if (!object.element) return;
 
   ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "medium";
+  ctx.imageSmoothingQuality = object.keepQuality === false ? "medium" : "high";
   ctx.drawImage(object.element, object.x, object.y, object.w, object.h);
 }
 
@@ -8986,19 +9614,39 @@ function isValidObject(object) {
   return true;
 }
 
-function resizeCanvas(sourceCanvas, width, height) {
-  const canvas = document.createElement("canvas");
+function resizeCanvas(sourceCanvas, width, height, keepQuality = true) {
+  const targetWidth = Math.max(1, Math.round(width));
+  const targetHeight = Math.max(1, Math.round(height));
 
-  canvas.width = width;
-  canvas.height = height;
+  function drawScaled(source, nextWidth, nextHeight, quality = "high") {
+    const nextCanvas = document.createElement("canvas");
+    nextCanvas.width = Math.max(1, Math.round(nextWidth));
+    nextCanvas.height = Math.max(1, Math.round(nextHeight));
 
-  const ctx = canvas.getContext("2d");
+    const nextContext = nextCanvas.getContext("2d");
+    nextContext.imageSmoothingEnabled = true;
+    nextContext.imageSmoothingQuality = quality === "medium" ? "medium" : "high";
+    nextContext.drawImage(source, 0, 0, nextCanvas.width, nextCanvas.height);
+    return nextCanvas;
+  }
 
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(sourceCanvas, 0, 0, width, height);
+  if (!keepQuality) {
+    return drawScaled(sourceCanvas, targetWidth, targetHeight, "medium");
+  }
 
-  return canvas;
+  let currentCanvas = sourceCanvas;
+
+  // Progressive downscaling avoids throwing away too many pixels in one pass.
+  while (
+    currentCanvas.width > targetWidth * 2 ||
+    currentCanvas.height > targetHeight * 2
+  ) {
+    const nextWidth = Math.max(targetWidth, Math.round(currentCanvas.width / 2));
+    const nextHeight = Math.max(targetHeight, Math.round(currentCanvas.height / 2));
+    currentCanvas = drawScaled(currentCanvas, nextWidth, nextHeight, "high");
+  }
+
+  return drawScaled(currentCanvas, targetWidth, targetHeight, "high");
 }
 
 function getUploadCanvasSize({ presetId, draftSize, naturalWidth, naturalHeight }) {
@@ -9287,7 +9935,7 @@ function convertShapeSizeToPixels(value, unit = "px") {
   if (!Number.isFinite(number) || number <= 0) return 0;
 
   if (unit === "in") {
-    return clampNumber(number * SHAPE_SHAPE_INCH_DPI, 1, 5000);
+    return clampNumber(number * SHAPE_INCH_DPI, 1, 5000);
   }
 
   return clampNumber(number, 1, 5000);
