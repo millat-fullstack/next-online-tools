@@ -15,6 +15,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Hand,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -46,6 +47,14 @@ export default function ColorPicker() {
   const magnifierRef = useRef(null);
   const previewViewportRef = useRef(null);
   const imageUrlRef = useRef("");
+  const panGestureRef = useRef({
+    active: false,
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
 
   const [imageData, setImageData] = useState(null);
   const [imageElement, setImageElement] = useState(null);
@@ -63,6 +72,8 @@ export default function ColorPicker() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [imageZoom, setImageZoom] = useState(1);
+  const [isPanMode, setIsPanMode] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
   const [canvasDisplaySize, setCanvasDisplaySize] = useState({ width: 0, height: 0 });
   const [magnifierPosition, setMagnifierPosition] = useState({
     left: 0,
@@ -91,6 +102,9 @@ export default function ColorPicker() {
     setCopiedFormat("");
     setPickedPoint(null);
     setImageZoom(1);
+    setIsPanMode(false);
+    setIsPanning(false);
+    panGestureRef.current.active = false;
     setMagnifierPosition((current) => ({ ...current, visible: false }));
 
     const validationError = validateImageFile(file);
@@ -534,6 +548,88 @@ export default function ColorPicker() {
     });
   }
 
+  function togglePanMode() {
+    setIsPanMode((current) => {
+      const next = !current;
+
+      if (!next) {
+        panGestureRef.current.active = false;
+        setIsPanning(false);
+      }
+
+      setMagnifierPosition((position) => ({ ...position, visible: false }));
+      return next;
+    });
+  }
+
+  function startImagePan(event) {
+    if (!isPanMode) return false;
+
+    const viewport = previewViewportRef.current;
+    if (!viewport) return true;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    panGestureRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
+
+    setIsPanning(true);
+    setMagnifierPosition((position) => ({ ...position, visible: false }));
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    return true;
+  }
+
+  function moveImagePan(event) {
+    if (!isPanMode || !panGestureRef.current.active) return false;
+
+    const viewport = previewViewportRef.current;
+    if (!viewport) return true;
+
+    event.preventDefault();
+
+    const deltaX = event.clientX - panGestureRef.current.startX;
+    const deltaY = event.clientY - panGestureRef.current.startY;
+
+    viewport.scrollLeft = panGestureRef.current.scrollLeft - deltaX;
+    viewport.scrollTop = panGestureRef.current.scrollTop - deltaY;
+
+    return true;
+  }
+
+  function stopImagePan(event) {
+    if (!panGestureRef.current.active) return;
+
+    panGestureRef.current.active = false;
+    panGestureRef.current.pointerId = null;
+    setIsPanning(false);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }
+
+  function handleCanvasPointerDown(event) {
+    if (startImagePan(event)) return;
+    handlePickColor(event);
+  }
+
+  function handleCanvasPointerMove(event) {
+    if (moveImagePan(event)) return;
+    if (isPanMode) return;
+    handlePointerMove(event);
+  }
+
+  function handleCanvasPointerLeave() {
+    if (!panGestureRef.current.active) {
+      handlePointerLeave();
+    }
+  }
+
   function resetTool() {
     if (imageUrlRef.current) {
       URL.revokeObjectURL(imageUrlRef.current);
@@ -554,6 +650,9 @@ export default function ColorPicker() {
     setIsDragging(false);
     setIsLoading(false);
     setImageZoom(1);
+    setIsPanMode(false);
+    setIsPanning(false);
+    panGestureRef.current.active = false;
     setCanvasDisplaySize({ width: 0, height: 0 });
     setMagnifierPosition({
       left: 0,
@@ -596,6 +695,11 @@ export default function ColorPicker() {
 
       <style>{`
         .color-picker-image-viewport {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          contain: layout paint;
+          overscroll-behavior: contain;
           scrollbar-width: thin;
           scrollbar-color: #9b6ce3 #eee7fb;
           scroll-behavior: smooth;
@@ -634,9 +738,9 @@ export default function ColorPicker() {
 
       {/* TOOL BODY */}
       <section className="card p-6 sm:p-8">
-        <div className="grid lg:grid-cols-[1.35fr_0.85fr] gap-6">
+        <div className="grid min-w-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.85fr)] gap-6">
           {/* LEFT COLUMN */}
-          <div className="flex flex-col gap-5">
+          <div className="flex min-w-0 flex-col gap-5">
             {/* UPLOAD AREA */}
             <div
               onDrop={handleDrop}
@@ -739,6 +843,23 @@ export default function ColorPicker() {
                         >
                           <Maximize2 size={16} />
                         </button>
+
+                        <span className="mx-0.5 h-6 w-px bg-[var(--border)]" />
+
+                        <button
+                          type="button"
+                          onClick={togglePanMode}
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                            isPanMode
+                              ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
+                              : "border-transparent text-[var(--text-secondary)] hover:bg-[#f4edff] hover:text-[var(--primary)]"
+                          }`}
+                          title={isPanMode ? "Hand tool active — drag image to move" : "Hand tool — drag zoomed image"}
+                          aria-label="Toggle hand tool"
+                          aria-pressed={isPanMode}
+                        >
+                          <Hand size={16} />
+                        </button>
                       </div>
 
                       <button
@@ -757,11 +878,21 @@ export default function ColorPicker() {
 
               <div
                 ref={previewViewportRef}
-                className="color-picker-image-viewport bg-gray-50 border border-[var(--border)] rounded-2xl min-h-[360px] max-h-[620px] overflow-auto p-4"
+                className={`color-picker-image-viewport relative h-[500px] sm:h-[560px] overflow-auto rounded-2xl border border-[var(--border)] bg-gray-50 p-4 ${isPanMode ? "select-none" : ""}`}
               >
                 {hasImage ? (
-                  <div className="w-max min-w-full min-h-[328px] flex items-center justify-center">
-                    <div
+                  <>
+                    {isPanMode && (
+                      <div className="pointer-events-none sticky left-3 top-3 z-20 mb-[-38px] w-fit rounded-xl border border-[var(--border)] bg-white/95 px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] shadow-sm backdrop-blur">
+                        <span className="inline-flex items-center gap-2">
+                          <Hand size={14} className="text-[var(--primary)]" />
+                          Drag to move around the zoomed image
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="w-max min-w-full min-h-full flex items-center justify-center">
+                      <div
                       className="relative shrink-0 transition-[width,height] duration-200 ease-out"
                       style={{
                         width: `${Math.max(1, canvasDisplaySize.width * imageZoom)}px`,
@@ -770,10 +901,18 @@ export default function ColorPicker() {
                     >
                       <canvas
                         ref={canvasRef}
-                        onPointerMove={handlePointerMove}
-                        onPointerLeave={handlePointerLeave}
-                        onPointerDown={handlePickColor}
-                        className="block h-full w-full rounded-xl border border-[var(--border)] shadow-sm cursor-crosshair bg-white touch-none"
+                        onPointerMove={handleCanvasPointerMove}
+                        onPointerLeave={handleCanvasPointerLeave}
+                        onPointerDown={handleCanvasPointerDown}
+                        onPointerUp={stopImagePan}
+                        onPointerCancel={stopImagePan}
+                        className={`block h-full w-full touch-none rounded-xl border border-[var(--border)] bg-white shadow-sm ${
+                          isPanMode
+                            ? isPanning
+                              ? "cursor-grabbing"
+                              : "cursor-grab"
+                            : "cursor-crosshair"
+                        }`}
                       />
 
                       {pickedPoint && (
@@ -786,8 +925,9 @@ export default function ColorPicker() {
                           }}
                         />
                       )}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 ) : (
                   <div className="min-h-[328px] flex items-center justify-center text-center">
                     <div>
@@ -826,8 +966,7 @@ export default function ColorPicker() {
                       Move over image to preview • Click to pick and copy
                     </p>
                     <p className="text-xs text-[var(--text-secondary)] mt-1">
-                      Hover preview changes while moving. Picked color changes
-                      only after click/tap.
+                      Hover preview changes while moving. Click to pick a color, or activate the Hand tool to drag around a zoomed image.
                     </p>
                   </div>
                 </div>
@@ -904,7 +1043,7 @@ export default function ColorPicker() {
           </div>
 
           {/* RIGHT COLUMN */}
-          <div className="flex flex-col gap-5">
+          <div className="flex min-w-0 flex-col gap-5">
             {/* HOVER PREVIEW */}
             {hasImage && (
               <div>
