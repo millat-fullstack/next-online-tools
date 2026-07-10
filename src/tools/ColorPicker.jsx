@@ -11,10 +11,10 @@ import {
   AlertCircle,
   CheckCircle,
   Trash2,
-  Palette,
-  SlidersHorizontal,
-  MousePointer2,
   Sparkles,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from "lucide-react";
 import SuggestedTools from "../components/sidebar/SuggestedTools";
 
@@ -23,16 +23,17 @@ export const toolData = {
   path: "/tool/color-picker",
   category: "Design Tools",
   description:
-    "Pick colors from images with precision. Get HEX, RGB, RGBA, HSL, and CMYK values instantly.",
+    "Pick precise HEX colors from images with zoom, hover preview, magnifier, and saved color history.",
   metaTitle: "Color Picker Tool - Pick Colors from Images | Next Online Tools",
   metaDescription:
-    "Pick colors from images online. Upload, paste, or drop an image and get HEX, RGB, RGBA, HSL, and CMYK color codes instantly. Perfect for designers, developers, and creators.",
+    "Pick precise HEX colors from images online. Upload, paste, or drop an image, zoom in for accuracy, preview colors, and copy saved picks instantly.",
 };
 
 const MAX_FILE_SIZE_MB = 12;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const MAX_CANVAS_LONG_SIDE = 2400;
-const MAGNIFIER_SIZE = 220;
+const MAGNIFIER_SIZE = 180;
+const MAGNIFIER_ZOOM = 14;
 
 const DEFAULT_COLOR = {
   hex: "#9B6CE3",
@@ -43,6 +44,7 @@ export default function ColorPicker() {
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
   const magnifierRef = useRef(null);
+  const previewViewportRef = useRef(null);
   const imageUrlRef = useRef("");
 
   const [imageData, setImageData] = useState(null);
@@ -54,15 +56,14 @@ export default function ColorPicker() {
   const [previewColor, setPreviewColor] = useState(DEFAULT_COLOR.hex);
   const [previewRgb, setPreviewRgb] = useState(DEFAULT_COLOR.rgb);
 
-  const [paletteColors, setPaletteColors] = useState([]);
   const [savedColors, setSavedColors] = useState([]);
 
   const [copiedFormat, setCopiedFormat] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const [showMagnifier, setShowMagnifier] = useState(true);
-  const [zoomLevel, setZoomLevel] = useState(14);
+  const [imageZoom, setImageZoom] = useState(1);
+  const [canvasDisplaySize, setCanvasDisplaySize] = useState({ width: 0, height: 0 });
   const [magnifierPosition, setMagnifierPosition] = useState({
     left: 0,
     top: 0,
@@ -76,31 +77,6 @@ export default function ColorPicker() {
 
   const hasImage = Boolean(imageData && imageElement);
 
-  const pickedHsl = useMemo(() => {
-    return rgbToHsl(pickedRgb.r, pickedRgb.g, pickedRgb.b);
-  }, [pickedRgb]);
-
-  const pickedCmyk = useMemo(() => {
-    return rgbToCmyk(pickedRgb.r, pickedRgb.g, pickedRgb.b);
-  }, [pickedRgb]);
-
-  const pickedRgbText = useMemo(() => {
-    return `rgb(${pickedRgb.r}, ${pickedRgb.g}, ${pickedRgb.b})`;
-  }, [pickedRgb]);
-
-  const pickedRgbaText = useMemo(() => {
-    const alpha = Number((pickedRgb.a / 255).toFixed(2));
-    return `rgba(${pickedRgb.r}, ${pickedRgb.g}, ${pickedRgb.b}, ${alpha})`;
-  }, [pickedRgb]);
-
-  const pickedHslText = useMemo(() => {
-    return `hsl(${pickedHsl.h}, ${pickedHsl.s}%, ${pickedHsl.l}%)`;
-  }, [pickedHsl]);
-
-  const pickedCmykText = useMemo(() => {
-    return `cmyk(${pickedCmyk.c}%, ${pickedCmyk.m}%, ${pickedCmyk.y}%, ${pickedCmyk.k}%)`;
-  }, [pickedCmyk]);
-
   const pickedTextColor = useMemo(() => {
     return getReadableTextColor(pickedRgb.r, pickedRgb.g, pickedRgb.b);
   }, [pickedRgb]);
@@ -109,35 +85,12 @@ export default function ColorPicker() {
     return getReadableTextColor(previewRgb.r, previewRgb.g, previewRgb.b);
   }, [previewRgb]);
 
-  const contrastSuggestion = useMemo(() => {
-    const blackRatio = getContrastRatio(
-      { r: pickedRgb.r, g: pickedRgb.g, b: pickedRgb.b },
-      { r: 0, g: 0, b: 0 }
-    );
-
-    const whiteRatio = getContrastRatio(
-      { r: pickedRgb.r, g: pickedRgb.g, b: pickedRgb.b },
-      { r: 255, g: 255, b: 255 }
-    );
-
-    return whiteRatio >= blackRatio
-      ? {
-          label: "White text works better",
-          color: "#ffffff",
-          ratio: whiteRatio,
-        }
-      : {
-          label: "Black text works better",
-          color: "#000000",
-          ratio: blackRatio,
-        };
-  }, [pickedRgb]);
-
   const handleImageFile = useCallback(async (file) => {
     setError("");
     setSuccess("");
     setCopiedFormat("");
     setPickedPoint(null);
+    setImageZoom(1);
     setMagnifierPosition((current) => ({ ...current, visible: false }));
 
     const validationError = validateImageFile(file);
@@ -218,6 +171,40 @@ export default function ColorPicker() {
     };
   }, [handleImageFile]);
 
+  const updateCanvasDisplaySize = useCallback(() => {
+    const canvas = canvasRef.current;
+    const viewport = previewViewportRef.current;
+
+    if (!canvas || !viewport || !canvas.width || !canvas.height) return;
+
+    const availableWidth = Math.max(180, viewport.clientWidth - 32);
+    const availableHeight = 520;
+    const fitScale = Math.min(
+      1,
+      availableWidth / canvas.width,
+      availableHeight / canvas.height
+    );
+
+    setCanvasDisplaySize({
+      width: Math.max(1, Math.round(canvas.width * fitScale)),
+      height: Math.max(1, Math.round(canvas.height * fitScale)),
+    });
+  }, []);
+
+  useEffect(() => {
+    const viewport = previewViewportRef.current;
+
+    if (typeof ResizeObserver === "undefined" || !viewport) {
+      window.addEventListener("resize", updateCanvasDisplaySize);
+      return () => window.removeEventListener("resize", updateCanvasDisplaySize);
+    }
+
+    const observer = new ResizeObserver(updateCanvasDisplaySize);
+    observer.observe(viewport);
+
+    return () => observer.disconnect();
+  }, [hasImage, updateCanvasDisplaySize]);
+
   useEffect(() => {
     if (!imageElement || !canvasRef.current) return;
 
@@ -248,9 +235,8 @@ export default function ColorPicker() {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     ctx.drawImage(imageElement, 0, 0, canvasWidth, canvasHeight);
 
-    const extractedPalette = extractPalette(ctx, canvasWidth, canvasHeight);
-    setPaletteColors(extractedPalette);
-  }, [imageElement]);
+    window.requestAnimationFrame(updateCanvasDisplaySize);
+  }, [imageElement, updateCanvasDisplaySize]);
 
   function resetFileInput() {
     if (fileInputRef.current) {
@@ -367,16 +353,14 @@ export default function ColorPicker() {
       nextColor.a
     );
 
-    if (showMagnifier) {
-      drawMagnifier(point);
+    drawMagnifier(point);
 
-      const nextPosition = getMagnifierPosition(event.clientX, event.clientY);
+    const nextPosition = getMagnifierPosition(event.clientX, event.clientY);
 
-      setMagnifierPosition({
-        ...nextPosition,
-        visible: true,
-      });
-    }
+    setMagnifierPosition({
+      ...nextPosition,
+      visible: true,
+    });
   }
 
   function handlePointerLeave() {
@@ -439,7 +423,7 @@ export default function ColorPicker() {
 
     if (!mtx) return;
 
-    const sampleSize = Math.max(8, Math.floor(MAGNIFIER_SIZE / zoomLevel));
+    const sampleSize = Math.max(8, Math.floor(MAGNIFIER_SIZE / MAGNIFIER_ZOOM));
     const sx = clampNumber(point.x - sampleSize / 2, 0, canvas.width - sampleSize);
     const sy = clampNumber(point.y - sampleSize / 2, 0, canvas.height - sampleSize);
 
@@ -485,7 +469,7 @@ export default function ColorPicker() {
     });
   }
 
-  async function handlePaletteColorClick(hexValue) {
+  async function handleSavedColorSelect(hexValue) {
     const nextHex = hexValue.toUpperCase();
     const nextRgb = hexToRgb(nextHex);
 
@@ -508,13 +492,13 @@ export default function ColorPicker() {
     }
   }
 
-  async function copyText(text, format) {
+  async function copyText(text, format = "hex", successLabel = "HEX") {
     try {
       await copyToClipboard(text);
 
       setCopiedFormat(format);
       setError("");
-      setSuccess(`${format.toUpperCase()} copied successfully.`);
+      setSuccess(`${successLabel} copied successfully.`);
 
       window.setTimeout(() => {
         setCopiedFormat("");
@@ -524,54 +508,30 @@ export default function ColorPicker() {
     }
   }
 
-  async function copyAllFormats() {
-    const text = [
-      `HEX: ${pickedColor.toUpperCase()}`,
-      `RGB: ${pickedRgbText}`,
-      `RGBA: ${pickedRgbaText}`,
-      `HSL: ${pickedHslText}`,
-      `CMYK: ${pickedCmykText}`,
-    ].join("\n");
-
-    await copyText(text, "all");
-  }
-
-  async function useNativeEyeDropper() {
-    setError("");
-    setSuccess("");
-
-    if (!("EyeDropper" in window)) {
-      setError("Your browser does not support the native EyeDropper API yet.");
-      return;
-    }
-
-    try {
-      const eyeDropper = new window.EyeDropper();
-      const result = await eyeDropper.open();
-      const nextRgb = hexToRgb(result.sRGBHex);
-      const nextHex = result.sRGBHex.toUpperCase();
-
-      setPickedColorFromRgba(nextRgb.r, nextRgb.g, nextRgb.b, 255);
-      setPreviewColorFromRgba(nextRgb.r, nextRgb.g, nextRgb.b, 255);
-      addSavedColor(nextHex);
-
-      await copyToClipboard(nextHex);
-
-      setCopiedFormat("hex");
-      setSuccess(`${nextHex} picked and copied with browser eyedropper.`);
-
-      window.setTimeout(() => {
-        setCopiedFormat("");
-      }, 1600);
-    } catch {
-      setError("EyeDropper was cancelled or could not pick/copy a color.");
-    }
+  async function copySavedColor(hexValue) {
+    const nextHex = hexValue.toUpperCase();
+    await copyText(nextHex, `saved:${nextHex}`, nextHex);
   }
 
   function clearSavedColors() {
     setSavedColors([]);
     setSuccess("");
     setError("");
+  }
+
+  function updateImageZoom(nextValue) {
+    const nextZoom = clampNumber(Number(nextValue), 0.5, 4);
+    setImageZoom(nextZoom);
+  }
+
+  function resetImageZoom() {
+    setImageZoom(1);
+
+    window.requestAnimationFrame(() => {
+      const viewport = previewViewportRef.current;
+      if (!viewport) return;
+      viewport.scrollTo({ left: 0, top: 0, behavior: "smooth" });
+    });
   }
 
   function resetTool() {
@@ -588,19 +548,18 @@ export default function ColorPicker() {
     setPreviewColor(DEFAULT_COLOR.hex);
     setPreviewRgb(DEFAULT_COLOR.rgb);
 
-    setPaletteColors([]);
     setSavedColors([]);
     setCopiedFormat("");
 
     setIsDragging(false);
     setIsLoading(false);
-    setShowMagnifier(true);
+    setImageZoom(1);
+    setCanvasDisplaySize({ width: 0, height: 0 });
     setMagnifierPosition({
       left: 0,
       top: 0,
       visible: false,
     });
-    setZoomLevel(14);
     setPickedPoint(null);
 
     setError("");
@@ -635,6 +594,30 @@ export default function ColorPicker() {
         className="hidden"
       />
 
+      <style>{`
+        .color-picker-image-viewport {
+          scrollbar-width: thin;
+          scrollbar-color: #9b6ce3 #eee7fb;
+          scroll-behavior: smooth;
+        }
+
+        .color-picker-image-viewport::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+
+        .color-picker-image-viewport::-webkit-scrollbar-track {
+          background: #eee7fb;
+          border-radius: 999px;
+        }
+
+        .color-picker-image-viewport::-webkit-scrollbar-thumb {
+          background: #9b6ce3;
+          border: 2px solid #eee7fb;
+          border-radius: 999px;
+        }
+      `}</style>
+
       {/* HEADER */}
       <section className="card p-6 sm:p-8">
         <div className="w-14 h-14 rounded-2xl bg-[#f4edff] flex items-center justify-center mb-4">
@@ -644,9 +627,8 @@ export default function ColorPicker() {
         <h1 className="text-3xl font-bold mb-3">Color Picker</h1>
 
         <p className="text-[var(--text-secondary)] max-w-2xl">
-          Pick colors directly from images with precision. Move over the image
-          to preview colors, then click to pick and instantly copy the HEX code
-          to your clipboard.
+          Pick precise HEX colors from images. Zoom in for pixel-level accuracy,
+          move over the image to preview, then click to save and copy the color.
         </p>
       </section>
 
@@ -701,58 +683,119 @@ export default function ColorPicker() {
 
             {/* CANVAS PREVIEW */}
             <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <ImageIcon size={20} className="text-[var(--primary)]" />
-                  <h2 className="text-xl font-semibold">Image Preview</h2>
-                </div>
+              <div className="flex flex-col gap-3 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon size={20} className="text-[var(--primary)]" />
+                    <h2 className="text-xl font-semibold">Image Preview</h2>
+                  </div>
 
-                {hasImage && (
-                  <button
-                    type="button"
-                    onClick={openFilePicker}
-                    className="btn-secondary inline-flex items-center justify-center gap-2"
-                  >
-                    <Upload size={16} />
-                    Upload New
-                  </button>
-                )}
+                  {hasImage && (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <div className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-2 py-1.5 shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => updateImageZoom(imageZoom - 0.1)}
+                          disabled={imageZoom <= 0.5}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition hover:bg-[#f4edff] hover:text-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-35"
+                          title="Zoom out"
+                          aria-label="Zoom out"
+                        >
+                          <ZoomOut size={16} />
+                        </button>
+
+                        <input
+                          type="range"
+                          min="50"
+                          max="400"
+                          step="10"
+                          value={Math.round(imageZoom * 100)}
+                          onChange={(event) => updateImageZoom(Number(event.target.value) / 100)}
+                          className="w-24 sm:w-32 accent-[var(--primary)]"
+                          aria-label="Image zoom"
+                        />
+
+                        <span className="w-12 text-center text-xs font-bold text-[var(--primary)]">
+                          {Math.round(imageZoom * 100)}%
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => updateImageZoom(imageZoom + 0.1)}
+                          disabled={imageZoom >= 4}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition hover:bg-[#f4edff] hover:text-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-35"
+                          title="Zoom in"
+                          aria-label="Zoom in"
+                        >
+                          <ZoomIn size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={resetImageZoom}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition hover:bg-[#f4edff] hover:text-[var(--primary)]"
+                          title="Fit image"
+                          aria-label="Fit image"
+                        >
+                          <Maximize2 size={16} />
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={openFilePicker}
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border)] bg-white text-[var(--text-secondary)] transition hover:border-[var(--primary)] hover:bg-[#f8f4ff] hover:text-[var(--primary)]"
+                        title="Upload new image"
+                        aria-label="Upload new image"
+                      >
+                        <Upload size={17} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="bg-gray-50 border border-[var(--border)] rounded-2xl min-h-[360px] flex items-center justify-center overflow-hidden p-4">
+              <div
+                ref={previewViewportRef}
+                className="color-picker-image-viewport bg-gray-50 border border-[var(--border)] rounded-2xl min-h-[360px] max-h-[620px] overflow-auto p-4"
+              >
                 {hasImage ? (
-                  <div className="relative max-w-full">
-                    <canvas
-                      ref={canvasRef}
-                      onPointerMove={handlePointerMove}
-                      onPointerLeave={handlePointerLeave}
-                      onPointerDown={handlePickColor}
-                      className="max-w-full max-h-[520px] rounded-xl border border-[var(--border)] shadow-sm cursor-crosshair bg-white touch-none"
-                    />
-
-                    {pickedPoint && (
-                      <div
-                        className="absolute w-4 h-4 rounded-full border-2 border-white shadow pointer-events-none"
-                        style={{
-                          left: `calc(${
-                            (pickedPoint.x / (canvasRef.current?.width || 1)) *
-                            100
-                          }% - 8px)`,
-                          top: `calc(${
-                            (pickedPoint.y / (canvasRef.current?.height || 1)) *
-                            100
-                          }% - 8px)`,
-                          backgroundColor: pickedColor,
-                        }}
+                  <div className="w-max min-w-full min-h-[328px] flex items-center justify-center">
+                    <div
+                      className="relative shrink-0 transition-[width,height] duration-200 ease-out"
+                      style={{
+                        width: `${Math.max(1, canvasDisplaySize.width * imageZoom)}px`,
+                        height: `${Math.max(1, canvasDisplaySize.height * imageZoom)}px`,
+                      }}
+                    >
+                      <canvas
+                        ref={canvasRef}
+                        onPointerMove={handlePointerMove}
+                        onPointerLeave={handlePointerLeave}
+                        onPointerDown={handlePickColor}
+                        className="block h-full w-full rounded-xl border border-[var(--border)] shadow-sm cursor-crosshair bg-white touch-none"
                       />
-                    )}
+
+                      {pickedPoint && (
+                        <div
+                          className="absolute w-4 h-4 rounded-full border-2 border-white shadow pointer-events-none"
+                          style={{
+                            left: `calc(${(pickedPoint.x / (canvasRef.current?.width || 1)) * 100}% - 8px)`,
+                            top: `calc(${(pickedPoint.y / (canvasRef.current?.height || 1)) * 100}% - 8px)`,
+                            backgroundColor: pickedColor,
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-center">
-                    <ImageIcon size={54} className="mx-auto mb-3 text-gray-300" />
-                    <p className="text-[var(--text-secondary)]">
-                      Upload an image to start picking colors.
-                    </p>
+                  <div className="min-h-[328px] flex items-center justify-center text-center">
+                    <div>
+                      <ImageIcon size={54} className="mx-auto mb-3 text-gray-300" />
+                      <p className="text-[var(--text-secondary)]">
+                        Upload an image to start picking colors.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -791,82 +834,6 @@ export default function ColorPicker() {
               )}
             </div>
 
-            {/* SETTINGS */}
-            {hasImage && (
-              <div className="bg-[#f8f4ff] border border-[var(--border)] rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <SlidersHorizontal
-                    size={20}
-                    className="text-[var(--primary)]"
-                  />
-                  <h3 className="font-semibold">Picker Settings</h3>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <label className="flex items-center justify-between gap-3 bg-white border border-[var(--border)] rounded-xl p-4 cursor-pointer">
-                    <span className="font-semibold text-sm">Show Magnifier</span>
-                    <input
-                      type="checkbox"
-                      checked={showMagnifier}
-                      onChange={(event) => setShowMagnifier(event.target.checked)}
-                      className="w-4 h-4 accent-[var(--primary)]"
-                    />
-                  </label>
-
-                  <div className="bg-white border border-[var(--border)] rounded-xl p-4">
-                    <div className="flex justify-between gap-3 mb-2">
-                      <span className="font-semibold text-sm">
-                        Magnifier Zoom
-                      </span>
-                      <span className="text-sm text-[var(--primary)] font-semibold">
-                        {zoomLevel}×
-                      </span>
-                    </div>
-
-                    <input
-                      type="range"
-                      min="8"
-                      max="24"
-                      step="1"
-                      value={zoomLevel}
-                      onChange={(event) => setZoomLevel(Number(event.target.value))}
-                      className="w-full accent-[var(--primary)]"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* PALETTE */}
-            {paletteColors.length > 0 && (
-              <div className="border border-[var(--border)] rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Palette size={20} className="text-[var(--primary)]" />
-                  <h3 className="font-semibold">Detected Image Palette</h3>
-                </div>
-
-                <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
-                  {paletteColors.map((paletteColor) => (
-                    <button
-                      key={paletteColor}
-                      type="button"
-                      onClick={() => handlePaletteColorClick(paletteColor)}
-                      className="group rounded-2xl border border-[var(--border)] bg-white p-2 hover:border-[var(--primary)] transition"
-                      title={`Select ${paletteColor}`}
-                    >
-                      <span
-                        className="block h-12 rounded-xl border border-black/10"
-                        style={{ backgroundColor: paletteColor }}
-                      />
-                      <span className="block text-[10px] mt-2 font-mono truncate">
-                        {paletteColor}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* SAVED COLORS */}
             {savedColors.length > 0 && (
               <div className="border border-[var(--border)] rounded-2xl p-5">
@@ -879,30 +846,58 @@ export default function ColorPicker() {
                   <button
                     type="button"
                     onClick={clearSavedColors}
-                    className="text-sm font-semibold text-red-600 inline-flex items-center gap-1"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-red-600 transition hover:bg-red-50"
+                    title="Clear saved colors"
+                    aria-label="Clear saved colors"
                   >
-                    <Trash2 size={15} />
-                    Clear
+                    <Trash2 size={16} />
                   </button>
                 </div>
 
                 <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {savedColors.map((savedColor) => (
-                    <button
-                      key={savedColor}
-                      type="button"
-                      onClick={() => handlePaletteColorClick(savedColor)}
-                      className="rounded-2xl border border-[var(--border)] bg-white p-2 hover:border-[var(--primary)] transition"
-                    >
-                      <span
-                        className="block h-12 rounded-xl border border-black/10"
-                        style={{ backgroundColor: savedColor }}
-                      />
-                      <span className="block text-[10px] mt-2 font-mono">
-                        {savedColor}
-                      </span>
-                    </button>
-                  ))}
+                  {savedColors.map((savedColor) => {
+                    const savedCopyKey = `saved:${savedColor}`;
+                    const savedCopied = copiedFormat === savedCopyKey;
+
+                    return (
+                      <div
+                        key={savedColor}
+                        className="group relative rounded-2xl border border-[var(--border)] bg-white transition duration-200 hover:-translate-y-0.5 hover:border-[var(--primary)] hover:shadow-md"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSavedColorSelect(savedColor)}
+                          className="w-full p-2 text-left"
+                          title={`Select ${savedColor}`}
+                        >
+                          <span
+                            className="block h-12 rounded-xl border border-black/10"
+                            style={{ backgroundColor: savedColor }}
+                          />
+                          <span className="block text-[10px] mt-2 font-mono text-center">
+                            {savedColor}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            copySavedColor(savedColor);
+                          }}
+                          className={`absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-white/70 bg-white/95 shadow transition duration-200 focus:opacity-100 ${
+                            savedCopied
+                              ? "opacity-100 text-green-600"
+                              : "opacity-0 text-[var(--text-secondary)] group-hover:opacity-100 hover:text-[var(--primary)]"
+                          }`}
+                          title={`Copy ${savedColor}`}
+                          aria-label={`Copy ${savedColor}`}
+                        >
+                          {savedCopied ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -955,138 +950,26 @@ export default function ColorPicker() {
                   <p className="text-3xl font-bold font-mono">
                     {pickedColor.toUpperCase()}
                   </p>
-                  <p className="text-sm mt-2 opacity-90">{pickedRgbText}</p>
-                  <p className="text-sm mt-1 opacity-90">
-                    {contrastSuggestion.label}
+                  <p className="text-sm mt-2 opacity-90">
+                    Copy the HEX value below when you are ready.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* COPY VALUES */}
+            {/* COPY VALUE */}
             <div className="border border-[var(--border)] rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Copy size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Color Codes</h3>
+                <h3 className="font-semibold">Color Code</h3>
               </div>
 
-              <div className="flex flex-col gap-3">
-                <ColorCodeRow
-                  label="HEX"
-                  value={pickedColor.toUpperCase()}
-                  copied={copiedFormat === "hex"}
-                  onCopy={() => copyText(pickedColor.toUpperCase(), "hex")}
-                />
-
-                <ColorCodeRow
-                  label="RGB"
-                  value={pickedRgbText}
-                  copied={copiedFormat === "rgb"}
-                  onCopy={() => copyText(pickedRgbText, "rgb")}
-                />
-
-                <ColorCodeRow
-                  label="RGBA"
-                  value={pickedRgbaText}
-                  copied={copiedFormat === "rgba"}
-                  onCopy={() => copyText(pickedRgbaText, "rgba")}
-                />
-
-                <ColorCodeRow
-                  label="HSL"
-                  value={pickedHslText}
-                  copied={copiedFormat === "hsl"}
-                  onCopy={() => copyText(pickedHslText, "hsl")}
-                />
-
-                <ColorCodeRow
-                  label="CMYK"
-                  value={pickedCmykText}
-                  copied={copiedFormat === "cmyk"}
-                  onCopy={() => copyText(pickedCmykText, "cmyk")}
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={copyAllFormats}
-                className="btn-primary w-full mt-4 inline-flex items-center justify-center gap-2"
-              >
-                {copiedFormat === "all" ? <Check size={18} /> : <Copy size={18} />}
-                {copiedFormat === "all" ? "Copied" : "Copy All Formats"}
-              </button>
-            </div>
-
-            {/* CHANNEL VALUES */}
-            <div className="grid grid-cols-4 gap-3">
-              <ChannelCard
-                label="R"
-                value={pickedRgb.r}
-                className="text-red-600 bg-red-50"
+              <ColorCodeRow
+                label="HEX"
+                value={pickedColor.toUpperCase()}
+                copied={copiedFormat === "hex"}
+                onCopy={() => copyText(pickedColor.toUpperCase(), "hex", "HEX")}
               />
-              <ChannelCard
-                label="G"
-                value={pickedRgb.g}
-                className="text-green-600 bg-green-50"
-              />
-              <ChannelCard
-                label="B"
-                value={pickedRgb.b}
-                className="text-blue-600 bg-blue-50"
-              />
-              <ChannelCard
-                label="A"
-                value={pickedRgb.a}
-                className="text-gray-700 bg-gray-50"
-              />
-            </div>
-
-            {/* NATIVE EYEDROPPER */}
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-              <div className="flex items-start gap-3">
-                <Eye size={20} className="text-blue-700 shrink-0 mt-0.5" />
-
-                <div>
-                  <h3 className="font-semibold text-blue-900 mb-2">
-                    Browser Eyedropper
-                  </h3>
-
-                  <p className="text-sm text-blue-800 mb-4">
-                    On supported browsers, you can pick and copy a color from
-                    anywhere on your screen.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={useNativeEyeDropper}
-                    className="btn-secondary inline-flex items-center justify-center gap-2 bg-white"
-                  >
-                    <Pipette size={16} />
-                    Use Browser Eyedropper
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* CONTRAST */}
-            <div className="border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <MousePointer2 size={20} className="text-[var(--primary)]" />
-                <h3 className="font-semibold">Readability Suggestion</h3>
-              </div>
-
-              <div
-                className="rounded-xl p-4 border border-[var(--border)]"
-                style={{
-                  backgroundColor: pickedColor,
-                  color: contrastSuggestion.color,
-                }}
-              >
-                <p className="font-bold">Sample Text Preview</p>
-                <p className="text-sm mt-1">
-                  Contrast ratio: {contrastSuggestion.ratio.toFixed(2)}
-                </p>
-              </div>
             </div>
 
             {/* ACTIONS */}
@@ -1119,9 +1002,7 @@ export default function ColorPicker() {
           className="fixed rounded-full border-4 border-white pointer-events-none z-50 shadow-2xl bg-white"
           style={{
             display:
-              showMagnifier && magnifierPosition.visible && hasImage
-                ? "block"
-                : "none",
+              magnifierPosition.visible && hasImage ? "block" : "none",
             left: magnifierPosition.left,
             top: magnifierPosition.top,
             width: MAGNIFIER_SIZE,
@@ -1156,17 +1037,6 @@ function ColorCodeRow({ label, value, copied, onCopy }) {
           {copied ? <Check size={16} /> : <Copy size={16} />}
         </button>
       </div>
-    </div>
-  );
-}
-
-function ChannelCard({ label, value, className }) {
-  return (
-    <div
-      className={`rounded-2xl border border-[var(--border)] p-4 text-center ${className}`}
-    >
-      <p className="text-xs font-semibold opacity-80">{label}</p>
-      <p className="text-xl font-bold">{value}</p>
     </div>
   );
 }
@@ -1231,45 +1101,6 @@ function drawMagnifierCrosshair(ctx, size) {
   ctx.restore();
 }
 
-function extractPalette(ctx, width, height) {
-  try {
-    const colorMap = new Map();
-    const sampleTarget = 7000;
-    const step = Math.max(
-      1,
-      Math.ceil(Math.sqrt((width * height) / sampleTarget))
-    );
-
-    for (let y = 0; y < height; y += step) {
-      for (let x = 0; x < width; x += step) {
-        const pixel = ctx.getImageData(x, y, 1, 1).data;
-        const alpha = pixel[3];
-
-        if (alpha < 40) continue;
-
-        const r = Math.round(pixel[0] / 32) * 32;
-        const g = Math.round(pixel[1] / 32) * 32;
-        const b = Math.round(pixel[2] / 32) * 32;
-
-        const safeR = clampNumber(r, 0, 255);
-        const safeG = clampNumber(g, 0, 255);
-        const safeB = clampNumber(b, 0, 255);
-
-        const hex = rgbToHex(safeR, safeG, safeB).toUpperCase();
-
-        colorMap.set(hex, (colorMap.get(hex) || 0) + 1);
-      }
-    }
-
-    return Array.from(colorMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([hex]) => hex)
-      .slice(0, 12);
-  } catch {
-    return [];
-  }
-}
-
 function rgbToHex(r, g, b) {
   return (
     "#" +
@@ -1300,71 +1131,6 @@ function hexToRgb(hex) {
   };
 }
 
-function rgbToHsl(r, g, b) {
-  const nextR = r / 255;
-  const nextG = g / 255;
-  const nextB = b / 255;
-
-  const max = Math.max(nextR, nextG, nextB);
-  const min = Math.min(nextR, nextG, nextB);
-
-  let h = 0;
-  let s = 0;
-  const l = (max + min) / 2;
-
-  if (max !== min) {
-    const d = max - min;
-
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-    switch (max) {
-      case nextR:
-        h = (nextG - nextB) / d + (nextG < nextB ? 6 : 0);
-        break;
-      case nextG:
-        h = (nextB - nextR) / d + 2;
-        break;
-      case nextB:
-        h = (nextR - nextG) / d + 4;
-        break;
-      default:
-        h = 0;
-    }
-
-    h /= 6;
-  }
-
-  return {
-    h: Math.round(h * 360),
-    s: Math.round(s * 100),
-    l: Math.round(l * 100),
-  };
-}
-
-function rgbToCmyk(r, g, b) {
-  const nextR = r / 255;
-  const nextG = g / 255;
-  const nextB = b / 255;
-
-  const k = 1 - Math.max(nextR, nextG, nextB);
-
-  if (k === 1) {
-    return {
-      c: 0,
-      m: 0,
-      y: 0,
-      k: 100,
-    };
-  }
-
-  return {
-    c: Math.round(((1 - nextR - k) / (1 - k)) * 100),
-    m: Math.round(((1 - nextG - k) / (1 - k)) * 100),
-    y: Math.round(((1 - nextB - k) / (1 - k)) * 100),
-    k: Math.round(k * 100),
-  };
-}
-
 function getReadableTextColor(r, g, b) {
   const luminance = getRelativeLuminance({ r, g, b });
 
@@ -1381,16 +1147,6 @@ function getRelativeLuminance({ r, g, b }) {
   });
 
   return 0.2126 * values[0] + 0.7152 * values[1] + 0.0722 * values[2];
-}
-
-function getContrastRatio(colorA, colorB) {
-  const luminanceA = getRelativeLuminance(colorA);
-  const luminanceB = getRelativeLuminance(colorB);
-
-  const lighter = Math.max(luminanceA, luminanceB);
-  const darker = Math.min(luminanceA, luminanceB);
-
-  return (lighter + 0.05) / (darker + 0.05);
 }
 
 function clampNumber(value, min, max) {
