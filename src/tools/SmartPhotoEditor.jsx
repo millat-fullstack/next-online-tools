@@ -253,6 +253,8 @@ export default function SmartPhotoEditor() {
   const toolbarRef = useRef(null);
   const quickBarRef = useRef(null);
   const optionsPanelRef = useRef(null);
+  const editorFrameRef = useRef(null);
+  const workspaceRef = useRef(null);
   const editorClipboardRef = useRef(null);
   const spacePressedRef = useRef(false);
   const colorPreviewThrottleRef = useRef(0);
@@ -307,6 +309,20 @@ export default function SmartPhotoEditor() {
   const [exactShapeSize, setExactShapeSize] = useState({ width: 300, height: 180 });
   const [exactShapeUnit, setExactShapeUnit] = useState("px");
   const [topBarDropdown, setTopBarDropdown] = useState("");
+  const [topBarPopupPosition, setTopBarPopupPosition] = useState({
+    top: 96,
+    left: 96,
+    width: 320,
+    maxHeight: 420,
+  });
+  const [hoveredResizeHandle, setHoveredResizeHandle] = useState("");
+  const [resizeHint, setResizeHint] = useState({
+    visible: false,
+    left: 0,
+    top: 0,
+    handle: "",
+    label: "",
+  });
 
   const [objects, setObjects] = useState([]);
   const [draftObject, setDraftObject] = useState(null);
@@ -550,6 +566,11 @@ export default function SmartPhotoEditor() {
     }
   }, [selectedObjectId]);
 
+  useEffect(() => {
+    setHoveredResizeHandle("");
+    setResizeHint((current) => ({ ...current, visible: false }));
+  }, [selectedObjectId, selectedObjectIds, activeTool, showOriginal]);
+
   const previewWidth = useMemo(() => {
     if (!canvasSize.width) return 0;
 
@@ -563,6 +584,17 @@ export default function SmartPhotoEditor() {
     if (!canvasSize.width || !previewWidth) return 0;
     return (canvasSize.height / canvasSize.width) * previewWidth;
   }, [canvasSize, previewWidth]);
+
+  const selectionActionStyle = useMemo(() => {
+    return getFloatingActionPosition({
+      box: selectionActionBox,
+      canvasSize,
+      previewWidth,
+      previewHeight,
+      popupWidth: 178,
+      popupHeight: 48,
+    });
+  }, [selectionActionBox, canvasSize, previewWidth, previewHeight]);
 
   const settingsMode = activePanel || activeTool;
 
@@ -2121,6 +2153,69 @@ export default function SmartPhotoEditor() {
   }
 
   function handleSelectPointerDown(event, point) {
+    const currentIds = selectedObjectIds.length
+      ? selectedObjectIds
+      : selectedObjectId
+        ? [selectedObjectId]
+        : [];
+    const currentItems = objects.filter((item) => currentIds.includes(item.id));
+    const currentBox = currentItems.length > 1
+      ? getGroupBox(currentItems)
+      : currentItems[0]
+        ? getObjectBox(currentItems[0])
+        : null;
+    const currentHandle = getResizeHandleAtBox(
+      point,
+      currentBox,
+      previewZoom,
+      canvasSize
+    );
+
+    if (currentHandle && currentItems.length) {
+      if (activeSelectionHasLockedItem(currentIds)) {
+        setErrorMessage("This layer is locked. Unlock it before resizing.");
+        return;
+      }
+
+      const activeItem = currentItems[currentItems.length - 1];
+
+      pushHistory();
+      setSelectedObjectId(activeItem.id);
+      setSelectedObjectIds(currentIds);
+      setHoveredResizeHandle(currentHandle);
+      setResizeHint({
+        visible: true,
+        ...getResizeHintPosition(event.clientX, event.clientY, editorFrameRef.current),
+        handle: currentHandle,
+        label: `${getResizeArrow(currentHandle)} Drag to resize`,
+      });
+
+      pointerRef.current = {
+        active: true,
+        mode: currentItems.length > 1 ? "resize-group" : "resize-object",
+        startPoint: point,
+        lastPoint: point,
+        selectedStart: currentItems.length > 1
+          ? currentItems.map(cloneObject)
+          : cloneObject(activeItem),
+        dragStartBox: currentBox,
+        resizeHandle: currentHandle,
+        selectedIds: currentIds,
+      };
+
+      setGuideInfo(
+        buildGuideInfo(
+          currentBox,
+          canvasSize,
+          currentItems.length > 1
+            ? "Resize selected items • Shift keeps ratio • Alt scales from center"
+            : "Resize item • Shift keeps ratio • Alt scales from center"
+        )
+      );
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
     const selected = getObjectAtPoint(point, objects);
 
     if (!selected) {
@@ -2780,7 +2875,38 @@ export default function SmartPhotoEditor() {
       setBrushPreviewPoint(point);
     }
 
-    if (!pointerRef.current.active) return;
+    if (!pointerRef.current.active) {
+      if (
+        activeTool === "select" &&
+        point &&
+        selectedGroupBox &&
+        !selectedLocked
+      ) {
+        updateResizeHover(event, point);
+      } else {
+        clearResizeHover();
+      }
+      return;
+    }
+
+    if (["resize-object", "resize-group"].includes(pointerRef.current.mode)) {
+      const activeHandle = pointerRef.current.resizeHandle || hoveredResizeHandle;
+      const currentBox = selectedObjects.length > 1
+        ? getGroupBox(selectedObjects)
+        : selectedObject
+          ? getObjectBox(selectedObject)
+          : pointerRef.current.dragStartBox;
+      const dimensions = currentBox
+        ? `${Math.round(currentBox.w)} × ${Math.round(currentBox.h)} px`
+        : "Drag to resize";
+
+      setResizeHint({
+        visible: true,
+        ...getResizeHintPosition(event.clientX, event.clientY, editorFrameRef.current),
+        handle: activeHandle,
+        label: `${getResizeArrow(activeHandle)} ${dimensions}`,
+      });
+    }
 
     if (pointerRef.current.mode === "pan-artboard") {
       event.preventDefault();
@@ -3517,6 +3643,8 @@ export default function SmartPhotoEditor() {
         "Clone pasted. Same clone source is saved. Click anywhere to paste it again, or choose New Clone Selection."
       );
     }
+
+    setResizeHint((current) => ({ ...current, visible: false }));
 
     pointerRef.current = {
       active: false,
@@ -4830,6 +4958,9 @@ export default function SmartPhotoEditor() {
     setExactShapeSize({ width: 300, height: 180 });
     setExactShapeUnit("px");
     setTopBarDropdown("");
+    setHoveredResizeHandle("");
+    setResizeHint({ visible: false, left: 0, top: 0, handle: "", label: "" });
+    setTopBarPopupPosition({ top: 96, left: 96, width: 320, maxHeight: 420 });
     resetMainFileInput();
     resetAddImageInput();
   }
@@ -4861,6 +4992,38 @@ export default function SmartPhotoEditor() {
     }
   }
 
+  function clearResizeHover() {
+    if (hoveredResizeHandle) setHoveredResizeHandle("");
+    if (resizeHint.visible) {
+      setResizeHint((current) => ({ ...current, visible: false }));
+    }
+  }
+
+  function updateResizeHover(event, point) {
+    const handle = getResizeHandleAtBox(
+      point,
+      selectedGroupBox,
+      previewZoom,
+      canvasSize
+    );
+
+    if (!handle) {
+      clearResizeHover();
+      return;
+    }
+
+    if (handle !== hoveredResizeHandle) {
+      setHoveredResizeHandle(handle);
+    }
+
+    setResizeHint({
+      visible: true,
+      ...getResizeHintPosition(event.clientX, event.clientY, editorFrameRef.current),
+      handle,
+      label: `${getResizeArrow(handle)} ${getResizeLabel(handle)}`,
+    });
+  }
+
   function updatePopupPositionFromEvent(event) {
     const buttonRect = event?.currentTarget?.getBoundingClientRect?.();
 
@@ -4873,30 +5036,106 @@ export default function SmartPhotoEditor() {
 
     const viewportWidth = window.innerWidth || 1280;
     const viewportHeight = window.innerHeight || 800;
-    const panelWidth = Math.min(440, Math.max(280, viewportWidth - 28));
-    const sidebarSafeLeft = getLeftNavigationSafeEdge(viewportHeight) + 12;
-    const safeTop = viewportWidth < 768 ? 72 : 96;
-    const safeLeft = viewportWidth < 768 ? 12 : Math.max(84, sidebarSafeLeft);
-    const desiredHeight = Math.min(560, viewportHeight - safeTop - 20);
-    const rawTop = buttonRect.top - 12;
-    const nextTop = clampNumber(
-      rawTop,
-      safeTop,
-      Math.max(safeTop, viewportHeight - desiredHeight - 12)
+    const editorRect = editorFrameRef.current?.getBoundingClientRect?.();
+    const panelWidth = Math.min(440, Math.max(280, viewportWidth - 24));
+    const safeLeft = Math.max(12, editorRect?.left ? editorRect.left + 12 : 12);
+    const safeRight = Math.min(
+      viewportWidth - 12,
+      editorRect?.right ? editorRect.right - 12 : viewportWidth - 12
     );
-    const rawLeft = viewportWidth < 768
-      ? 12
-      : Math.max(buttonRect.right + 18, safeLeft);
-
-    const nextLeft = clampNumber(
-      rawLeft,
-      12,
-      Math.max(12, viewportWidth - panelWidth - 12)
+    const safeTop = Math.max(12, editorRect?.top ? editorRect.top + 12 : 12);
+    const safeBottom = Math.min(
+      viewportHeight - 12,
+      editorRect?.bottom ? editorRect.bottom - 12 : viewportHeight - 12
+    );
+    const availableWidth = Math.max(180, safeRight - safeLeft);
+    const finalPanelWidth = Math.min(panelWidth, availableWidth);
+    const preferredRight = buttonRect.right + 14;
+    const preferredLeft = buttonRect.left - finalPanelWidth - 14;
+    const nextLeft = preferredRight + finalPanelWidth <= safeRight
+      ? preferredRight
+      : clampNumber(preferredLeft, safeLeft, Math.max(safeLeft, safeRight - finalPanelWidth));
+    const nextTop = clampNumber(
+      buttonRect.top - 10,
+      safeTop,
+      Math.max(safeTop, safeBottom - 300)
     );
 
     setPopupTop(nextTop);
     setPopupLeft(nextLeft);
-    setPopupMaxHeight(Math.max(260, viewportHeight - nextTop - 16));
+    setPopupMaxHeight(Math.max(260, safeBottom - nextTop));
+  }
+
+  function toggleTopBarDropdownFromEvent(
+    name,
+    event,
+    preferredWidth = 300,
+    estimatedHeight = 340
+  ) {
+    if (topBarDropdown === name) {
+      setTopBarDropdown("");
+      return;
+    }
+
+    const buttonRect = event?.currentTarget?.getBoundingClientRect?.();
+
+    if (!buttonRect || typeof window === "undefined") {
+      setTopBarPopupPosition({
+        top: 96,
+        left: 12,
+        width: Math.min(preferredWidth, 320),
+        maxHeight: 420,
+      });
+      setTopBarDropdown(name);
+      return;
+    }
+
+    const viewportWidth = window.innerWidth || 1280;
+    const viewportHeight = window.innerHeight || 800;
+    const editorRect = editorFrameRef.current?.getBoundingClientRect?.();
+    const safeLeft = Math.max(12, editorRect?.left ? editorRect.left + 12 : 12);
+    const safeRight = Math.min(
+      viewportWidth - 12,
+      editorRect?.right ? editorRect.right - 12 : viewportWidth - 12
+    );
+    const safeTop = Math.max(12, editorRect?.top ? editorRect.top + 12 : 12);
+    const safeBottom = Math.min(
+      viewportHeight - 12,
+      editorRect?.bottom ? editorRect.bottom - 12 : viewportHeight - 12
+    );
+    const width = Math.min(
+      preferredWidth,
+      Math.max(180, safeRight - safeLeft)
+    );
+    const preferredLeft = name === "gradient"
+      ? buttonRect.left
+      : buttonRect.right - width;
+    const left = clampNumber(
+      preferredLeft,
+      safeLeft,
+      Math.max(safeLeft, safeRight - width)
+    );
+    const roomBelow = safeBottom - buttonRect.bottom;
+    const shouldOpenAbove = roomBelow < Math.min(estimatedHeight, 300);
+    const top = shouldOpenAbove
+      ? clampNumber(
+          buttonRect.top - estimatedHeight - 10,
+          safeTop,
+          Math.max(safeTop, safeBottom - 220)
+        )
+      : clampNumber(
+          buttonRect.bottom + 8,
+          safeTop,
+          Math.max(safeTop, safeBottom - 220)
+        );
+
+    setTopBarPopupPosition({
+      top,
+      left,
+      width,
+      maxHeight: Math.max(180, safeBottom - top),
+    });
+    setTopBarDropdown(name);
   }
 
   function activateTool(toolId, event = null) {
@@ -5179,6 +5418,35 @@ export default function SmartPhotoEditor() {
         .smart-photo-editor-drop-overlay {
           animation: smartPhotoDropPulse 900ms ease-in-out infinite alternate;
         }
+        .smart-photo-editor-frame {
+          isolation: isolate;
+          border-radius: 24px;
+        }
+        .smart-photo-editor-workspace {
+          contain: layout paint;
+          overscroll-behavior: contain;
+          background: #5a5a5a;
+        }
+        .smart-photo-editor-artboard-shell {
+          box-shadow: 0 24px 60px rgba(0,0,0,0.34);
+          transform-origin: center center;
+        }
+        .smart-photo-editor-artboard-shell canvas {
+          display: block;
+        }
+        .smart-photo-editor-resize-hint {
+          pointer-events: none;
+          transform: translate(12px, 12px);
+          animation: smartPhotoResizeHintIn 100ms ease-out;
+          white-space: nowrap;
+        }
+        .smart-photo-editor-popover {
+          overscroll-behavior: contain;
+        }
+        @keyframes smartPhotoResizeHintIn {
+          from { opacity: 0; transform: translate(12px, 16px) scale(.96); }
+          to { opacity: 1; transform: translate(12px, 12px) scale(1); }
+        }
         @keyframes smartPhotoPopoverIn {
           from { opacity: 0; transform: translateY(-6px) scale(0.98); }
           to { opacity: 1; transform: translateY(0) scale(1); }
@@ -5202,7 +5470,7 @@ export default function SmartPhotoEditor() {
         </p>
       </section>
 
-      <section className="card overflow-hidden">
+      <section ref={editorFrameRef} className="card overflow-hidden smart-photo-editor-frame">
         {!hasImage ? (
           <div className="p-4 sm:p-5">
             <div className="grid lg:grid-cols-[1fr_1.2fr] gap-5">
@@ -5613,7 +5881,8 @@ export default function SmartPhotoEditor() {
                     top: `${popupTop}px`,
                     left: `${popupLeft}px`,
                     maxHeight: `${popupMaxHeight}px`,
-                    zIndex: 10000,
+                    maxWidth: "calc(100vw - 24px)",
+                    zIndex: 12000,
                   }}
                 >
                   <div className="mb-4 flex items-start justify-between gap-3 border-b border-[var(--border)] pb-3">
@@ -7151,7 +7420,7 @@ export default function SmartPhotoEditor() {
                     <div className="relative shrink-0">
                       <button
                         type="button"
-                        onClick={() => setTopBarDropdown((current) => current === "gradient" ? "" : "gradient")}
+                        onClick={(event) => toggleTopBarDropdownFromEvent("gradient", event, 320, 390)}
                         className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition ${
                           topBarDropdown === "gradient"
                             ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
@@ -7164,7 +7433,8 @@ export default function SmartPhotoEditor() {
                       </button>
 
                       {topBarDropdown === "gradient" && (
-                        <div className="smart-photo-editor-popover absolute left-0 top-12 z-[220] w-[320px] rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl">
+                        <div className="smart-photo-editor-popover fixed z-[12000] overflow-auto rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl"
+                          style={topBarPopupPosition}>
                           <div className="mb-3 flex items-start justify-between gap-3">
                             <div>
                               <p className="font-bold">Gradient</p>
@@ -7304,7 +7574,7 @@ export default function SmartPhotoEditor() {
                       <div className="relative shrink-0">
                         <button
                           type="button"
-                          onClick={() => setTopBarDropdown((current) => current === "align" ? "" : "align")}
+                          onClick={(event) => toggleTopBarDropdownFromEvent("align", event, 270, 300)}
                           className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition ${
                             topBarDropdown === "align"
                               ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
@@ -7317,7 +7587,8 @@ export default function SmartPhotoEditor() {
                         </button>
 
                         {topBarDropdown === "align" && (
-                          <div className="smart-photo-editor-popover absolute right-0 top-12 z-[240] w-[270px] rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl">
+                          <div className="smart-photo-editor-popover fixed z-[12000] overflow-auto rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl"
+                            style={topBarPopupPosition}>
                             <div className="mb-3 flex items-start justify-between gap-3">
                               <div>
                                 <p className="font-bold">Align layers</p>
@@ -7378,7 +7649,7 @@ export default function SmartPhotoEditor() {
                         <div className="relative">
                           <button
                             type="button"
-                            onClick={() => setTopBarDropdown((current) => current === "arrange" ? "" : "arrange")}
+                            onClick={(event) => toggleTopBarDropdownFromEvent("arrange", event, 250, 300)}
                             className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition ${
                               topBarDropdown === "arrange"
                                 ? "border-[var(--primary)] bg-[#f4edff] text-[var(--primary)]"
@@ -7391,7 +7662,8 @@ export default function SmartPhotoEditor() {
                           </button>
 
                           {topBarDropdown === "arrange" && (
-                            <div className="smart-photo-editor-popover absolute right-0 top-12 z-[240] w-[250px] rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl">
+                            <div className="smart-photo-editor-popover fixed z-[12000] overflow-auto rounded-2xl border border-[var(--border)] bg-white p-3 shadow-2xl"
+                              style={topBarPopupPosition}>
                               <div className="mb-3 flex items-start justify-between gap-3">
                                 <div>
                                   <p className="font-bold">Layer order</p>
@@ -7459,8 +7731,9 @@ export default function SmartPhotoEditor() {
                 </div>
               )}
 
-              <div className="relative flex-1 min-h-[560px]">
+              <div className="relative h-[min(720px,78vh)] min-h-[560px] overflow-hidden bg-[#5a5a5a]">
                 <div
+                  ref={workspaceRef}
                   onPointerDown={handleArtboardPointerDown}
                   onDrop={handleDrop}
                   onDragEnter={handleDragEnter}
@@ -7468,7 +7741,7 @@ export default function SmartPhotoEditor() {
                   onDragLeave={handleDragLeave}
                   onWheel={handleWorkspaceWheel}
                   onContextMenu={(event) => event.preventDefault()}
-                  className={`smart-photo-editor-workspace absolute inset-0 overflow-auto p-4 sm:p-8 ${
+                  className={`smart-photo-editor-workspace absolute inset-0 overflow-auto bg-[#5a5a5a] p-6 sm:p-10 ${
                     isDraggingFile ? "ring-2 ring-[var(--primary)]" : ""
                   }`}
                 >
@@ -7485,12 +7758,12 @@ export default function SmartPhotoEditor() {
                   <div
                     className="flex items-center justify-center"
                     style={{
-                      minWidth: `${Math.max(previewWidth + 180, 640)}px`,
-                      minHeight: `${Math.max(previewHeight + 180, 520)}px`,
+                      minWidth: `${Math.max(previewWidth + 220, 720)}px`,
+                      minHeight: `${Math.max(previewHeight + 220, 620)}px`,
                     }}
                   >
                     <div
-                      className="relative"
+                      className="relative smart-photo-editor-artboard-shell"
                       style={{
                         transform: `translate(${artboardPan.x}px, ${artboardPan.y}px)`,
                         transition: pointerRef.current.mode === "pan-artboard" ? "none" : "transform 120ms ease",
@@ -7502,9 +7775,12 @@ export default function SmartPhotoEditor() {
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
                     onPointerCancel={handlePointerUp}
-                    onPointerLeave={() => setBrushPreviewPoint(null)}
+                    onPointerLeave={() => {
+                      setBrushPreviewPoint(null);
+                      clearResizeHover();
+                    }}
                     onContextMenu={(event) => event.preventDefault()}
-                    className={`touch-none border border-[var(--border)] shadow-xl ${
+                    className={`touch-none border border-white/50 shadow-2xl ${
                       transparentArtboard ? "smart-photo-editor-transparent-canvas" : "bg-white"
                     }`}
                     style={{
@@ -7517,6 +7793,8 @@ export default function SmartPhotoEditor() {
                             ? "grab"
                             : activeTool === "hand"
                             ? "grab"
+                            : activeTool === "select" && hoveredResizeHandle
+                            ? getResizeCursor(hoveredResizeHandle)
                             : activeTool === "select"
                             ? "default"
                             : activeTool === "text"
@@ -7528,8 +7806,8 @@ export default function SmartPhotoEditor() {
                       <div
                         className="absolute z-30 flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/95 px-2 py-2 shadow-xl backdrop-blur"
                         style={{
-                          left: `${clampNumber((selectionActionBox.x / canvasSize.width) * previewWidth, 0, Math.max(0, previewWidth - 160))}px`,
-                          top: `${Math.max(0, (selectionActionBox.y / canvasSize.width) * previewWidth - 46)}px`,
+                          left: `${selectionActionStyle.left}px`,
+                          top: `${selectionActionStyle.top}px`,
                         }}
                       >
                         <button
@@ -7549,6 +7827,18 @@ export default function SmartPhotoEditor() {
                         >
                           Hide
                         </button>
+                      </div>
+                    )}
+
+                    {resizeHint.visible && (
+                      <div
+                        className="smart-photo-editor-resize-hint fixed z-[13000] inline-flex items-center gap-2 rounded-lg border border-white/15 bg-[#111827]/95 px-2.5 py-1.5 text-xs font-bold text-white shadow-2xl backdrop-blur"
+                        style={{ left: resizeHint.left, top: resizeHint.top }}
+                      >
+                        <span className="text-sm leading-none">
+                          {getResizeArrow(resizeHint.handle)}
+                        </span>
+                        <span>{resizeHint.label.replace(/^\S+\s*/, "")}</span>
                       </div>
                     )}
                     </div>
@@ -7576,7 +7866,7 @@ export default function SmartPhotoEditor() {
                   </div>
                 )}
 
-                <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-white/95 px-2 py-2 shadow-xl backdrop-blur">
+                <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-2xl border border-[#eadfff] bg-white/95 px-2 py-2 shadow-2xl backdrop-blur">
                   <button
                     type="button"
                     onClick={() => setPreviewZoom((current) => clampNumber(current - 0.1, 0.1, 8))}
@@ -8584,27 +8874,34 @@ function drawSelectionBox(ctx, object) {
 
   const canvasWidth = ctx.canvas?.width || box.x + box.w;
   const canvasHeight = ctx.canvas?.height || box.y + box.h;
-  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.075, 24, 48);
+  const handleSize = clampNumber(
+    Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.035,
+    18,
+    30
+  );
   const visibleBox = getCanvasVisibleBox(box, canvasWidth, canvasHeight);
 
   ctx.save();
-  ctx.strokeStyle = "#9b6ce3";
-  ctx.lineWidth = 4;
-  ctx.setLineDash([9, 6]);
+  ctx.strokeStyle = "#2f80ed";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([]);
   ctx.strokeRect(box.x, box.y, box.w, box.h);
 
   if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
-    ctx.strokeStyle = "rgba(155,108,227,0.68)";
+    ctx.strokeStyle = "rgba(47,128,237,0.78)";
     ctx.strokeRect(visibleBox.x, visibleBox.y, visibleBox.w, visibleBox.h);
-    ctx.strokeStyle = "#9b6ce3";
   }
 
-  ctx.setLineDash([]);
-  ctx.fillStyle = "#ffffff";
-  ctx.strokeStyle = "#9b6ce3";
-
-  const handles = getVisibleBoxHandles(box, handleSize, canvasWidth, canvasHeight);
-  handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize, handle.id));
+  const handles = getVisibleBoxHandles(
+    box,
+    handleSize,
+    canvasWidth,
+    canvasHeight
+  );
+  handles.forEach((handle) =>
+    drawHandle(ctx, handle.x, handle.y, handleSize, handle.id)
+  );
+  drawSelectionAnchorDots(ctx, visibleBox || box, handleSize);
 
   if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
     drawVisibleEdgeHandles(ctx, visibleBox, handleSize);
@@ -8620,35 +8917,39 @@ function drawGroupSelectionBox(ctx, objects) {
 
   const canvasWidth = ctx.canvas?.width || box.x + box.w;
   const canvasHeight = ctx.canvas?.height || box.y + box.h;
-  const handleSize = clampNumber(Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.07, 24, 50);
+  const handleSize = clampNumber(
+    Math.min(Math.abs(box.w), Math.abs(box.h)) * 0.035,
+    18,
+    30
+  );
   const visibleBox = getCanvasVisibleBox(box, canvasWidth, canvasHeight);
 
   ctx.save();
-  ctx.strokeStyle = "#9b6ce3";
-  ctx.lineWidth = 4;
-  ctx.setLineDash([12, 7]);
+  ctx.strokeStyle = "#2f80ed";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([]);
   ctx.strokeRect(box.x, box.y, box.w, box.h);
 
   if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
-    ctx.strokeStyle = "rgba(155,108,227,0.68)";
+    ctx.strokeStyle = "rgba(47,128,237,0.78)";
     ctx.strokeRect(visibleBox.x, visibleBox.y, visibleBox.w, visibleBox.h);
-    ctx.strokeStyle = "#9b6ce3";
   }
 
-  ctx.setLineDash([]);
-  ctx.fillStyle = "#ffffff";
-  ctx.strokeStyle = "#9b6ce3";
-
-  const handles = getVisibleBoxHandles(box, handleSize, canvasWidth, canvasHeight);
-  handles.forEach((handle) => drawHandle(ctx, handle.x, handle.y, handleSize, handle.id));
+  const handles = getVisibleBoxHandles(
+    box,
+    handleSize,
+    canvasWidth,
+    canvasHeight
+  );
+  handles.forEach((handle) =>
+    drawHandle(ctx, handle.x, handle.y, handleSize, handle.id)
+  );
+  drawSelectionAnchorDots(ctx, visibleBox || box, handleSize);
 
   if (visibleBox && boxIsPartlyOutsideCanvas(box, canvasWidth, canvasHeight)) {
     drawVisibleEdgeHandles(ctx, visibleBox, handleSize);
   }
 
-  ctx.fillStyle = "#111827";
-  ctx.font = "700 15px Arial, sans-serif";
-  ctx.fillText(`${objects.length} items selected`, clampNumber(visibleBox?.x ?? box.x, 8, canvasWidth - 150), clampNumber((visibleBox?.y ?? box.y) - 10, 18, canvasHeight - 8));
   ctx.restore();
 }
 
@@ -8691,39 +8992,57 @@ function drawVisibleEdgeHandles(ctx, box, size) {
 }
 
 function drawHandle(ctx, x, y, size, id = "") {
-  const isSide = ["n", "e", "s", "w"].includes(id);
-  const width = isSide && (id === "n" || id === "s") ? size * 1.55 : size;
-  const height = isSide && (id === "e" || id === "w") ? size * 1.55 : size;
-  const radius = Math.min(10, Math.min(width, height) * 0.28);
+  const isHorizontalSide = id === "n" || id === "s";
+  const isVerticalSide = id === "e" || id === "w";
+  const width = isHorizontalSide ? size * 0.88 : size;
+  const height = isVerticalSide ? size * 0.88 : size;
+  const radius = Math.max(1.5, Math.min(3.5, size * 0.12));
 
   ctx.save();
-  ctx.shadowColor = "rgba(124,58,237,0.34)";
-  ctx.shadowBlur = Math.max(6, size * 0.22);
-  ctx.lineWidth = Math.max(4, size * 0.16);
+  ctx.shadowColor = "rgba(15,23,42,0.2)";
+  ctx.shadowBlur = Math.max(2, size * 0.14);
+  ctx.lineWidth = Math.max(2, size * 0.1);
   ctx.fillStyle = "#ffffff";
-  ctx.strokeStyle = "#8b5cf6";
+  ctx.strokeStyle = "#2f80ed";
 
-  roundedRectPath(ctx, x - width / 2, y - height / 2, width, height, radius);
+  roundedRectPath(
+    ctx,
+    x - width / 2,
+    y - height / 2,
+    width,
+    height,
+    radius
+  );
   ctx.fill();
   ctx.stroke();
+  ctx.restore();
+}
 
-  ctx.fillStyle = "#8b5cf6";
-  ctx.font = `900 ${Math.max(12, Math.round(size * 0.52))}px Arial, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
+function drawSelectionAnchorDots(ctx, box, handleSize) {
+  if (!box || box.w < 1 || box.h < 1) return;
 
-  const arrows = {
-    n: "↕",
-    s: "↕",
-    e: "↔",
-    w: "↔",
-    nw: "↖",
-    ne: "↗",
-    sw: "↙",
-    se: "↘",
-  };
+  const insetX = Math.min(Math.max(handleSize * 1.1, box.w * 0.045), box.w * 0.2);
+  const insetY = Math.min(Math.max(handleSize * 1.1, box.h * 0.045), box.h * 0.2);
+  const radius = clampNumber(handleSize * 0.18, 3, 6);
+  const points = [
+    { x: box.x + insetX, y: box.y + insetY },
+    { x: box.x + box.w - insetX, y: box.y + insetY },
+    { x: box.x + insetX, y: box.y + box.h - insetY },
+    { x: box.x + box.w - insetX, y: box.y + box.h - insetY },
+  ];
 
-  ctx.fillText(arrows[id] || "", x, y + 1);
+  ctx.save();
+  points.forEach((point) => {
+    ctx.beginPath();
+    ctx.fillStyle = "#2f80ed";
+    ctx.arc(point.x, point.y, radius + 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.fillStyle = "#ffffff";
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
   ctx.restore();
 }
 
@@ -9184,6 +9503,85 @@ function scaleBox(box, scaleX, scaleY) {
 
 function isShapeObjectType(type) {
   return ["rectangle", "triangle", "circle", "star", "hexagon", "arrow"].includes(type);
+}
+
+function getResizeCursor(handle) {
+  if (["n", "s"].includes(handle)) return "ns-resize";
+  if (["e", "w"].includes(handle)) return "ew-resize";
+  if (["nw", "se"].includes(handle)) return "nwse-resize";
+  if (["ne", "sw"].includes(handle)) return "nesw-resize";
+  return "default";
+}
+
+function getResizeArrow(handle) {
+  if (["n", "s"].includes(handle)) return "↕";
+  if (["e", "w"].includes(handle)) return "↔";
+  if (["nw", "se"].includes(handle)) return "↖↘";
+  if (["ne", "sw"].includes(handle)) return "↗↙";
+  return "↔";
+}
+
+function getResizeLabel(handle) {
+  if (["n", "s"].includes(handle)) return "Resize height";
+  if (["e", "w"].includes(handle)) return "Resize width";
+  return "Resize width and height";
+}
+
+function getResizeHintPosition(clientX, clientY, editorElement = null) {
+  if (typeof window === "undefined") {
+    return { left: clientX || 0, top: clientY || 0 };
+  }
+
+  const editorRect = editorElement?.getBoundingClientRect?.();
+  const safeLeft = Math.max(8, editorRect?.left ? editorRect.left + 8 : 8);
+  const safeRight = Math.min(
+    window.innerWidth - 8,
+    editorRect?.right ? editorRect.right - 8 : window.innerWidth - 8
+  );
+  const safeTop = Math.max(8, editorRect?.top ? editorRect.top + 8 : 8);
+  const safeBottom = Math.min(
+    window.innerHeight - 8,
+    editorRect?.bottom ? editorRect.bottom - 8 : window.innerHeight - 8
+  );
+
+  return {
+    left: clampNumber(clientX || safeLeft, safeLeft, Math.max(safeLeft, safeRight - 170)),
+    top: clampNumber(clientY || safeTop, safeTop, Math.max(safeTop, safeBottom - 44)),
+  };
+}
+
+function getFloatingActionPosition({
+  box,
+  canvasSize,
+  previewWidth,
+  previewHeight,
+  popupWidth = 178,
+  popupHeight = 48,
+}) {
+  if (!box || !canvasSize?.width || !canvasSize?.height) {
+    return { left: 0, top: 0 };
+  }
+
+  const scaleX = previewWidth / canvasSize.width;
+  const scaleY = previewHeight / canvasSize.height;
+  const objectLeft = box.x * scaleX;
+  const objectTop = box.y * scaleY;
+  const objectBottom = (box.y + box.h) * scaleY;
+  const left = clampNumber(
+    objectLeft,
+    0,
+    Math.max(0, previewWidth - popupWidth)
+  );
+  const hasRoomAbove = objectTop >= popupHeight + 8;
+  const top = hasRoomAbove
+    ? objectTop - popupHeight - 8
+    : clampNumber(
+        objectBottom + 8,
+        0,
+        Math.max(0, previewHeight - popupHeight)
+      );
+
+  return { left, top };
 }
 
 function getResizeHandleAtPoint(point, object, zoom = 1, canvasSize = null) {
