@@ -42,7 +42,7 @@ export const toolData = {
   path: "/tool/pdf-page-size-checker",
   category: "PDF Tools",
   description:
-    "Check every PDF page size in pixels, inches, centimetres, millimetres, and points. Detect A4, Letter, mixed page sizes, and orientation privately in your browser.",
+    "Check every PDF page size in pixels, inches, centimetres, millimetres, and points. Check A4, Letter, mixed page sizes, and orientation privately in your browser.",
   metaTitle:
     "PDF Page Size Checker – Pixels, Inches, CM, MM & Points",
   metaDescription:

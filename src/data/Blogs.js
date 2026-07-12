@@ -1,5 +1,41 @@
 export const blogs = [
   {
+    "title": "Best 10 Free Online Tools for Digital Marketing",
+    "slug": "best-10-free-online-tools-for-digital-marketing",
+    "date": "2026-06-10",
+    "category": "SEO Tools",
+    "excerpt": "Explore the best free online tools for digital marketing, including tools for analytics, SEO, content, design, keyword research, website speed, and data organization.",
+    "image": "/images/best-free-online-tools-digital-marketing.png",
+    "pageFile": "best-10-free-online-tools-for-digital-marketing"
+  },
+  {
+    "title": "Best 5 Free Image Color Picker for Graphic Designers",
+    "slug": "best-5-free-image-color-picker-for-graphic-designers",
+    "date": "2026-06-10",
+    "category": "Color Tools",
+    "excerpt": "Discover the best free image color picker tools for graphic designers and learn how to pick HEX and RGB colors from images for branding, UI design, and social media graphics.",
+    "image": "/images/best-free-image-color-picker-designers.png",
+    "pageFile": "best-5-free-image-color-picker-for-graphic-designers"
+  },
+  {
+    "title": "Know What Smart Color Previewer Is",
+    "slug": "know-what-smart-color-previewer-is",
+    "date": "2026-06-10",
+    "category": "Color Tools",
+    "excerpt": "Learn what a smart color previewer is, how it helps designers preview color combinations, and why it is useful for branding, UI design, readability, and creative work.",
+    "image": "/images/smart-color-previewer-guide.png",
+    "pageFile": "know-what-smart-color-previewer-is"
+  },
+  {
+    "title": "Video to Image Converter Tool Needs in Video Editing",
+    "slug": "video-to-image-converter-tool-needs-in-video-editing",
+    "date": "2026-06-10",
+    "category": "Converter Tools",
+    "excerpt": "Learn why video to image converter tools are useful in video editing and how extracting frames can help create thumbnails, previews, references, and visual assets.",
+    "image": "/images/video-to-image-converter-video-editing.png",
+    "pageFile": "video-to-image-converter-tool-needs-in-video-editing"
+  },
+  {
     "title": "How to Clean Phone Numbers in Google Sheets",
     "slug": "how-to-clean-phone-numbers-in-google-sheets",
     "date": "2026-06-09",
