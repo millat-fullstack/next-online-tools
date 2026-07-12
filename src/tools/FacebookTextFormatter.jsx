@@ -725,10 +725,6 @@ export default function FacebookTextFormatter() {
             question="Are these real fonts?"
             answer="No. The formatter uses Unicode characters that resemble different font styles, so the text remains copyable without HTML or a font file."
           />
-          <FaqItem
-            question="Is my text uploaded or saved?"
-            answer="No. Formatting happens inside the browser and this component does not require a backend, database, login, or paid API."
-          />
         </div>
       </section>
 
