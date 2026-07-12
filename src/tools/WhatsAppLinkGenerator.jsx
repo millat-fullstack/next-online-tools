@@ -568,8 +568,7 @@ export default function WhatsAppLinkGenerator() {
       <section className="card p-6 sm:p-8">
         <h2 className="text-2xl font-bold mb-4">Create a WhatsApp Link, QR Code, and Website Button</h2>
         <div className="space-y-4 leading-7 text-[var(--text-secondary)]"><p>Enter a country code, phone number, and optional message. The tool creates a direct wa.me link that visitors can open to start a WhatsApp conversation.</p><p>You can also download a QR code for menus, packaging, signs, or business cards, and create a customizable HTML button for your website.</p></div>
-        <div className="mt-6 grid md:grid-cols-3 gap-4"><InfoCard title="No backend required" text="All link, QR, and HTML generation happens inside the browser." /><InfoCard title="No paid API" text="The tool uses browser features and a local QR-code library." /><InfoCard title="Privacy-friendly" text="The tool does not need to upload or save the phone number or message." /></div>
-      </section>
+        </section>
 
       <section className="card p-6 sm:p-8">
         <h2 className="text-2xl font-bold mb-4">Important notice</h2>
