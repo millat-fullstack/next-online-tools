@@ -1,5 +1,32 @@
 export const blogs = [
   {
+    "title": "Best Online Tools Website for Free PDF, Image, Text, and Web Tools",
+    "slug": "BestOnlineToolsWebsiteForFreePDFImageTextAndWebTools",
+    "date": "2026-07-15",
+    "category": "Online Tools",
+    "excerpt": "Looking for a free online tools website? Discover useful PDF, image, text, color, converter, and web tools for everyday digital tasks.",
+    "image": "/images/best-online-tools-website.png",
+    "pageFile": "best-online-tools-website"
+  },
+  {
+    "title": "Free Online Tools You Should Be Using: Canva, WordPress, Trello, and More",
+    "slug": "FreeOnlineToolsYouShouldBeUsing",
+    "date": "2026-07-15",
+    "category": "Online Tools",
+    "excerpt": "Discover useful free online tools including Canva, WordPress, Trello, Google Docs, and Next Online Tools for design, websites, productivity, and everyday digital work.",
+    "image": "/images/free-online-tools-you-should-use.png",
+    "pageFile": "free-online-tools-you-should-use"
+  },
+  {
+    "title": "Top Reasons to Use an Online Tools Website for Everyday Digital Tasks",
+    "slug": "TopReasonsToUseAnOnlineToolsWebsiteForEverydayDigitalTasks",
+    "date": "2026-07-15",
+    "category": "Online Tools",
+    "excerpt": "Discover the top reasons to use an online tools website for everyday digital tasks, including file conversion, image editing, PDF management, text formatting, and productivity.",
+    "image": "/images/reasons-use-online-tools-website.png",
+    "pageFile": "reasons-use-online-tools-website"
+  },
+  {
     "title": "Best 10 Free Online Tools for Digital Marketing",
     "slug": "best-10-free-online-tools-for-digital-marketing",
     "date": "2026-06-10",
